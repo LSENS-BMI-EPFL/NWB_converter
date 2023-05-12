@@ -5,6 +5,7 @@ from pynwb import NWBFile
 from pynwb.file import Subject
 from datetime import datetime
 from dateutil.tz import tzlocal
+from continuous_log_processing.misc_functions.utils import print_info_dict
 
 
 def create_nwb_file(subject_data_yaml_file, session_data_yaml_file):
@@ -40,8 +41,11 @@ def create_nwb_file(subject_data_yaml_file, session_data_yaml_file):
         if kwargs_subject[key] is not None:
             kwargs_subject[key] = str(kwargs_subject[key])
     if "date_of_birth" in kwargs_subject:
-        kwargs_subject["date_of_birth"] = datetime.strptime(kwargs_subject["date_of_birth"], '%m/%d/%Y')
-    print(f'kwargs_subject {kwargs_subject}')
+        date_of_birth = datetime.strptime(kwargs_subject["date_of_birth"], '%m/%d/%Y')
+        date_of_birth = date_of_birth.replace(tzinfo=tzlocal())
+        kwargs_subject["date_of_birth"] = date_of_birth
+    print(f'Subject')
+    print_info_dict(kwargs_subject)
     subject = Subject(**kwargs_subject)
 
     # Session info
@@ -67,19 +71,21 @@ def create_nwb_file(subject_data_yaml_file, session_data_yaml_file):
         print(f"session_start_time is needed in the file {session_data_yaml_file}")
         return
     else:
-        kwargs_nwb_file["session_start_time"] = datetime.strptime(kwargs_nwb_file["session_start_time"],
-                                                                  '%Y/%m/%d %H:%M:%S')
-        print(f"kwargs_nwb_file['session_start_time'] {kwargs_nwb_file['session_start_time']}")
-
+        session_start_time = datetime.strptime(kwargs_nwb_file["session_start_time"], '%Y/%m/%d %H:%M:%S')
+        session_start_time = session_start_time.replace(tzinfo=tzlocal())
+        kwargs_nwb_file["session_start_time"] = session_start_time
     if "session_id" not in kwargs_nwb_file:
         kwargs_nwb_file["session_id"] = kwargs_nwb_file["identifier"]
 
     #####################################
     # ###    creating the NWB file    ###
     #####################################
+    print(f'Session')
+    print_info_dict(kwargs_nwb_file)0
+
     kwargs_nwb_file["subject"] = subject
     kwargs_nwb_file["file_create_date"] = datetime.now(tzlocal())
-    print(f'kwargs_nwb_file {kwargs_nwb_file}')
+
     nwb_file = NWBFile(**kwargs_nwb_file)
 
     return nwb_file

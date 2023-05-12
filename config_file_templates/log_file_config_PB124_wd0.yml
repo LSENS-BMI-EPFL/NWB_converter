@@ -1,0 +1,27 @@
+root_path : "C:/Users/rdard/Documents/NWB_to_create/PB124/whisker_day0"  # path to folder containing behavior session results
+
+session_folder : "PB124_20230404_141456"  # name of the behavior session folder
+
+movie_files_path : # None or list of paths to the avi files for behavior filming
+
+movie_timestamps_path : # Not used anymore
+
+ci_tiff_path : "C:/Users/rdard/Documents/NWB_to_create/PB124/whisker_day0/PB124_whisker_D0_00001.tif"  # Path the the calcium imaging movie (tiff format)
+
+scan_image_dict:
+ "theoretical_ci_sampling_rate" : 30
+ "zoom" : 3
+channels_dict:
+ "trial_TTL" : 2
+ "lick_trace": 0
+ "galvo_position": 1
+ "cam1": 3
+ "cam2": 4
+threshold_dict:
+ "trial_TTL": 4
+ galvo_position:
+  "1": 2
+  "2": 1.2
+  "3": 0.9
+ "cam1": 2
+ "cam2": 2

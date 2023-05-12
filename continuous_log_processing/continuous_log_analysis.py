@@ -31,7 +31,8 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
         camera_filtering = False
     timestamps_dict, n_frames_dict = extract_timestamps(continuous_data_dict, threshold_dict, scanimage_dict,
                                                         ni_session_sr=5000, filter_cameras=camera_filtering)
-    print(f"Number of frames per acquisition {print_info_dict(n_frames_dict)}")
+    print(f"Number of frames per acquisition : ")
+    print_info_dict(n_frames_dict)
 
     if save_ts_dict:
         saving_timestamps = os.path.join(root_path, session_folder, "timestamps_dict")

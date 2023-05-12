@@ -22,32 +22,39 @@ def convert_data_to_nwb(subject_data_yaml, session_data_yaml, log_yaml_file, two
     """
 
     print(f"Start NWB conversion")
+    print(f" ")
     print(f"Extract timestamps from continuous log")
     timestamps_dict, n_frames_dict = analyze_continuous_log(config_file=log_yaml_file, do_plot=False,
                                                             plot_start=None, plot_stop=None)
 
+    print(f" ")
     print(f"Open NWB file and add metadata")
     nwb_file = create_nwb_file(subject_data_yaml_file=subject_data_yaml,
                                session_data_yaml_file=session_data_yaml)
 
+    print(f" ")
     print(f"Convert CI movie")
     convert_ci_movie(nwb_file=nwb_file,
                      two_p_yaml_file=two_p_yaml_file,
                      log_yaml_file=log_file,
                      movie_format='link')
 
+    print(f" ")
     print(f"Convert Suite2p data")
     convert_suite2p_data(nwb_file=nwb_file,
                          suite2p_folder=suite2p_folder,
                          ci_frame_timestamps=timestamps_dict['galvo_position'][0:-2])
 
+    print(f" ")
     print(f"Convert Behavior data")
     convert_behavior_data(nwb_file, timestamps_dict, behavior_results_file, bhv_mapping_file)
 
+    print(f" ")
     print(f"Saving NWB file")
     save_nwb_file(nwb_file=nwb_file, output_folder=output_folder)
 
 
+# Run the conversion
 subject_yaml = "C:/Users/rdard/Documents/NWB_to_create/PB124/whisker_day0/subject_data.yml"
 session_yaml = "C:/Users/rdard/Documents/NWB_to_create/PB124/whisker_day0/session_data.yml"
 log_file = "C:/Users/rdard/Documents/NWB_to_create/PB124/whisker_day0/log_file_config_PB124_wd0.yml"

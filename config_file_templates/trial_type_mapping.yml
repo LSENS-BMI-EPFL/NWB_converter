@@ -1,0 +1,7 @@
+# Mapping between performance number and trial type
+0 : whisker_miss
+1 : auditory_miss
+2 : whisker_hit
+3 : auditory_hit
+4 : correct_rejection
+5 : false_alarm

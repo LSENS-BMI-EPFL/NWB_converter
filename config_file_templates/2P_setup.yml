@@ -1,0 +1,5 @@
+device: 2P microscope setup 1
+emission_lambda: 510.0
+excitation_lambda: 920.0
+image_plane_location: S1_L3/4
+indicator: GCaMP8m
