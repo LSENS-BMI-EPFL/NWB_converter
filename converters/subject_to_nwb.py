@@ -81,7 +81,7 @@ def create_nwb_file(subject_data_yaml_file, session_data_yaml_file):
     # ###    creating the NWB file    ###
     #####################################
     print(f'Session')
-    print_info_dict(kwargs_nwb_file)0
+    print_info_dict(kwargs_nwb_file)
 
     kwargs_nwb_file["subject"] = subject
     kwargs_nwb_file["file_create_date"] = datetime.now(tzlocal())
