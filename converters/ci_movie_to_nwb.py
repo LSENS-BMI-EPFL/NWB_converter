@@ -47,6 +47,9 @@ def convert_ci_movie(nwb_file, two_p_yaml_file, log_yaml_file, movie_format):
                                                   location=image_plane_location)
 
     motion_corrected_file_name = log_yaml_file_data.get('ci_tiff_path')
+    if motion_corrected_file_name is None:
+        print(f"No calcium imaging movie to add")
+        return
 
     if movie_format != 'link':
         tiff_movie = load_tiff_movie_in_memory(motion_corrected_file_name,

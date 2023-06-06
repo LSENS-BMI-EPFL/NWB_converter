@@ -4,6 +4,7 @@ from converters.suite2p_to_nwb import convert_suite2p_data
 from converters.nwb_saving import save_nwb_file
 from converters.behavior_to_nwb import convert_behavior_data
 from continuous_log_processing.continuous_log_analysis import analyze_continuous_log
+import os
 
 
 def convert_data_to_nwb(subject_data_yaml, session_data_yaml, log_yaml_file, two_p_yaml_file, suite2p_folder,
@@ -41,9 +42,12 @@ def convert_data_to_nwb(subject_data_yaml, session_data_yaml, log_yaml_file, two
 
     print(f" ")
     print(f"Convert Suite2p data")
-    convert_suite2p_data(nwb_file=nwb_file,
-                         suite2p_folder=suite2p_folder,
-                         ci_frame_timestamps=timestamps_dict['galvo_position'][0:-2])
+    if suite2p_folder is not None:
+        convert_suite2p_data(nwb_file=nwb_file,
+                             suite2p_folder=suite2p_folder,
+                             ci_frame_timestamps=timestamps_dict['galvo_position'][0:-2])
+    else:
+        print(f"No Suite2p data to add")
 
     print(f" ")
     print(f"Convert Behavior data")
@@ -55,13 +59,18 @@ def convert_data_to_nwb(subject_data_yaml, session_data_yaml, log_yaml_file, two
 
 
 # Run the conversion
-subject_yaml = "C:/Users/rdard/Documents/NWB_to_create/PB124/whisker_day0/subject_data.yml"
-session_yaml = "C:/Users/rdard/Documents/NWB_to_create/PB124/whisker_day0/session_data.yml"
-log_file = "C:/Users/rdard/Documents/NWB_to_create/PB124/whisker_day0/log_file_config_PB124_wd0.yml"
-two_p_yml = "C:/Users/rdard/Documents/NWB_to_create/PB124/whisker_day0/2P_setup.yml"
-s2p_folder = "C:/Users/rdard/Documents/NWB_to_create/PB124/whisker_day0/suite2p"
-bhv_file = "C:/Users/rdard/Documents/NWB_to_create/PB124/whisker_day0/PB124_20230404_141456/results.csv"
-bhv_trials_names = "C:/Users/rdard/Documents/NWB_to_create/PB124/whisker_day0/trial_type_mapping.yml"
+root_path = "C:/Users/rdard/Documents/NWB_to_create"
+mouse_id = "PB124"
+day = "whisker_day0"
+bhv_session = "PB124_20230404_141456"
+subject_yaml = os.path.join(root_path, mouse_id, day, "subject_data.yml")
+session_yaml = os.path.join(root_path, mouse_id, day, "session_data.yml")
+log_file = os.path.join(root_path, mouse_id, day, f"log_file_config_{bhv_session}.yml")
+two_p_yml = os.path.join(root_path, mouse_id, day, "2P_setup.yml")
+s2p_folder = os.path.join(root_path, mouse_id, day, "suite2p")
+# s2p_folder = None
+bhv_file = os.path.join(root_path, mouse_id, day, bhv_session, "results.csv")
+bhv_trials_names = os.path.join(root_path, mouse_id, day, "trial_type_mapping.yml")
 nwb_output_folder = "C:/Users/rdard/Documents/NWB_files"
 
 convert_data_to_nwb(subject_data_yaml=subject_yaml, session_data_yaml=session_yaml, log_yaml_file=log_file,

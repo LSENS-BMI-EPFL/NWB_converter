@@ -1,4 +1,4 @@
-from utils.behavior_converter_misc import get_trial_timestamps_dict
+from utils.behavior_converter_misc import get_trial_timestamps_dict, build_simplified_trial_table, add_trials_to_nwb
 from pynwb.behavior import BehavioralEvents
 from pynwb.base import TimeSeries
 import numpy as np
@@ -34,3 +34,11 @@ def convert_behavior_data(nwb_file, timestamps_dict, behavior_results_file, bhv_
 
         behavior_events.add_timeseries(trial_timeseries)
         print(f"Adding {trial_type} to BehavioralEvents")
+
+    simplified_trial_table = build_simplified_trial_table(behavior_results_file=behavior_results_file,
+                                                          timestamps_dict=timestamps_dict)
+
+    print(f"Adding trials to NWB file")
+    add_trials_to_nwb(nwb_file, simplified_trial_table)
+
+

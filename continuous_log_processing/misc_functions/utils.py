@@ -130,7 +130,7 @@ def plot_continuous_data_dict(continuous_data_dict, timestamps_dict, ni_session_
 
             if timestamps_dict is not None and timestamps_dict.get(channel_name) is not None:
                 on_off_times = timestamps_dict.get(channel_name)
-                if channel_name in ["trial_TTL", "cam1", "cam2"]:
+                if channel_name in ["trial_TTL", "cam1", "cam2", "context"]:
                     for on_off in on_off_times:
                         if t_start is not None and on_off[0] < t_start:
                             continue
@@ -221,6 +221,11 @@ def extract_timestamps(continuous_data_dict, threshold_dict, scanimage_dict, ni_
                     print(f"Session likely stopped during last exposure of {key} (before image acquisition)")
                     filtered_on_off_timestamps = on_off_timestamps[0: -1]
                     on_off_timestamps = filtered_on_off_timestamps
+
+            if key in ["trial_TTL"] and binary_data[-1] == 1:
+                print(f"Session likely stopped before end of last {key}")
+                filtered_on_off_timestamps = on_off_timestamps[0: -1]
+                on_off_timestamps = filtered_on_off_timestamps
 
             timestamps_dict[key] = on_off_timestamps
             n_frames_dict[key] = len(on_off_timestamps)

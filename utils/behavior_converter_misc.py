@@ -35,4 +35,67 @@ def get_trial_timestamps_dict(timestamps_dict, behavior_results_file, bhv_mappin
     return trial_timestamps_dict, trial_indexes_dict
 
 
+def list_trial_type(results_table):
+    auditory_trials = np.where(results_table['is_auditory'])[0].astype(int)
+    whisker_trials = np.where(results_table['is_whisker'])[0].astype(int)
+    catch_trials = np.where(np.logical_not(results_table['is_stim']).astype(int))[0]
+
+    n_trials = results_table['perf'].size
+
+    trial_type_list = ["NA" for trial in range(n_trials)]
+    for auditory_trial in auditory_trials:
+        trial_type_list[auditory_trial] = "auditory"
+    for whisker_trial in whisker_trials:
+        trial_type_list[whisker_trial] = "whisker"
+    for catch_trial in catch_trials:
+        trial_type_list[catch_trial] = "catch"
+
+    return trial_type_list
+
+
+def build_simplified_trial_table(behavior_results_file, timestamps_dict):
+    simplified_trial_table = pd.DataFrame()
+    trial_table = pd.read_csv(behavior_results_file)
+
+    trial_timestamps = np.array(timestamps_dict['trial_TTL'])
+    trial_type_list = list_trial_type(results_table=trial_table)
+
+    n_trials = trial_table['perf'].size
+    print(f"n_trials : {n_trials}")
+    lick = trial_table['lick_flag'].values
+    trial_outcome = ["Hit" if lick[trial] == 1 else "Miss" for trial in range(n_trials)]
+    simplified_trial_table['trial_index'] = trial_table['trial_number']
+    simplified_trial_table['trial_start'] = trial_timestamps[:, 0]
+    simplified_trial_table['trial_stop'] = trial_timestamps[:, 1]
+    simplified_trial_table['trial_type'] = trial_type_list
+    simplified_trial_table['wh_reward'] = trial_table['wh_reward']
+    simplified_trial_table['aud_reward'] = trial_table['aud_reward']
+    simplified_trial_table['trial_outcome'] = trial_outcome
+    simplified_trial_table['early_lick'] = trial_table['early_lick']
+    simplified_trial_table['context_block'] = trial_table['context_block']
+
+    return simplified_trial_table
+
+
+def add_trials_to_nwb(nwb_file, simplified_trial_table):
+    column_names = simplified_trial_table.columns
+    columns_to_add = column_names[3:]
+
+    for column in columns_to_add:
+        nwb_file.add_trial_column(name=column, description="None")
+
+    n_trials = simplified_trial_table['trial_type'].size
+    for trial in range(n_trials):
+        nwb_file.add_trial(start_time=simplified_trial_table['trial_start'].values[trial],
+                           stop_time=simplified_trial_table['trial_stop'].values[trial],
+                           trial_type=simplified_trial_table['trial_type'].values[trial],
+                           wh_reward=simplified_trial_table['wh_reward'].values[trial],
+                           aud_reward=simplified_trial_table['aud_reward'].values[trial],
+                           trial_outcome=simplified_trial_table['trial_outcome'].values[trial],
+                           early_lick=simplified_trial_table['early_lick'].values[trial],
+                           context_block=simplified_trial_table['context_block'].values[trial])
+
+
+
+
 
