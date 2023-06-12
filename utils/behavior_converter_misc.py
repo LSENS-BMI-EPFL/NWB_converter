@@ -1,6 +1,32 @@
+import os
 import numpy as np
 import pandas as pd
 import yaml
+import json
+
+
+def find_training_days(subject_id, input_folder):
+    sessions_list = os.listdir(os.path.join(input_folder, 'Training'))
+    sessions_list = [s for s in sessions_list if os.path.isdir(os.path.join(input_folder, 'Training', s))]
+    # Ordering in time with lexicographic ordering assumes %Y%m%d data format in session id.
+    sessions_list = sorted(sessions_list)
+
+    # Find session type (auditory or whisker day) and label days with integer from whisker day.
+    behavior_type = []
+    for isession in sessions_list:
+        json_path = os.path.join(input_folder, 'Training', isession, 'session_config.json')
+        with open(json_path, 'r') as f:
+            json_config = json.load(f)
+        behavior_type.append(json_config['behaviour_type'])
+    n_aud = len([s for s in behavior_type if s == 'auditory'])
+    n_wh = len([s for s in behavior_type if s == 'whisker'])
+    label = list(range(-n_aud, 0)) + list(range(0, n_wh))
+    label = [f"+{d}" if d > 0 else str(d) for d in label]
+    behavior_type = [f"{t}_{l}" for t, l in zip(behavior_type, label)]
+
+    training_days = list(zip(sessions_list, behavior_type))
+
+    return training_days
 
 
 def load_timestamps_data(trial_file, timestamps_dict):
@@ -11,8 +37,12 @@ def load_timestamps_data(trial_file, timestamps_dict):
     return trial_list, trial_timestamps, ci_timestamps
 
 
-def get_trial_timestamps_dict(timestamps_dict, behavior_results_file, bhv_mapping_file):
-    behavior_results = pd.read_csv(behavior_results_file)
+def get_trial_timestamps_dict(timestamps_dict, behavior_results_file, config_file):
+    if os.path.splitext(behavior_results_file)[1] == '.txt':
+        sep = r'\s+'
+    else:
+        sep = ','
+    behavior_results = pd.read_csv(behavior_results_file, sep=sep, engine='python')
     trial_outcomes = behavior_results['perf'].values
     trial_types = np.unique(trial_outcomes)
     trial_timestamps = np.array(timestamps_dict['trial_TTL'])
@@ -25,8 +55,8 @@ def get_trial_timestamps_dict(timestamps_dict, behavior_results_file, bhv_mappin
         trial_indexes_dict[trial_type] = trial_idx
 
     # Mapping between performance number and trial type
-    with open(bhv_mapping_file, 'r') as stream:
-        bhv_mapping_file_data = yaml.safe_load(stream)
+    with open(config_file, 'r') as stream:
+        bhv_mapping_file_data = yaml.safe_load(stream)['trial_map']
     old_keys = list(trial_timestamps_dict.keys())
     for old_key in old_keys:
         trial_timestamps_dict[bhv_mapping_file_data[old_key]] = trial_timestamps_dict.pop(old_key)
@@ -56,7 +86,6 @@ def list_trial_type(results_table):
 def build_simplified_trial_table(behavior_results_file, timestamps_dict):
     simplified_trial_table = pd.DataFrame()
     trial_table = pd.read_csv(behavior_results_file)
-
     trial_timestamps = np.array(timestamps_dict['trial_TTL'])
     trial_type_list = list_trial_type(results_table=trial_table)
 

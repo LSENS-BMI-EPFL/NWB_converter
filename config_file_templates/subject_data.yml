@@ -1,10 +1,10 @@
-age : P3M
-age__reference : birth
-description : mouse PB124
-genotype : Rasgfr2cre
-sex : M
-species : Mus musculus
-subject_id : PB124
-weight : 30.0 g
-date_of_birth : 02/01/2023
-strain : C57BL/6J
+age: P3M
+age__reference: birth
+description: mouse PB124
+genotype: Rasgrf2cre
+sex: M
+species: Mus musculus
+subject_id: PB124
+weight: 30.0 g
+date_of_birth: 02/01/2023
+strain: C57BL/6J

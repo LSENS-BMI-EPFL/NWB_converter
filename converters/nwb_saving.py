@@ -1,6 +1,6 @@
+import os
 from datetime import datetime
 from pynwb import NWBHDF5IO
-import os
 
 
 def save_nwb_file(nwb_file, output_folder):

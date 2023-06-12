@@ -21,21 +21,19 @@ def convert_ci_movie(nwb_file, two_p_yaml_file, log_yaml_file, movie_format):
 
     """
 
-    with open(two_p_yaml_file, 'r') as stream:
-        two_p_data_yaml_file = yaml.safe_load(stream)
+    with open(config_file, 'r') as stream:
+        config = yaml.safe_load(stream)
+    two_p_metadata = config['two_photon_metadata']
 
-    device = Device(two_p_data_yaml_file.get('device'))
+    device = two_p_metadata['device']
     nwb_file.add_device(device)
-    optical_channel = OpticalChannel('optical_channel', 'GreenPMT', two_p_data_yaml_file.get('emission_lambda'))
-    excitation_lambda = two_p_data_yaml_file.get('excitation_lambda')
-    indicator = two_p_data_yaml_file.get('indicator')
-    image_plane_location = two_p_data_yaml_file.get('image_plane_location')
+    optical_channel = OpticalChannel('optical_channel', 'GreenPMT', two_p_metadata['emission_lambda'])
+    excitation_lambda = two_p_metadata['excitation_lambda']
+    indicator = two_p_metadata['indicator']
+    image_plane_location = two_p_metadata['image_plane_location']
 
-    with open(log_yaml_file, 'r') as stream:
-        log_yaml_file_data = yaml.safe_load(stream)
-
-    scanimage_dict = log_yaml_file_data.get("scan_image_dict")
-    ci_sampling_rate = float(scanimage_dict.get("theoretical_ci_sampling_rate"))
+    scanimage_dict = config['log_continuous_metadata']['scanimage_dict']
+    ci_sampling_rate = float(scanimage_dict['theoretical_ci_sampling_rate'])
 
     imaging_plane = nwb_file.create_imaging_plane(name='my_imaging_plane',
                                                   optical_channel=optical_channel,
