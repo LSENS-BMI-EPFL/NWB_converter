@@ -18,8 +18,8 @@ def find_training_days(subject_id, input_folder):
         with open(json_path, 'r') as f:
             json_config = json.load(f)
         behavior_type.append(json_config['behaviour_type'])
-    n_aud = len([s for s in behavior_type if s == 'auditory'])
-    n_wh = len([s for s in behavior_type if s == 'whisker'])
+    n_aud = len([s for s in behavior_type if s in['free_licking', 'auditory']])
+    n_wh = len([s for s in behavior_type if s in ['whisker', 'context']])
     label = list(range(-n_aud, 0)) + list(range(0, n_wh))
     label = [f"+{d}" if d > 0 else str(d) for d in label]
     behavior_type = [f"{t}_{l}" for t, l in zip(behavior_type, label)]
@@ -90,7 +90,11 @@ def build_simplified_trial_table(behavior_results_file, timestamps_dict):
     trial_type_list = list_trial_type(results_table=trial_table)
 
     n_trials = trial_table['perf'].size
-    print(f"n_trials : {n_trials}")
+    print(f"Read '.csv' file to build trial NWB trial table ({n_trials} trials)")
+    if len(trial_timestamps[:, 0]) > n_trials:
+        print(f"csv table has one less trial than TTL up/down signal session must have been stop "
+              f"before saving very last trial")
+        trial_timestamps = trial_timestamps[0:-1, :]
     lick = trial_table['lick_flag'].values
     trial_outcome = ["Hit" if lick[trial] == 1 else "Miss" for trial in range(n_trials)]
     simplified_trial_table['trial_index'] = trial_table['trial_number']

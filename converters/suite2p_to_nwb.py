@@ -3,12 +3,13 @@ import os
 import numpy as np
 from PIL import ImageSequence
 import PIL
+from utils.server_paths import get_suite2p_folder
 
 
-def convert_suite2p_data(nwb_file, suite2p_folder, ci_frame_timestamps):
+def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
     """
     :param nwb_file: nwb file
-    :param suite2p_folder: path to the suite2p output folder
+    :param config_file : general config file allowing to reconstruct path to suite2p folder
     :param ci_frame_timestamps: timestamps of each imaging frame obtained from analyse of continuous log
     :return:
     """
@@ -20,7 +21,7 @@ def convert_suite2p_data(nwb_file, suite2p_folder, ci_frame_timestamps):
 
     image_series = nwb_file.acquisition.get("motion_corrected_ci_movie")
     if image_series is None:
-        raise Exception(f"No calcium imaging movie named 'motion_corrected_ci_movie' found in nwb_file")
+        print(f"No calcium imaging movie named 'motion_corrected_ci_movie' found in nwb_file")
 
     img_seg = ImageSegmentation(name="all_cells")
     module.add_data_interface(img_seg)
@@ -34,7 +35,11 @@ def convert_suite2p_data(nwb_file, suite2p_folder, ci_frame_timestamps):
     # Load Suite2p data
     suite2p_raw = None
     suite2p_deconvolve = None
-    if suite2p_folder is not None:
+    suite2p_folder = get_suite2p_folder(config_file)
+    if suite2p_folder is None:
+        print(f"No suite2p folder to add")
+        return
+    else:
         suite2p_folder = os.path.join(suite2p_folder, "plane0")
         if not os.path.isfile(os.path.join(suite2p_folder, "stat.npy")):
             print(f"Stat file missing in {suite2p_folder}")
@@ -51,17 +56,18 @@ def convert_suite2p_data(nwb_file, suite2p_folder, ci_frame_timestamps):
             suite2p_raw = np.load(os.path.join(suite2p_folder, "F.npy"), allow_pickle=True)
 
     # Check image dimension
-    if image_series.format == "tiff":
-        dim_y, dim_x = image_series.data.shape[1:]
-        n_frames = image_series.data.shape[0]
-        print(f"Dimensions double check: n_lines, n_cols: {image_series.data.shape[1:]}")
-    elif image_series.format == "external":
-        im = PIL.Image.open(image_series.external_file[0])
-        n_frames = len(list(ImageSequence.Iterator(im)))
-        dim_y, dim_x = np.array(im).shape
-        print(f"Dimensions double check: n_lines, n_cols: {np.array(im).shape}")
-    else:
-        raise Exception(f"Format of calcium movie imaging {image_series.format} not yet implemented")
+    if image_series is not None:
+        if image_series.format == "tiff":
+            dim_y, dim_x = image_series.data.shape[1:]
+            n_frames = image_series.data.shape[0]
+            print(f"Dimensions double check: n_lines, n_cols: {image_series.data.shape[1:]}")
+        elif image_series.format == "external":
+            im = PIL.Image.open(image_series.external_file[0])
+            n_frames = len(list(ImageSequence.Iterator(im)))
+            dim_y, dim_x = np.array(im).shape
+            print(f"Dimensions double check: n_lines, n_cols: {np.array(im).shape}")
+        else:
+            raise Exception(f"Format of calcium movie imaging {image_series.format} not yet implemented")
 
     # Add suite2p pixel mask
     pixel_masks = []

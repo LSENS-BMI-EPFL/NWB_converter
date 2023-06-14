@@ -20,9 +20,13 @@ def get_subject_data_folder(subject_id):
 
 
 def get_subject_analysis_folder(subject_id):
+    if subject_id == 'PB124':
+        experimenter = 'Robin_Dard'
+    else:
+        experimenter = EXPERIMENTER_MAP[subject_id[:2]]
     # Map initials to experimenter to get analysis folder path.
     analysis_folder = os.path.join('\\\\sv2files.epfl.ch', 'Petersen-Lab', 'analysis',
-                                    EXPERIMENTER_MAP[subject_id[:2]], 'data', subject_id)
+                                   experimenter, 'data', subject_id)
     if not os.path.exists(analysis_folder):
         os.makedirs(analysis_folder)
 
@@ -96,4 +100,17 @@ def get_imaging_file(config_file):
 
     return tiff_file
 
+
+def get_suite2p_folder(config_file):
+    with open(config_file, 'r', encoding='utf8') as stream:
+        config = yaml.safe_load(stream)
+    mouse_name = config['subject_metadata']['subject_id']
+    session_name = config['session_metadata']['session_id']
+    data_folder = get_subject_analysis_folder(mouse_name)
+    suite2p_path = os.path.join(data_folder, 'data', mouse_name, session_name, 'suite2p')
+    if not os.path.exists(suite2p_path):
+        print(f"No suite2p folder found for {session_name} session from {mouse_name}")
+        return None
+    else:
+        return suite2p_path
 

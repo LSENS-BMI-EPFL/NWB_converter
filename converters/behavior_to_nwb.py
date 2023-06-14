@@ -37,7 +37,7 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
                                       control=None, control_description=None, continuity='instantaneous')
 
         behavior_events.add_timeseries(trial_timeseries)
-        print(f"Adding {trial_type} to BehavioralEvents")
+        print(f"Adding {len(data_to_store)} {trial_type} to BehavioralEvents")
 
     simplified_trial_table = build_simplified_trial_table(behavior_results_file=behavior_results_file,
                                                           timestamps_dict=timestamps_dict)

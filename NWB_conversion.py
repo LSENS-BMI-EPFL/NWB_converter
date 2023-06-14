@@ -36,20 +36,17 @@ def convert_data_to_nwb(config_file, output_folder):
     nwb_file = create_nwb_file(config_file=config_file)
 
     # # TODO: update/remove the link to motion corrected ci tiff.
-    # print(" ")
-    # print("Convert CI movie")
-    # convert_ci_movie(nwb_file=nwb_file, config_file=config_file,
-    #                  movie_format='link')
+    print(" ")
+    print("Convert CI movie")
+    convert_ci_movie(nwb_file=nwb_file, config_file=config_file,
+                     movie_format='link')
 
     # # TODO: find suite2P folder with config file.
-    # print(" ")
-    # print("Convert Suite2p data")
-    # if suite2p_folder is not None:
-    #     convert_suite2p_data(nwb_file=nwb_file,
-    #                          suite2p_folder=suite2p_folder,
-    #                          ci_frame_timestamps=timestamps_dict['galvo_position'][0:-2])
-    # else:
-    #     print("No Suite2p data to add")
+    print(" ")
+    print("Convert Suite2p data")
+    convert_suite2p_data(nwb_file=nwb_file,
+                         config_file=config_file,
+                         ci_frame_timestamps=timestamps_dict['galvo_position'][0:-2])
 
     print(" ")
     print("Convert Behavior data")
@@ -62,7 +59,7 @@ def convert_data_to_nwb(config_file, output_folder):
 
 if __name__ == '__main__':
     # Run the conversion
-    mouse_id = 'AR091'
+    mouse_id = 'AR071'
     
     data_folder = get_subject_data_folder(mouse_id)
     analysis_folder = get_subject_analysis_folder(mouse_id)
@@ -77,5 +74,6 @@ if __name__ == '__main__':
         config_yaml = os.path.join(analysis_folder, isession, f"config_{isession}.yaml")
         bin_file = os.path.join(data_folder, 'Training', isession, 'results.csv')
         # Make conversion.
+        print(f" ------------------ ")
         print(f"Session: {isession}")
         convert_data_to_nwb(config_file=config_yaml, output_folder=nwb_folder)

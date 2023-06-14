@@ -1,20 +1,14 @@
-from pynwb.base import TimeSeries
-from pynwb.device import Device
-from pynwb.ophys import TwoPhotonSeries, OpticalChannel, CorrectedImageStack
-from utils.tiff_loading import load_tiff_movie_in_memory, get_tiff_movie_shape
-from PIL import ImageSequence
-import PIL
-import numpy as np
-import os
 import yaml
+from pynwb.ophys import TwoPhotonSeries, OpticalChannel, Device
+from utils.tiff_loading import load_tiff_movie_in_memory, get_tiff_movie_shape
+from utils.server_paths import get_imaging_file
 
 
-def convert_ci_movie(nwb_file, two_p_yaml_file, log_yaml_file, movie_format):
+def convert_ci_movie(nwb_file, config_file, movie_format):
     """
 
     :param nwb_file: nwb file
-    :param two_p_yaml_file: 2p config
-    :param log_yaml_file: sampling rate for 2p imaging (deducted from continuous logging)
+    :param config_file: Main yaml config file including 2P imaging metadata
     :param movie_format: either 'tiff' or 'link' if link add the path to the NWB file if tiff add the data
     :return: create ImagingPlane, add acquisition
 
@@ -23,9 +17,9 @@ def convert_ci_movie(nwb_file, two_p_yaml_file, log_yaml_file, movie_format):
 
     with open(config_file, 'r') as stream:
         config = yaml.safe_load(stream)
-    two_p_metadata = config['two_photon_metadata']
+    two_p_metadata = config['2P_metadata']
 
-    device = two_p_metadata['device']
+    device = Device(two_p_metadata['device'])
     nwb_file.add_device(device)
     optical_channel = OpticalChannel('optical_channel', 'GreenPMT', two_p_metadata['emission_lambda'])
     excitation_lambda = two_p_metadata['excitation_lambda']
@@ -44,7 +38,7 @@ def convert_ci_movie(nwb_file, two_p_yaml_file, log_yaml_file, movie_format):
                                                   indicator=indicator,
                                                   location=image_plane_location)
 
-    motion_corrected_file_name = log_yaml_file_data.get('ci_tiff_path')
+    motion_corrected_file_name = get_imaging_file(config_file)
     if motion_corrected_file_name is None:
         print(f"No calcium imaging movie to add")
         return

@@ -31,9 +31,9 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     slims = slims.loc[slims.cntn_cf_mouseName==mouse_id]
 
     subject_metadata = {
-        'mouse_id': subject_id,
+        'description': subject_id,
         'age__reference': 'birth',
-        'line': mouse_line,
+        'strain': mouse_line,
         'sex': slims['cntn_cf_sex'].values[0].capitalize(),
         'species': 'Mus musculus',
         'subject_id': slims['cntn_cf_mouseName'].values[0],
@@ -96,29 +96,53 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     # Log continuous metadata.
     # ########################
 
+    context_channel_date = "20230523"  # one day before first session with added channel
+    context_channel_date = datetime.datetime.strptime(context_channel_date, "%Y%m%d")
+
     scanimage_dict = {
         'theoretical_ci_sampling_rate': 30,
         'zoom': 3
         }
 
-    channels_dict = {
-        'trial_TTL': 2,
-        'lick_trace': 0,
-        'galvo_position': 1,
-        'cam1': 3,
-        'cam2': 4,
-        }
+    if session_date <= context_channel_date:
+        channels_dict = {
+            'trial_TTL': 2,
+            'lick_trace': 0,
+            'galvo_position': 1,
+            'cam1': 3,
+            'cam2': 4,
+            }
 
-    threshold_dict = {
-        'trial_TTL': 4,
-        'cam1': 2,
-        'cam2': 2,
-        'galvo_position': {
-            '1': 2,
-            '2': 1.2,
-            '3': 0.9,
+        threshold_dict = {
+            'trial_TTL': 4,
+            'cam1': 2,
+            'cam2': 2,
+            'galvo_position': {
+                '1': 2,
+                '2': 1.2,
+                '3': 0.9,
             },
         }
+    else:
+        channels_dict = {
+            'trial_TTL': 2,
+            'lick_trace': 0,
+            'galvo_position': 1,
+            'cam1': 3,
+            'cam2': 4,
+            'context': 5
+        }
+        threshold_dict = {
+            'trial_TTL': 4,
+            'cam1': 2,
+            'cam2': 2,
+            'galvo_position': {
+                '1': 2,
+                '2': 1.2,
+                '3': 0.9,
+                },
+            'context': 4
+            }
 
     log_continuous_metadata = {
         'scanimage_dict': scanimage_dict,
@@ -172,7 +196,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
 
 
 if __name__ == '__main__':
-    mouse_id = 'AR091'
+    mouse_id = 'RD001'
 
     # Find data and analysis folders on server for that mouse.
     data_folder = get_subject_data_folder(mouse_id)
@@ -184,4 +208,4 @@ if __name__ == '__main__':
     training_days = find_training_days(mouse_id, data_folder)
     for session_id, day in training_days:
         make_yaml_config(mouse_id, session_id, day, data_folder, analysis_folder,
-                        mouse_line='C57BL/6', gmo=True)
+                         mouse_line='C57BL/6', gmo=True)
