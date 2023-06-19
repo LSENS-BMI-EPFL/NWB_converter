@@ -229,12 +229,13 @@ def extract_timestamps(continuous_data_dict, threshold_dict, scanimage_dict, ni_
                                 for i in range(len(on_off_timestamps) - 1)])
                 early_licks = np.where(iti < 0.2)[0]
                 print(f"{len(early_licks)} early licks")
-                early_licks = list(early_licks)
-                early_licks_true_ind = [i - early_licks.index(i) for i in early_licks]
-                print(f"early licks trial indexes: {early_licks_true_ind}")
-                on_off_to_remove = np.array([i + 1 for i in early_licks])
-                filtered_on_off_timestamps = np.delete(on_off_timestamps, on_off_to_remove, axis=0)
-                on_off_timestamps = filtered_on_off_timestamps
+                if len(early_licks) > 0:
+                    early_licks = list(early_licks)
+                    early_licks_true_ind = [i - early_licks.index(i) for i in early_licks]
+                    print(f"early licks trial indexes: {early_licks_true_ind}")
+                    on_off_to_remove = np.array([i + 1 for i in early_licks])
+                    filtered_on_off_timestamps = np.delete(on_off_timestamps, on_off_to_remove, axis=0)
+                    on_off_timestamps = filtered_on_off_timestamps
             if key in ["trial_TTL"] and binary_data[-1] == 1:
                 print(f"Session likely stopped before end of last {key}")
                 filtered_on_off_timestamps = on_off_timestamps[0: -1]
