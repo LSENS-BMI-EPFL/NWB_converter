@@ -65,6 +65,55 @@ def get_trial_timestamps_dict(timestamps_dict, behavior_results_file, config_fil
     return trial_timestamps_dict, trial_indexes_dict
 
 
+def get_context_timestamps_dict(timestamps_dict, nwb_trial_table):
+    context_timestamps_dict = dict()
+    context_sound_dict = dict()
+    if len(np.unique(nwb_trial_table['context_block'].values[:])) == 1:
+        print(f"Found only 1 value in 'context_block' column from csv file : {nwb_trial_table['context_block'].values[0]}")
+        return None, None
+    if 'context' not in list(timestamps_dict.keys()):
+        return None, None
+
+    context_on_off = timestamps_dict.get('context')
+    if len(context_on_off) == 1:
+        return None, None
+    else:
+        print(f"Found {len(context_on_off)} context blocks")
+
+    rewarded_context = []
+    context_sound = []
+    n_context_blocks = len(context_on_off)
+    for context_bloc in range(n_context_blocks):
+        on_time = context_on_off[context_bloc][0]
+        off_time = context_on_off[context_bloc][1]
+        data_table = nwb_trial_table.loc[(nwb_trial_table['trial_start'] > on_time) &
+                                         (nwb_trial_table['trial_stop'] < off_time)]
+        # sanity check :
+        if context_bloc == (len(context_on_off) - 1) and data_table.empty:
+            print("Last context bloc has no trial skip it")
+            n_context_blocks = n_context_blocks - 1
+            continue
+        if len(np.unique(data_table.context_block.values[:])) > 1 or len(np.unique(data_table.wh_reward.values[:])) > 1:
+            print(f"Seems like there is more than one context trial in this {context_bloc} block")
+        rewarded_context.append(data_table.wh_reward.values[0])
+        context_sound.append(data_table.context_block.values[0])
+
+    rewarded_on_off = [context_on_off[i] for i in range(n_context_blocks) if rewarded_context[i] == 1]
+    non_rewarded_on_off = [context_on_off[i] for i in range(n_context_blocks) if rewarded_context[i] == 0]
+
+    context_timestamps_dict['rewarded'] = rewarded_on_off
+    context_timestamps_dict['non-rewarded'] = non_rewarded_on_off
+
+    rewarded_context = np.array(rewarded_context)
+    rewarded_sound = context_sound[np.where(rewarded_context)[0][0]]
+    non_rewarded_sound = context_sound[np.where(rewarded_context == 0)[0][0]]
+
+    context_sound_dict['rewarded'] = rewarded_sound
+    context_sound_dict['non-rewarded'] = non_rewarded_sound
+
+    return context_timestamps_dict, context_sound_dict
+
+
 def list_trial_type(results_table):
     auditory_trials = np.where(results_table['is_auditory'])[0].astype(int)
     whisker_trials = np.where(results_table['is_whisker'])[0].astype(int)
