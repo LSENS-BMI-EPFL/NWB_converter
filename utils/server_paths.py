@@ -34,8 +34,12 @@ def get_subject_analysis_folder(subject_id):
 
 
 def get_nwb_folder(subject_id):
+    if subject_id == 'PB124':
+        experimenter = 'Robin_Dard'
+    else:
+        experimenter = EXPERIMENTER_MAP[subject_id[:2]]
     nwb_folder = os.path.join('\\\\sv2files.epfl.ch', 'Petersen-Lab', 'analysis',
-                              EXPERIMENTER_MAP[subject_id[:2]], 'NWB')
+                              experimenter, 'NWB')
     if not os.path.exists(nwb_folder):
         os.makedirs(nwb_folder)
 
@@ -107,7 +111,7 @@ def get_suite2p_folder(config_file):
     mouse_name = config['subject_metadata']['subject_id']
     session_name = config['session_metadata']['session_id']
     data_folder = get_subject_analysis_folder(mouse_name)
-    suite2p_path = os.path.join(data_folder, 'data', mouse_name, session_name, 'suite2p')
+    suite2p_path = os.path.join(data_folder, session_name, 'suite2p')
     if not os.path.exists(suite2p_path):
         print(f"No suite2p folder found for {session_name} session from {mouse_name}")
         return None

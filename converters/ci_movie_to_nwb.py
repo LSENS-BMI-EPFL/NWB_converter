@@ -4,7 +4,7 @@ from utils.tiff_loading import load_tiff_movie_in_memory, get_tiff_movie_shape
 from utils.server_paths import get_imaging_file
 
 
-def convert_ci_movie(nwb_file, config_file, movie_format):
+def convert_ci_movie(nwb_file, config_file, movie_format, ci_frame_timestamps):
     """
 
     :param nwb_file: nwb file
@@ -54,7 +54,7 @@ def convert_ci_movie(nwb_file, config_file, movie_format):
                                                       data=tiff_movie,
                                                       imaging_plane=imaging_plane,
                                                       starting_frame=[0], format=movie_format,
-                                                      rate=float(ci_sampling_rate),
+                                                      timestamps=ci_frame_timestamps,
                                                       unit="lux")
     elif movie_format == 'link':
         n_frames, n_lines, n_cols = get_tiff_movie_shape(motion_corrected_file_name)
@@ -65,7 +65,7 @@ def convert_ci_movie(nwb_file, config_file, movie_format):
                                                       external_file=[motion_corrected_file_name],
                                                       imaging_plane=imaging_plane,
                                                       starting_frame=[0], format='external',
-                                                      rate=float(ci_sampling_rate),
+                                                      timestamps=ci_frame_timestamps,
                                                       unit="lux")
 
     nwb_file.add_acquisition(motion_corrected_img_series)

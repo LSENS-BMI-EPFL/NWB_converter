@@ -8,6 +8,7 @@ import pandas as pd
 from utils.behavior_converter_misc import find_training_days
 from utils.server_paths import get_subject_data_folder, get_subject_analysis_folder
 
+
 def make_yaml_config(subject_id, session_id, session_description, input_folder, output_folder,
                      mouse_line='C57BL/6', gmo=True):
     """_summary_
@@ -96,7 +97,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     # Log continuous metadata.
     # ########################
 
-    context_channel_date = "20230523"  # one day before first session with added channel
+    context_channel_date = "20230524"  # one day before first session with added channel odd number // 24 even
     context_channel_date = datetime.datetime.strptime(context_channel_date, "%Y%m%d")
 
     scanimage_dict = {
@@ -120,6 +121,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
             'galvo_position': {
                 '1': 2,
                 '2': 1.2,
+                '2.5': 1.3,
                 '3': 0.9,
             },
         }
@@ -139,6 +141,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
             'galvo_position': {
                 '1': 2,
                 '2': 1.2,
+                '2.5': 1.3,
                 '3': 0.9,
                 },
             'context': 4
@@ -196,16 +199,31 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
 
 
 if __name__ == '__main__':
-    mouse_id = 'RD001'
+    # mouse_ids = ['RD001', 'RD002', 'RD003', 'RD004', 'RD005', 'RD006']
+    # mouse_ids = ['RD001', 'RD003', 'RD005']
+    # mouse_ids = ['RD002', 'RD004', 'RD006']
+    # mouse_ids = ['RD002', 'RD004']
+    mouse_ids = ['PB124']
+    last_done_day = "20230628"
 
-    # Find data and analysis folders on server for that mouse.
-    data_folder = get_subject_data_folder(mouse_id)
-    analysis_folder = get_subject_analysis_folder(mouse_id)
-    if not os.path.exists(analysis_folder):
-        os.makedirs(analysis_folder)
-    
-    # Make config files.
-    training_days = find_training_days(mouse_id, data_folder)
-    for session_id, day in training_days:
-        make_yaml_config(mouse_id, session_id, day, data_folder, analysis_folder,
-                         mouse_line='C57BL/6', gmo=True)
+    for mouse_id in mouse_ids:
+
+        # Find data and analysis folders on server for that mouse.
+        data_folder = get_subject_data_folder(mouse_id)
+        analysis_folder = get_subject_analysis_folder(mouse_id)
+        if not os.path.exists(analysis_folder):
+            os.makedirs(analysis_folder)
+
+        # Make config files.
+        training_days = find_training_days(mouse_id, data_folder)
+        for session_id, day in training_days:
+            session_date = session_id.split('_')[1]
+            session_date = datetime.datetime.strptime(session_date, "%Y%m%d")
+            # if session_date <= datetime.datetime.strptime(last_done_day, "%Y%m%d"):
+            #     continue
+            sessions_to_do = ["PB124_20230404_141456"]
+            if session_id not in sessions_to_do:
+                continue
+            else:
+                make_yaml_config(mouse_id, session_id, day, data_folder, analysis_folder,
+                                 mouse_line='C57BL/6', gmo=True)

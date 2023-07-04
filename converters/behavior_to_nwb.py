@@ -1,14 +1,18 @@
 import numpy as np
+import os
 from utils.behavior_converter_misc import get_trial_timestamps_dict, build_simplified_trial_table, add_trials_to_nwb, \
     get_context_timestamps_dict
 from pynwb.behavior import BehavioralEvents, BehavioralEpochs
 from pynwb.base import TimeSeries
+from pynwb.image import ImageSeries
 from utils import server_paths
+from utils import continuous_processing
 
 
 def convert_behavior_data(nwb_file, timestamps_dict, config_file):
 
     behavior_results_file = server_paths.get_behavior_results_file(config_file)
+
     trial_timestamps_dict, trial_indexes_dict = get_trial_timestamps_dict(timestamps_dict,
                                                                           behavior_results_file, config_file)
 
@@ -69,6 +73,38 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
                                                    comments='no comments',
                                                    description=description,
                                                    control=None, control_description=None)
+
+    movie_files = server_paths.get_movie_files(config_file)
+    if movie_files is not None:
+        print("Adding behavior movies as external file to NWB file")
+        for movie_index, movie in enumerate(movie_files):
+            if not os.path.exists(movie):
+                print(f"File not found, do next video")
+                continue
+
+            video_length, video_frame_rate = continuous_processing.read_behavior_avi_movie(movie_files=movie_files)
+
+            # check n frames vs n_timestamps in ttl
+            on_off_timestamps = timestamps_dict['cam1']
+            if len(on_off_timestamps) - video_length > 2:
+                print("Difference in number of frames vs detected frames is larger than 2, do next video")
+                continue
+            else:
+                movie_timestamps = [on_off_timestamps[i][0] for i in range(video_length)]
+
+            behavior_external_file = ImageSeries(
+                name=f"{os.path.splitext(movie)[0]}_camera_{movie_index}",
+                description="Behavior video of animal in the task",
+                unit="n.a.",
+                external_file=movie,
+                format="external",
+                starting_frame=[0],
+                timestamps=movie_timestamps
+            )
+
+            nwb_file.add_acquisition(behavior_external_file)
+
+
 
 
 

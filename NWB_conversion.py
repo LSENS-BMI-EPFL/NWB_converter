@@ -39,14 +39,14 @@ def convert_data_to_nwb(config_file, output_folder):
     print(" ")
     print("Convert CI movie")
     convert_ci_movie(nwb_file=nwb_file, config_file=config_file,
-                     movie_format='link')
+                     movie_format='link', ci_frame_timestamps=timestamps_dict['galvo_position'])
 
     # # TODO: find suite2P folder with config file.
     print(" ")
     print("Convert Suite2p data")
     convert_suite2p_data(nwb_file=nwb_file,
                          config_file=config_file,
-                         ci_frame_timestamps=timestamps_dict['galvo_position'][0:-2])
+                         ci_frame_timestamps=timestamps_dict['galvo_position'])
 
     print(" ")
     print("Convert Behavior data")
@@ -59,21 +59,36 @@ def convert_data_to_nwb(config_file, output_folder):
 
 if __name__ == '__main__':
     # Run the conversion
-    mouse_id = 'AR071'
-    
-    data_folder = get_subject_data_folder(mouse_id)
-    analysis_folder = get_subject_analysis_folder(mouse_id)
-    nwb_folder = get_nwb_folder(mouse_id)
-    
-    # Find session list and session description.
-    training_days = find_training_days(mouse_id, data_folder)
-    
-    # Create NWB by looping over sessions.
-    for isession, iday in training_days:
-        # Find yaml config file and behavior results for this session.
-        config_yaml = os.path.join(analysis_folder, isession, f"config_{isession}.yaml")
-        bin_file = os.path.join(data_folder, 'Training', isession, 'results.csv')
-        # Make conversion.
-        print(f" ------------------ ")
-        print(f"Session: {isession}")
-        convert_data_to_nwb(config_file=config_yaml, output_folder=nwb_folder)
+    # mouse_ids = ['RD001', 'RD002', 'RD003', 'RD004', 'RD005', 'RD006']
+    # mouse_ids = ['RD001', 'RD003', 'RD005']
+    # mouse_ids = ['RD002', 'RD004', 'RD006']
+    # mouse_ids = ['RD002', 'RD004']
+    mouse_ids = ['PB124']
+
+    for mouse_id in mouse_ids:
+        data_folder = get_subject_data_folder(mouse_id)
+        analysis_folder = get_subject_analysis_folder(mouse_id)
+        nwb_folder = get_nwb_folder(mouse_id)
+        # nwb_folder = 'C:/Users/rdard/Documents/NWB_files/Anthony'
+
+        # Find session list and session description.
+        training_days = find_training_days(mouse_id, data_folder)
+
+        # Create NWB by looping over sessions.
+        for isession, iday in training_days:
+            # Filter sessions to do :
+            session_to_do = ["PB124_20230404_141456"]
+            # session_to_do = ["RD001_20230624_123913", "RD003_20230624_134719", "RD005_20230624_145511"]
+            if isession not in session_to_do:
+                continue
+
+            # date_to_do = "20230629"
+            # if date_to_do not in isession:
+            #     continue
+
+            # Find yaml config file and behavior results for this session.
+            config_yaml = os.path.join(analysis_folder, isession, f"config_{isession}.yaml")
+            # Make conversion.
+            print(f" ------------------ ")
+            print(f"Session: {isession}")
+            convert_data_to_nwb(config_file=config_yaml, output_folder=nwb_folder)

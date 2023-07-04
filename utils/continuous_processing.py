@@ -180,6 +180,19 @@ def filter_cameras_live_timestamps(on_off_timestamps):
     return filtered_on_off_timestamps
 
 
+def detect_ci_pause(ci_frame_times):
+    iti_distribution = np.diff(ci_frame_times)
+    pause_thr = np.median(iti_distribution) + 10 * np.std(iti_distribution)
+    pause_index = np.where((iti_distribution > pause_thr) & (iti_distribution > 1))[0]
+    n_pauses = len(pause_index)
+    if n_pauses > 0:
+        has_pause = True
+        return has_pause, n_pauses, pause_index
+    else:
+        has_pause = False
+        return has_pause, None, None
+
+
 def extract_timestamps(continuous_data_dict, threshold_dict, scanimage_dict, ni_session_sr, filter_cameras=False):
     binary_data_dict = {}
     timestamps_dict = {}
@@ -194,9 +207,34 @@ def extract_timestamps(continuous_data_dict, threshold_dict, scanimage_dict, ni_
         elif key == "galvo_position":
             galvo_dict_thr = threshold_dict.get(key)
             threshold = float(galvo_dict_thr.get(scan_image_zoom))
-            frame_times = sci_si.find_peaks(data, height=threshold, distance=int(ci_movie_frame_gap * 5000))[0]
-            timestamps_dict[key] = frame_times / ni_session_sr
-            n_frames_dict[key] = len(frame_times)
+            frame_points = sci_si.find_peaks(data, height=threshold,
+                                             distance=int(ci_movie_frame_gap * ni_session_sr))[0]
+            ci_frame_times = frame_points / ni_session_sr
+            ci_has_pause, n_pauses, pause_frame_index = detect_ci_pause(ci_frame_times)
+            if ci_has_pause:
+                # TODO : deal with pause in CI recordings, correct for ci timestamps (to be checked with frames count)
+                print(f"{n_pauses} pauses detected in CI recording")
+                print(f"CI pauses times (s): {ci_frame_times[pause_frame_index]}")
+                # Remove the last 2 detected frames at each pause
+                false_ci_fame_times = []
+                for pause_index in pause_frame_index:
+                    false_ci_fame_times.extend(np.arange(pause_index - 1, pause_index + 1))
+                ci_timestamps_to_keep = [True if i not in false_ci_fame_times else False
+                                         for i in range(len(ci_frame_times))]
+                filtered_ci_frame_times = ci_frame_times[ci_timestamps_to_keep]
+                # Remove the 2 last detected frames
+                # Todo : always true so far but check every time
+                end_filtered_ci_frame_times = filtered_ci_frame_times[0: -2]
+                # Save this
+                timestamps_dict[key] = end_filtered_ci_frame_times
+                n_frames_dict[key] = len(end_filtered_ci_frame_times)
+            else:
+                # Remove the 2 last detected frames
+                # Todo : always true so far but check every time
+                filtered_ci_frame_times = ci_frame_times[0: -2]
+                # Save this
+                timestamps_dict[key] = filtered_ci_frame_times
+                n_frames_dict[key] = len(filtered_ci_frame_times)
         else:
             threshold = int(threshold_dict.get(key))
             binary_data = np.zeros(len(data))
@@ -224,10 +262,10 @@ def extract_timestamps(continuous_data_dict, threshold_dict, scanimage_dict, ni_
                     on_off_timestamps = filtered_on_off_timestamps
 
             if key in ["trial_TTL"]:
-                # todo remove early licks double up/down
+                # Detection of early licks
                 iti = np.array([on_off_timestamps[i+1][0] - on_off_timestamps[i][1]
                                 for i in range(len(on_off_timestamps) - 1)])
-                early_licks = np.where(iti < 0.2)[0]
+                early_licks = np.where(iti < 0.25)[0]  # reset trial signal in less than 0.25 s (specific to early lick)
                 print(f"{len(early_licks)} early licks")
                 if len(early_licks) > 0:
                     early_licks = list(early_licks)
@@ -279,10 +317,12 @@ def read_behavior_avi_movie(movie_files):
             print("Error opening video stream or file")
 
         video_length = int(video_capture.get(cv2.CAP_PROP_FRAME_COUNT))
-        video_frame_rate = video_capture.get(cv2.CAP_PROP_FPS)
+        video_frame_rate = np.round(video_capture.get(cv2.CAP_PROP_FPS), 2)
 
         print(f"AVI name : {movie_name}")
-        print(f"AVI video frames: {video_length}, @ {np.round(video_frame_rate, 2)} Hz")
+        print(f"AVI video frames: {video_length}, @ {video_frame_rate} Hz")
+
+        return video_length, video_frame_rate
 
 
 def read_tiff_ci_movie(tiff_file):
