@@ -5,7 +5,6 @@ import cv2
 from ScanImageTiffReader import ScanImageTiffReader
 import time
 import os
-import sys
 
 
 def get_continuous_time_periods(binary_array):
@@ -209,6 +208,8 @@ def extract_timestamps(continuous_data_dict, threshold_dict, scanimage_dict, ni_
             threshold = float(galvo_dict_thr.get(scan_image_zoom))
             frame_points = sci_si.find_peaks(data, height=threshold,
                                              distance=int(ci_movie_frame_gap * ni_session_sr))[0]
+            if len(frame_points) == 0:
+                continue
             ci_frame_times = frame_points / ni_session_sr
             ci_has_pause, n_pauses, pause_frame_index = detect_ci_pause(ci_frame_times)
             if ci_has_pause:
@@ -325,7 +326,7 @@ def read_behavior_avi_movie(movie_files):
         return video_length, video_frame_rate
 
 
-def read_tiff_ci_movie(tiff_file):
+def read_tiff_ci_movie_data(tiff_file):
     start_time = time.time()
     tiff_movie = ScanImageTiffReader(tiff_file).data()
     stop_time = time.time()
@@ -335,12 +336,37 @@ def read_tiff_ci_movie(tiff_file):
 
 
 def read_tiff_ci_movie_frames(tiff_file):
-    start_time = time.time()
-    tiff_movie_shape = ScanImageTiffReader(tiff_file).shape()
-    stop_time = time.time()
-    print(f"Time for reading CI movie frames with ScanImageTiffReader: {np.round(stop_time - start_time, 3)} s")
-    n_frames = tiff_movie_shape[0]
-    print(f"CI movie: {n_frames} frames")
+    if os.path.splitext(tiff_file)[1] in ['.tif', '.tiff']:
+        start_time = time.time()
+        tiff_movie_shape = ScanImageTiffReader(tiff_file).shape()
+        stop_time = time.time()
+        print(f"Time for reading CI movie frames with ScanImageTiffReader: {np.round(stop_time - start_time, 3)} s")
+        n_frames = tiff_movie_shape[0]
+        print(f"CI movie: {n_frames} frames")
+    else:
+        files = [os.path.join(tiff_file, m) for m in os.listdir(tiff_file) if os.path.splitext(m)[1] in ['.tif', '.tiff']]
+        n_tiff_files = len(files)
+        print(f"Found {n_tiff_files} tif files in folder, count total number of frames")
+        total_frames = 0
+        blocs = list(np.arange(0, n_tiff_files, 25))
+        # start_time = time.time()
+        for bloc_index, bloc in enumerate(blocs):
+            if bloc_index == 0:
+                start = bloc
+            else:
+                start = bloc + 1
+            if bloc_index == len(blocs) - 1:
+                stop = n_tiff_files
+            else:
+                stop = blocs[bloc_index + 1]
+            for file_index, file in enumerate(files[start: stop]):
+                start_time = time.time()
+                tiff_movie_shape = ScanImageTiffReader(file).shape()
+                total_frames = total_frames + tiff_movie_shape[0]
+                print(f"File {file_index + start}: {tiff_movie_shape[0]} frames")
+                stop_time = time.time()
+                print(f"Time for reading CI movie frames with ScanImageTiffReader: {np.round(stop_time - start_time, 3)} s")
+        print(f"CI movie: {total_frames} frames")
 
 
 def read_timestamps_from_camera_control(timestamps_file):

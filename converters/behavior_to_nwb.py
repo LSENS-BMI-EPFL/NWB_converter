@@ -96,7 +96,7 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
                 name=f"{os.path.splitext(movie)[0]}_camera_{movie_index}",
                 description="Behavior video of animal in the task",
                 unit="n.a.",
-                external_file=movie,
+                external_file=[movie],
                 format="external",
                 starting_frame=[0],
                 timestamps=movie_timestamps
