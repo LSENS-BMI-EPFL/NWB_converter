@@ -11,7 +11,7 @@ conda create -n <env> python=3.9
 
 conda activate <env>
 
-pip install <petersenlab_to_nwb_env.txt>
+pip install -r <petersenlab_to_nwb_env.txt>
 
 ```
 
