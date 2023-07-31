@@ -6,6 +6,15 @@ import json
 
 
 def find_training_days(subject_id, input_folder):
+    """
+    Find days of behavioural training, excluding other test/dummy sessions.
+    Args:
+        subject_id:
+        input_folder:
+
+    Returns:
+
+    """
     sessions_list = os.listdir(os.path.join(input_folder, 'Training'))
     sessions_list = [s for s in sessions_list if os.path.isdir(os.path.join(input_folder, 'Training', s))]
     # Ordering in time with lexicographic ordering assumes %Y%m%d data format in session id.
