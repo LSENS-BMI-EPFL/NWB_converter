@@ -149,10 +149,12 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
             }
 
     log_continuous_metadata = {
-        'scanimage_dict': scanimage_dict,
         'channels_dict': channels_dict,
         'threshold_dict': threshold_dict,
         }
+
+    if json_config['twophoton_session']:
+        log_continuous_metadata.update(scanimage_dict)
 
 
     # Trial outcome mapping.
@@ -189,8 +191,11 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
         'session_metadata': session_metadata,
         'log_continuous_metadata': log_continuous_metadata,
         'trial_map': trial_map,
-        '2P_metadata': two_photon_metadata,
     }
+
+    if json_config['twophoton_session']:
+        main_dict.update(two_photon_metadata)
+
 
     analysis_session_folder = os.path.join(output_folder, session_id)
     if not os.path.exists(analysis_session_folder):
