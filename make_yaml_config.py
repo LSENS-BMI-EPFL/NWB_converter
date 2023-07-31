@@ -56,6 +56,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
         subject_metadata['genotype'] = slims['cntn_cf_strain'].values[0]
     else:
         subject_metadata['genotype'] = 'WT'
+        subject_metadata['strain'] = slims['cntn_cf_strain'].values[0]
 
     # Add weight at the beginning of the session from json config file.
     json_path = os.path.join(input_folder, 'Training', session_id, 'session_config.json')
@@ -203,8 +204,8 @@ if __name__ == '__main__':
     # mouse_ids = ['RD001', 'RD003', 'RD005']
     # mouse_ids = ['RD002', 'RD004', 'RD006']
     # mouse_ids = ['RD002', 'RD004']
-    mouse_ids = ['PB124']
-    last_done_day = "20230628"
+    mouse_ids = ['AB077']
+    #last_done_day = "20230601"
 
     for mouse_id in mouse_ids:
 
@@ -221,9 +222,9 @@ if __name__ == '__main__':
             session_date = datetime.datetime.strptime(session_date, "%Y%m%d")
             # if session_date <= datetime.datetime.strptime(last_done_day, "%Y%m%d"):
             #     continue
-            sessions_to_do = ["PB124_20230404_141456"]
-            if session_id not in sessions_to_do:
-                continue
-            else:
-                make_yaml_config(mouse_id, session_id, day, data_folder, analysis_folder,
-                                 mouse_line='C57BL/6', gmo=True)
+            #sessions_to_do = ["PB124_20230404_141456"]
+            #if session_id not in sessions_to_do:
+            #    continue
+            #else:
+            make_yaml_config(mouse_id, session_id, day, data_folder, analysis_folder,
+                                mouse_line='C57BL/6', gmo=False)
