@@ -36,17 +36,18 @@ def convert_data_to_nwb(config_file, output_folder):
     nwb_file = create_nwb_file(config_file=config_file)
 
     # # TODO: update/remove the link to motion corrected ci tiff.
-    print(" ")
-    print("Convert CI movie")
-    convert_ci_movie(nwb_file=nwb_file, config_file=config_file,
-                     movie_format='link', ci_frame_timestamps=timestamps_dict['galvo_position'])
+    if '2P_metadata' in config_file:
+        print(" ")
+        print("Convert CI movie")
+        convert_ci_movie(nwb_file=nwb_file, config_file=config_file,
+                         movie_format='link', ci_frame_timestamps=timestamps_dict['galvo_position'])
 
-    # # TODO: find suite2P folder with config file.
-    print(" ")
-    print("Convert Suite2p data")
-    convert_suite2p_data(nwb_file=nwb_file,
-                         config_file=config_file,
-                         ci_frame_timestamps=timestamps_dict['galvo_position'])
+        # # TODO: find suite2P folder with config file.
+        print(" ")
+        print("Convert Suite2p data")
+        convert_suite2p_data(nwb_file=nwb_file,
+                             config_file=config_file,
+                             ci_frame_timestamps=timestamps_dict['galvo_position'])
 
     print(" ")
     print("Convert Behavior data")
@@ -63,7 +64,7 @@ if __name__ == '__main__':
     # mouse_ids = ['RD001', 'RD003', 'RD005']
     # mouse_ids = ['RD002', 'RD004', 'RD006']
     # mouse_ids = ['RD002', 'RD004']
-    mouse_ids = ['PB124']
+    mouse_ids = ['AB077']
 
     for mouse_id in mouse_ids:
         data_folder = get_subject_data_folder(mouse_id)
@@ -79,8 +80,8 @@ if __name__ == '__main__':
             # Filter sessions to do :
             session_to_do = ["PB124_20230404_141456"]
             # session_to_do = ["RD001_20230624_123913", "RD003_20230624_134719", "RD005_20230624_145511"]
-            if isession not in session_to_do:
-                continue
+            #if isession not in session_to_do:
+            #    continue
 
             # date_to_do = "20230629"
             # if date_to_do not in isession:

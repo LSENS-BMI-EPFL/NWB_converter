@@ -149,12 +149,10 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
             }
 
     log_continuous_metadata = {
+        'scanimage_dict': scanimage_dict,
         'channels_dict': channels_dict,
         'threshold_dict': threshold_dict,
         }
-
-    if json_config['twophoton_session']:
-        log_continuous_metadata.update(scanimage_dict)
 
 
     # Trial outcome mapping.
