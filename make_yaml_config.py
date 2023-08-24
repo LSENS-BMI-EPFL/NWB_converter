@@ -29,7 +29,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     slims_csv = sorted(os.listdir(os.path.join(input_folder, 'SLIMS')))[-1]
     slims_csv_path = os.path.join(input_folder, 'SLIMS', slims_csv)
     slims = pd.read_csv(slims_csv_path, sep=';', engine='python')
-    slims = slims.loc[slims.cntn_cf_mouseName==mouse_id]
+    slims = slims.loc[slims.cntn_cf_mouseName == mouse_id]
 
     subject_metadata = {
         'description': subject_id,
@@ -38,7 +38,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
         'sex': slims['cntn_cf_sex'].values[0].capitalize(),
         'species': 'Mus musculus',
         'subject_id': slims['cntn_cf_mouseName'].values[0],
-        }
+    }
 
     # Compute age in days at session time.
     session_date = session_id.split('_')[1]
@@ -50,7 +50,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     subject_metadata['date_of_birth'] = datetime.datetime.strftime(birth_date, '%m/%d/%Y')
 
     # Add strain from Slims if not WT mouse.
-    # Wether mouse is WT in not in the default Slims metadata, so use 'gmo' parameter.
+    # Whether mouse is WT in not in the default Slims metadata, so use 'gmo' parameter.
     # If you want to check if the mouse has the mutation with Slims, export the mutation column.
     if gmo:
         subject_metadata['genotype'] = slims['cntn_cf_strain'].values[0]
@@ -66,7 +66,6 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
         subject_metadata['weight'] = json_config['mouse_weight_before']
     else:
         subject_metadata['weight'] = 'na'
-
 
     # Session metadata.
     # #################
@@ -92,67 +91,54 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
         'virus': 'na',
         'stimulus_notes': 'na',
         'slices': 'na',
-        }
-
+    }
 
     # Log continuous metadata.
     # ########################
 
-    context_channel_date = "20230524"  # one day before first session with added channel odd number // 24 even
-    context_channel_date = datetime.datetime.strptime(context_channel_date, "%Y%m%d")
+    log_continuous_metadata = {}
 
-    scanimage_dict = {
-        'theoretical_ci_sampling_rate': 30,
-        'zoom': 3
-        }
+    channels_dict = {
+        'trial_TTL': 2,
+        'lick_trace': 0,
+        'cam1': 3,
+        'cam2': 4,
+    }
+    threshold_dict = {
+        'trial_TTL': 4,
+        'cam1': 2,
+        'cam2': 2,
+    }
 
-    if session_date <= context_channel_date:
-        channels_dict = {
-            'trial_TTL': 2,
-            'lick_trace': 0,
-            'galvo_position': 1,
-            'cam1': 3,
-            'cam2': 4,
-            }
-
-        threshold_dict = {
-            'trial_TTL': 4,
-            'cam1': 2,
-            'cam2': 2,
-            'galvo_position': {
+    if json_config['twophoton_session']:
+        channels_dict.update({'galvo_position': 1})
+        threshold_dict.update({'galvo_position': {
                 '1': 2,
                 '2': 1.2,
                 '2.5': 1.3,
-                '3': 0.9,
-            },
-        }
-    else:
-        channels_dict = {
-            'trial_TTL': 2,
-            'lick_trace': 0,
-            'galvo_position': 1,
-            'cam1': 3,
-            'cam2': 4,
-            'context': 5
-        }
-        threshold_dict = {
-            'trial_TTL': 4,
-            'cam1': 2,
-            'cam2': 2,
-            'galvo_position': {
-                '1': 2,
-                '2': 1.2,
-                '2.5': 1.3,
-                '3': 0.9,
-                },
-            'context': 4
-            }
+                '3': 0.9}
+            })
 
-    log_continuous_metadata = {
-        'scanimage_dict': scanimage_dict,
-        'channels_dict': channels_dict,
-        'threshold_dict': threshold_dict,
+        scanimage_dict = {
+            'theoretical_ci_sampling_rate': 30,
+            'zoom': 3
         }
+
+        log_continuous_metadata.update({'scanimage_dict': scanimage_dict})
+
+
+    if json_config['context_flag']:
+        context_channel_date = "20230524"  # one day before first session with added channel odd number // 24 even
+        context_channel_date = datetime.datetime.strptime(context_channel_date, "%Y%m%d")
+
+        if session_date > context_channel_date:
+            channels_dict.update({'context': 5})
+            threshold_dict.update({'context': 4})
+
+
+    # Update dictionary with channels and thresholds.
+    log_continuous_metadata.update({'channels_dict': channels_dict})
+    log_continuous_metadata.update({'threshold_dict': threshold_dict})
 
 
     # Trial outcome mapping.
@@ -166,8 +152,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
         4: 'correct_rejection',
         5: 'false_alarm',
         6: 'early_lick',
-        }
-
+    }
 
     # 2P imaging metadata.
     # ####################
@@ -180,6 +165,12 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
         'indicator': 'GCaMP8m',
     }
 
+    # Extracell. ephys. metadata.
+    # ####################
+
+    ephys_metadata = {
+        'device': 'Neuropixels setup 1 AI3209',
+    }
 
     # Write to yaml file.
     # ###################
@@ -194,6 +185,8 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     if json_config['twophoton_session']:
         main_dict.update(two_photon_metadata)
 
+    elif json_config['ephys_session']:
+        main_dict.update(ephys_metadata)
 
     analysis_session_folder = os.path.join(output_folder, session_id)
     if not os.path.exists(analysis_session_folder):
@@ -202,13 +195,15 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
         yaml.dump(main_dict, stream, default_flow_style=False, explicit_start=True)
 
 
+    return
+
 if __name__ == '__main__':
     # mouse_ids = ['RD001', 'RD002', 'RD003', 'RD004', 'RD005', 'RD006']
     # mouse_ids = ['RD001', 'RD003', 'RD005']
     # mouse_ids = ['RD002', 'RD004', 'RD006']
     # mouse_ids = ['RD002', 'RD004']
-    mouse_ids = ['AB077']
-    #last_done_day = "20230601"
+    mouse_ids = ['AB082']
+    # last_done_day = "20230601"
 
     for mouse_id in mouse_ids:
 
@@ -225,9 +220,9 @@ if __name__ == '__main__':
             session_date = datetime.datetime.strptime(session_date, "%Y%m%d")
             # if session_date <= datetime.datetime.strptime(last_done_day, "%Y%m%d"):
             #     continue
-            #sessions_to_do = ["PB124_20230404_141456"]
-            #if session_id not in sessions_to_do:
+            # sessions_to_do = ["PB124_20230404_141456"]
+            # if session_id not in sessions_to_do:
             #    continue
-            #else:
+            # else:
             make_yaml_config(mouse_id, session_id, day, data_folder, analysis_folder,
-                                mouse_line='C57BL/6', gmo=False)
+                             mouse_line='C57BL/6', gmo=False)

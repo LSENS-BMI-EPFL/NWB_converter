@@ -1,6 +1,7 @@
 """_summary_
 """
 import os
+import yaml
 from converters.subject_to_nwb import create_nwb_file
 from converters.ci_movie_to_nwb import convert_ci_movie
 from converters.suite2p_to_nwb import convert_suite2p_data
@@ -9,7 +10,7 @@ from converters.behavior_to_nwb import convert_behavior_data
 from continuous_log_analysis import analyze_continuous_log
 from utils.behavior_converter_misc import find_training_days
 from utils.server_paths import get_subject_data_folder, get_subject_analysis_folder, get_nwb_folder
-
+from utils.ecephys_utils import get_sync_timestamps
 
 def convert_data_to_nwb(config_file, output_folder):
     """
@@ -24,19 +25,29 @@ def convert_data_to_nwb(config_file, output_folder):
     :return: NWB file
     """
 
+    # Read config file to know what data to convert.
+    with open(config_file, 'r', encoding='utf8') as stream:
+        config_dict = yaml.safe_load(stream)
+
     print("Start NWB conversion")
     print(" ")
     print("Extract timestamps from continuous log")
-    timestamps_dict, n_frames_dict = analyze_continuous_log(config_file=config_file,
-                                                            do_plot=False, plot_start=None,
-                                                            plot_stop=None, camera_filtering=False)
+
+
+    if config_dict.get("ephys_metadata") is not None:
+        timestamps_dict, n_frames_dict = get_sync_timestamps(config_file=config_file)
+
+    else:
+        timestamps_dict, n_frames_dict = analyze_continuous_log(config_file=config_file,
+                                                                do_plot=False, plot_start=None,
+                                                                plot_stop=None, camera_filtering=False)
 
     print(" ")
     print("Open NWB file and add metadata")
     nwb_file = create_nwb_file(config_file=config_file)
 
     # # TODO: update/remove the link to motion corrected ci tiff.
-    if '2P_metadata' in config_file:
+    if config_dict.get("2P_metadata") is not None:
         print(" ")
         print("Convert CI movie")
         convert_ci_movie(nwb_file=nwb_file, config_file=config_file,
@@ -48,6 +59,11 @@ def convert_data_to_nwb(config_file, output_folder):
         convert_suite2p_data(nwb_file=nwb_file,
                              config_file=config_file,
                              ci_frame_timestamps=timestamps_dict['galvo_position'])
+
+    if config_dict.get("ephys_metadata") is not None:
+        print(" ")
+        print("Convert ephys spike data")
+
 
     print(" ")
     print("Convert Behavior data")
@@ -64,7 +80,7 @@ if __name__ == '__main__':
     # mouse_ids = ['RD001', 'RD003', 'RD005']
     # mouse_ids = ['RD002', 'RD004', 'RD006']
     # mouse_ids = ['RD002', 'RD004']
-    mouse_ids = ['AB077']
+    mouse_ids = ['AB082']
 
     for mouse_id in mouse_ids:
         data_folder = get_subject_data_folder(mouse_id)

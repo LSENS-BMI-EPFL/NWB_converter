@@ -29,16 +29,20 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
     threshold_dict = config['log_continuous_metadata']['threshold_dict']
     scanimage_dict = config['log_continuous_metadata']['scanimage_dict']
 
+    # Read logging binary file
     continuous_data_dict = read_binary_continuous_log(bin_file=bin_file,
                                                       channels_dict=channels_dict, ni_session_sr=5000, t_stop=None)
 
     if movie_files is None:
         camera_filtering = False
+
+    # Extract timestamps
     timestamps_dict, n_frames_dict = extract_timestamps(continuous_data_dict, threshold_dict, scanimage_dict,
                                                         ni_session_sr=5000, filter_cameras=camera_filtering)
     print("Number of frames per acquisition: ")
     print_info_dict(n_frames_dict)
 
+    # Optionally plot continuous data for inspection, given a start and stop time
     if do_plot:
         plot_continuous_data_dict(continuous_data_dict, timestamps_dict, ni_session_sr=5000,
                                   t_start=plot_start, t_stop=plot_stop,
