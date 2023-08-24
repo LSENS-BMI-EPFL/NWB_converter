@@ -11,7 +11,7 @@ import numpy as np
 from utils import server_paths
 
 
-def get_sync_timestamps(config_file):
+def get_ephys_sync_timestamps(config_file):
     """
     Get sync timestamps from config file.
     :param config_file: path to config file

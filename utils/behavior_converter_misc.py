@@ -149,6 +149,7 @@ def build_simplified_trial_table(behavior_results_file, timestamps_dict):
 
     n_trials = trial_table['perf'].size
     print(f"Read '.csv' file to build trial NWB trial table ({n_trials} trials)")
+
     if len(trial_timestamps[:, 0]) > n_trials:
         print(f"csv table has one less trial than TTL up/down signal session must have been stop "
               f"before saving very last trial")

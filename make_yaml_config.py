@@ -183,10 +183,15 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     }
 
     if json_config['twophoton_session']:
-        main_dict.update(two_photon_metadata)
+        main_dict.update({'two_photon_metadata': two_photon_metadata})
 
     elif json_config['ephys_session']:
-        main_dict.update(ephys_metadata)
+        main_dict.update({'ephys_metadata': ephys_metadata})
+
+    # If behaviour only #TODO: make this more general
+    else:
+        session_metadata['notes'] = 'training_only'
+        main_dict.update({'session_metadata': session_metadata})
 
     analysis_session_folder = os.path.join(output_folder, session_id)
     if not os.path.exists(analysis_session_folder):
@@ -194,14 +199,10 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     with open(os.path.join(analysis_session_folder, f"config_{session_id}.yaml"), 'w') as stream:
         yaml.dump(main_dict, stream, default_flow_style=False, explicit_start=True)
 
-
     return
 
 if __name__ == '__main__':
     # mouse_ids = ['RD001', 'RD002', 'RD003', 'RD004', 'RD005', 'RD006']
-    # mouse_ids = ['RD001', 'RD003', 'RD005']
-    # mouse_ids = ['RD002', 'RD004', 'RD006']
-    # mouse_ids = ['RD002', 'RD004']
     mouse_ids = ['AB082']
     # last_done_day = "20230601"
 

@@ -192,18 +192,23 @@ def detect_ci_pause(ci_frame_times):
         return has_pause, None, None
 
 
-def extract_timestamps(continuous_data_dict, threshold_dict, scanimage_dict, ni_session_sr, filter_cameras=False):
+def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scanimage_dict=None, filter_cameras=False):
     binary_data_dict = {}
     timestamps_dict = {}
     n_frames_dict = {}
     timestamps = continuous_data_dict['timestamps']
-    scan_image_rate = float(scanimage_dict.get("theoretical_ci_sampling_rate"))
-    scan_image_zoom = str(scanimage_dict.get("zoom"))
-    ci_movie_frame_gap = (1 / scan_image_rate) / 3
+
     for key, data in continuous_data_dict.items():
+
         if key in ["timestamps", "lick_trace"]:
             continue
+
         elif key == "galvo_position":
+
+            scan_image_rate = float(scanimage_dict.get("theoretical_ci_sampling_rate"))
+            scan_image_zoom = str(scanimage_dict.get("zoom"))
+            ci_movie_frame_gap = (1 / scan_image_rate) / 3
+
             galvo_dict_thr = threshold_dict.get(key)
             threshold = float(galvo_dict_thr.get(scan_image_zoom))
             frame_points = sci_si.find_peaks(data, height=threshold,
@@ -236,6 +241,7 @@ def extract_timestamps(continuous_data_dict, threshold_dict, scanimage_dict, ni_
                 # Save this
                 timestamps_dict[key] = filtered_ci_frame_times
                 n_frames_dict[key] = len(filtered_ci_frame_times)
+
         else:
             threshold = int(threshold_dict.get(key))
             binary_data = np.zeros(len(data))
@@ -268,6 +274,7 @@ def extract_timestamps(continuous_data_dict, threshold_dict, scanimage_dict, ni_
                                 for i in range(len(on_off_timestamps) - 1)])
                 early_licks = np.where(iti < 0.25)[0]  # reset trial signal in less than 0.25 s (specific to early lick)
                 print(f"{len(early_licks)} early licks")
+
                 if len(early_licks) > 0:
                     early_licks = list(early_licks)
                     early_licks_true_ind = [i - early_licks.index(i) for i in early_licks]
@@ -275,6 +282,7 @@ def extract_timestamps(continuous_data_dict, threshold_dict, scanimage_dict, ni_
                     on_off_to_remove = np.array([i + 1 for i in early_licks])
                     filtered_on_off_timestamps = np.delete(on_off_timestamps, on_off_to_remove, axis=0)
                     on_off_timestamps = filtered_on_off_timestamps
+
             if key in ["trial_TTL"] and binary_data[-1] == 1:
                 print(f"Session likely stopped before end of last {key}")
                 filtered_on_off_timestamps = on_off_timestamps[0: -1]
