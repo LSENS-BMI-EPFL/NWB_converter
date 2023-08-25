@@ -98,34 +98,15 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
 
     log_continuous_metadata = {}
 
-    channels_dict = {
-        'trial_TTL': 2,
-        'lick_trace': 0,
-        'cam1': 3,
-        'cam2': 4,
-    }
-    threshold_dict = {
-        'trial_TTL': 4,
-        'cam1': 2,
-        'cam2': 2,
-    }
-
+    # Add logged channels and thresholds (Volt) for edge detections.
+    channels_dict, threshold_dict = create_channels_threshold_dict(experimenter=subject_id[:2],
+                                                                   json_config=json_config)
     if json_config['twophoton_session']:
-        channels_dict.update({'galvo_position': 1})
-        threshold_dict.update({'galvo_position': {
-                '1': 2,
-                '2': 1.2,
-                '2.5': 1.3,
-                '3': 0.9}
-            })
-
         scanimage_dict = {
             'theoretical_ci_sampling_rate': 30,
             'zoom': 3
         }
-
         log_continuous_metadata.update({'scanimage_dict': scanimage_dict})
-
 
     if json_config['context_flag']:
         context_channel_date = "20230524"  # one day before first session with added channel odd number // 24 even
@@ -135,11 +116,17 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
             channels_dict.update({'context': 5})
             threshold_dict.update({'context': 4})
 
-
-    # Update dictionary with channels and thresholds.
+    # Add to general dictionary.
     log_continuous_metadata.update({'channels_dict': channels_dict})
     log_continuous_metadata.update({'threshold_dict': threshold_dict})
 
+    # Behaviour metadata.
+    # ###################
+
+    behaviour_metadata = {
+        'behaviour_type': json_config['behaviour_type'],
+        'trial_table': 'full', # for raw NWB trial data, 'full' or 'simple'
+    }
 
     # Trial outcome mapping.
     # ######################
@@ -179,6 +166,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
         'subject_metadata': subject_metadata,
         'session_metadata': session_metadata,
         'log_continuous_metadata': log_continuous_metadata,
+        'behaviour_metadata': behaviour_metadata,
         'trial_map': trial_map,
     }
 
@@ -188,10 +176,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     elif json_config['ephys_session']:
         main_dict.update({'ephys_metadata': ephys_metadata})
 
-    # If behaviour only #TODO: make this more general
-    else:
-        session_metadata['notes'] = 'training_only'
-        main_dict.update({'session_metadata': session_metadata})
+    main_dict.update({'behaviour_metadata': behaviour_metadata})
 
     analysis_session_folder = os.path.join(output_folder, session_id)
     if not os.path.exists(analysis_session_folder):
@@ -200,6 +185,61 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
         yaml.dump(main_dict, stream, default_flow_style=False, explicit_start=True)
 
     return
+
+def create_channels_threshold_dict(experimenter, json_config):
+    """
+    Make log_continuous channels & thresholds dictionary for a given experimenter and session.
+    Args:
+        experimenter: experimenter initials
+        json_config: session config dictionary from session_config.json file
+    Returns:
+
+    """
+    if experimenter in ['AB']:
+        lick_threshold = json_config['lick_threshold']
+        channels_dict = {
+            'trial_TTL': 2,
+            'lick_trace': 0,
+            'empty_1': 1,
+            'cam1': 3,
+            'cam2': 4,
+            'empty_2': 6
+        }
+        threshold_dict = {
+            'trial_TTL': 4,
+            'lick_trace': lick_threshold,
+            'cam1': 2,
+            'cam2': 2,
+            'empty_1': 0,
+            'empty_2': 0
+        }
+
+    elif experimenter in ['RD', 'AR']:
+        channels_dict = {
+            'trial_TTL': 2,
+            'lick_trace': 0,
+            'galvo_position': 1,
+            'cam1': 3,
+            'cam2': 4,
+            'context': 5,
+        }
+        threshold_dict = {
+            'trial_TTL': 4,
+            'cam1': 2,
+            'cam2': 2,
+            'galvo_position': {
+                '1': 2,
+                '2': 1.2,
+                '2.5': 1.3,
+                '3': 0.9,
+            },
+        }
+
+    # elif experimenter in ['PB']:
+    # ...
+
+    return channels_dict, threshold_dict
+
 
 if __name__ == '__main__':
     # mouse_ids = ['RD001', 'RD002', 'RD003', 'RD004', 'RD005', 'RD006']
