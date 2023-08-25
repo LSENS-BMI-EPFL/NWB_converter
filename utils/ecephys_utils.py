@@ -13,17 +13,18 @@ from utils import server_paths
 
 def get_ephys_sync_timestamps(config_file):
     """
-    Get sync timestamps from config file.
+    Get sync timestamps derived from CatGT/TPrime from config file.
     :param config_file: path to config file
     :return: sync timestamps
     """
 
     event_map = {
-        'trial_TTL': 'trial_start_times',
-        'cam1': 'cam0_frame_times',
-        'cam2': 'cam1_frame_times',
+        'trial_start_times': 'trial_TTL',
+        'cam0_frame_times': 'cam1',
+        'cam1_frame_times': 'cam2',
         'whisker_stim_times': 'whisker_stim_times',
-        'reward_times': 'valve_times',
+        'auditory_stim_times': 'auditory_stim_times',
+        'valve_times:': 'reward_times',
     }
 
     # List event times existing in folder
@@ -33,11 +34,12 @@ def get_ephys_sync_timestamps(config_file):
     print('Existing sync event times:', event_keys)
 
     timestamps_dict, n_frames_dict = {}, {}
-    for event in event_keys:
+    events_to_do = ['trial_start_times', 'cam0_frame_times', 'cam1_frame_times']
+    for event in events_to_do:
 
         timestamps = np.loadtxt(os.path.join(sync_event_times_folder, event + '.txt'))
         if event == 'trial_start_times':
-            timestamps = timestamps[1:-1] # remove first and last trials
+            timestamps = timestamps[1:-1] # remove first and last trials (session start and stops) #TODO: check this
         timestamps_dict[event_map[event]] = timestamps
         n_frames_dict[event_map[event]] = len(timestamps_dict[event_map[event]])
 
