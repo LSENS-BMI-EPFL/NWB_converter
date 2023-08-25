@@ -91,7 +91,6 @@ def read_binary_continuous_log(bin_file, channels_dict, ni_session_sr=5000, t_st
 
     return continuous_data_dict
 
-
 def plot_continuous_data_dict(continuous_data_dict, timestamps_dict, ni_session_sr=5000, t_start=None, t_stop=None,
                               black_background=False):
     channel_names = list(continuous_data_dict.keys())
@@ -125,6 +124,7 @@ def plot_continuous_data_dict(continuous_data_dict, timestamps_dict, ni_session_
                     print(f"Plot data")
                 data_to_plot = continuous_data_dict.get(channel_name)
                 timestamps_to_plot = timestamps
+                timestamps_to_plot = timestamps_to_plot[np.arange(0, len(data_to_plot))]
                 ax.plot(timestamps_to_plot, data_to_plot, color='darkblue')
 
             if timestamps_dict is not None and timestamps_dict.get(channel_name) is not None:
@@ -200,7 +200,7 @@ def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scan
 
     for key, data in continuous_data_dict.items():
 
-        if key in ["timestamps", "lick_trace"]:
+        if key in ["timestamps", "lick_trace", 'empty_1', 'empty_2']:
             continue
 
         elif key == "galvo_position":
