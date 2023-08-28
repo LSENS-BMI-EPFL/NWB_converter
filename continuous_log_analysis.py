@@ -5,7 +5,7 @@ from utils.continuous_processing import read_binary_continuous_log, \
     plot_continuous_data_dict, extract_timestamps, read_behavior_avi_movie, \
     read_tiff_ci_movie_frames, print_info_dict
 from utils import server_paths
-from utils.ephys_utils import get_ephys_sync_timestamps
+from utils.ephys_utils import get_ephys_timestamps
 
 
 def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_stop=None, camera_filtering=False):
@@ -48,28 +48,20 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
         scanimage_dict = None
 
     # Extract session timestamps
+    continuous_data_dict = read_binary_continuous_log(bin_file=bin_file,
+                                                      channels_dict=channels_dict, ni_session_sr=5000, t_stop=None)
+    if movie_files is None:
+        camera_filtering = False
+
+    timestamps_dict, n_frames_dict = extract_timestamps(continuous_data_dict, threshold_dict,
+                                                        ni_session_sr=5000,
+                                                        scanimage_dict=scanimage_dict,
+                                                        filter_cameras=camera_filtering)
+
     if 'ephys_metadata' in config:
-        timestamps_dict, n_frames_dict = get_ephys_sync_timestamps(config_file)
+        timestamps_dict, n_frames_dict = get_ephys_timestamps(config_file=config_file, log_timestamps_dict=timestamps_dict)
 
-    #elif config['behaviour_metadata']['notes'] == 'behaviour_only':
-    #    timestamps_dict = None
-    #    n_frames_dict = None
-    #    do_plot = False
 
-    else:
-
-        continuous_data_dict = read_binary_continuous_log(bin_file=bin_file,
-                                                          channels_dict=channels_dict, ni_session_sr=5000, t_stop=None)
-        if movie_files is None:
-            camera_filtering = False
-
-        timestamps_dict, n_frames_dict = extract_timestamps(continuous_data_dict, threshold_dict,
-                                                            ni_session_sr=5000,
-                                                            scanimage_dict=scanimage_dict,
-                                                            filter_cameras=camera_filtering)
-
-        print("Number of timestamps per acquisition:")
-        print_info_dict(n_frames_dict)
 
     # Optionally plot continuous data for inspection, given a start and stop time
     if do_plot:
@@ -79,13 +71,14 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
 
     if movie_files is not None:
         read_behavior_avi_movie(movie_files=movie_files)
-    else:
-        n_frames_dict['cam1'] = 0
-        n_frames_dict['cam2'] = 0
+
 
     if tiff_file is not None:
         print(f"Tiff file found, reading number of CI frames")
         read_tiff_ci_movie_frames(tiff_file)
+
+    print("Number of timestamps per acquisition:")
+    print_info_dict(n_frames_dict)
 
     return timestamps_dict, n_frames_dict
 

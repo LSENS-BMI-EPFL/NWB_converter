@@ -200,6 +200,7 @@ def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scan
 
     for key, data in continuous_data_dict.items():
 
+        # Do not extract timestamps for these keys
         if key in ["timestamps", "lick_trace", 'empty_1', 'empty_2']:
             continue
 
@@ -285,7 +286,7 @@ def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scan
 
             if key in ["trial_TTL"] and binary_data[-1] == 1:
                 print(f"Session likely stopped before end of last {key}")
-                filtered_on_off_timestamps = on_off_timestamps[0: -1]
+                filtered_on_off_timestamps = on_off_timestamps[0: -1] # remove last timestamp that signals session end
                 on_off_timestamps = filtered_on_off_timestamps
 
             timestamps_dict[key] = on_off_timestamps

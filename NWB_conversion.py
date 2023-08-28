@@ -10,7 +10,6 @@ from converters.behavior_to_nwb import convert_behavior_data
 from continuous_log_analysis import analyze_continuous_log
 from utils.behavior_converter_misc import find_training_days
 from utils.server_paths import get_subject_data_folder, get_subject_analysis_folder, get_nwb_folder
-from utils.ecephys_utils import get_ephys_sync_timestamps
 
 
 def convert_data_to_nwb(config_file, output_folder):
@@ -61,7 +60,7 @@ def convert_data_to_nwb(config_file, output_folder):
         print("Convert ephys spike data")
 
     print(" ")
-    print("Convert Behavior data")
+    print("Convert behavior data")
     convert_behavior_data(nwb_file, timestamps_dict, config_file)
 
     print(" ")
@@ -91,10 +90,10 @@ if __name__ == '__main__':
         # Create NWB by looping over sessions.
         for isession, iday in training_days:
             # Filter sessions to do :
-            session_to_do = ["PB124_20230404_141456"]
             # session_to_do = ["RD001_20230624_123913", "RD003_20230624_134719", "RD005_20230624_145511"]
-            # if isession not in session_to_do:
-            #    continue
+            session_to_do = ["AB082_20230630_101353"]
+            if isession not in session_to_do:
+                continue
 
             # date_to_do = "20230629"
             # if date_to_do not in isession:

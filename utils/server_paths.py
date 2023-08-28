@@ -14,7 +14,7 @@ EXPERIMENTER_MAP = {
 
 
 def get_subject_data_folder(subject_id):
-    data_folder = os.path.join('\\\\sv2files.epfl.ch', 'Petersen-Lab', 'data', subject_id)
+    data_folder = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'data', subject_id)
 
     return data_folder
 
@@ -25,7 +25,7 @@ def get_subject_analysis_folder(subject_id):
     else:
         experimenter = EXPERIMENTER_MAP[subject_id[:2]]
     # Map initials to experimenter to get analysis folder path.
-    analysis_folder = os.path.join('\\\\sv2files.epfl.ch', 'Petersen-Lab', 'analysis',
+    analysis_folder = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis',
                                    experimenter, 'data', subject_id)
     if not os.path.exists(analysis_folder):
         os.makedirs(analysis_folder)
@@ -38,7 +38,7 @@ def get_nwb_folder(subject_id):
         experimenter = 'Robin_Dard'
     else:
         experimenter = EXPERIMENTER_MAP[subject_id[:2]]
-    nwb_folder = os.path.join('\\\\sv2files.epfl.ch', 'Petersen-Lab', 'analysis',
+    nwb_folder = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis',
                               experimenter, 'NWB')
     if not os.path.exists(nwb_folder):
         os.makedirs(nwb_folder)
@@ -85,6 +85,21 @@ def get_movie_files(config_file):
 
     return movies
 
+def get_session_movie_files(config_file):
+    with open(config_file, 'r', encoding='utf8') as stream:
+        config = yaml.safe_load(stream)
+    mouse_name = config['subject_metadata']['subject_id']
+    session_name = config['session_metadata']['session_id']
+    data_folder = get_subject_data_folder(mouse_name)
+    movies_path = os.path.join(data_folder, 'Recording', session_name, 'Video')
+    if not os.path.exists(movies_path):
+        os.makedirs(movies_path)
+    movies = [os.path.join(movies_path, m) for m in os.listdir(movies_path) if os.path.splitext(m)[1] in ['.avi', '.mp4']]
+    if not movies:
+        movies = None
+
+    return movies
+
 
 def get_imaging_file(config_file):
     with open(config_file, 'r', encoding='utf8') as stream:
@@ -119,6 +134,7 @@ def get_suite2p_folder(config_file):
         return suite2p_path
 
 def get_ephys_folder(config_file):
+    """Returns the path to the ephys folder for a given session."""
     with open(config_file, 'r', encoding='utf8') as stream:
         config = yaml.safe_load(stream)
     mouse_name = config['subject_metadata']['subject_id']
@@ -134,6 +150,7 @@ def get_ephys_folder(config_file):
         return ephys_path
 
 def get_imec_probe_folder_list(config_file):
+    """ Get list of all imec probe folders for a given session."""
     with open(config_file, 'r', encoding='utf8') as stream:
         config = yaml.safe_load(stream)
     mouse_name = config['subject_metadata']['subject_id']
@@ -148,6 +165,7 @@ def get_imec_probe_folder_list(config_file):
         return imec_folder_list
 
 def get_sync_event_times_folder(config_file):
+    """ Get the path to the sync_event_times folder for a given session."""
     with open(config_file, 'r', encoding='utf8') as stream:
         config = yaml.safe_load(stream)
     mouse_name = config['subject_metadata']['subject_id']
@@ -161,6 +179,7 @@ def get_sync_event_times_folder(config_file):
         return sync_event_times_path
 
 def get_cwaves_folder(imec_probe_folder):
+    """ Get the path to the cwaves folder for a given imec probe folder."""
     cwaves_folder = os.path.join(imec_probe_folder, 'cwaves')
     if not os.path.exists(cwaves_folder):
         print(f"No cwaves folder found for {imec_probe_folder}")

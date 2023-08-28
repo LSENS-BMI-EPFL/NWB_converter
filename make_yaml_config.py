@@ -124,8 +124,11 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     # ###################
 
     behaviour_metadata = {
+        'path_to_config_file': json_path,
         'behaviour_type': json_config['behaviour_type'],
-        'trial_table': 'full', # for raw NWB trial data, 'full' or 'simple'
+        'print_info_dict': 'full', # for raw NWB trial data, 'full' or 'simple'
+        'camera_flag': json_config['camera_flag'],
+        'camera_exposure_time': json_config['camera_exposure_time'],
     }
 
     # Trial outcome mapping.
