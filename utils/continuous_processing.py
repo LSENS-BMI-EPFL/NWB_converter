@@ -206,6 +206,10 @@ def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scan
 
         elif key == "galvo_position":
 
+            # If no actual imaging data, do not extract timestamps
+            if scanimage_dict is None:
+                continue
+
             scan_image_rate = float(scanimage_dict.get("theoretical_ci_sampling_rate"))
             scan_image_zoom = str(scanimage_dict.get("zoom"))
             ci_movie_frame_gap = (1 / scan_image_rate) / 3
