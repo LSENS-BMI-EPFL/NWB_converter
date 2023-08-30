@@ -56,7 +56,6 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
         subject_metadata['genotype'] = slims['cntn_cf_strain'].values[0]
     else:
         subject_metadata['genotype'] = 'WT'
-        subject_metadata['strain'] = slims['cntn_cf_strain'].values[0]
 
     # Add weight at the beginning of the session from json config file.
     json_path = os.path.join(input_folder, 'Training', session_id, 'session_config.json')
@@ -101,35 +100,29 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     # Add logged channels and thresholds (Volt) for edge detections.
     channels_dict, threshold_dict = create_channels_threshold_dict(experimenter=subject_id[:2],
                                                                    json_config=json_config)
-    if json_config['twophoton_session']:
+    if json_config['twophoton_session']==1:
         scanimage_dict = {
             'theoretical_ci_sampling_rate': 30,
             'zoom': 3
         }
         log_continuous_metadata.update({'scanimage_dict': scanimage_dict})
 
-    if json_config['context_flag']:
-        context_channel_date = "20230524"  # one day before first session with added channel odd number // 24 even
-        context_channel_date = datetime.datetime.strptime(context_channel_date, "%Y%m%d")
-
-        if session_date > context_channel_date:
-            channels_dict.update({'context': 5})
-            threshold_dict.update({'context': 4})
 
     # Add to general dictionary.
     log_continuous_metadata.update({'channels_dict': channels_dict})
     log_continuous_metadata.update({'threshold_dict': threshold_dict})
 
-    # Behaviour metadata.
+    # Behaviour metadata. #TODO: this should also be experimenter-dependent and a function of the json config file.
     # ###################
 
     behaviour_metadata = {
         'path_to_config_file': json_path,
         'behaviour_type': json_config['behaviour_type'],
-        'print_info_dict': 'full', # for raw NWB trial data, 'full' or 'simple'
+        'trial_table': 'full', # for raw NWB trial data, 'full' or 'simple'
         'camera_flag': json_config['camera_flag'],
-        'camera_exposure_time': json_config['camera_exposure_time'],
     }
+    if 'camera_exposure_time' in json_config.keys():
+        behaviour_metadata.update({'camera_exposure_time': json_config['camera_exposure_time']})
 
     # Trial outcome mapping.
     # ######################
@@ -203,9 +196,9 @@ def create_channels_threshold_dict(experimenter, json_config):
         channels_dict = {
             'trial_TTL': 2,
             'lick_trace': 0,
-            'empty_1': 1,
             'cam1': 3,
             'cam2': 4,
+            'empty_1': 1,
             'empty_2': 6
         }
         threshold_dict = {
@@ -217,14 +210,14 @@ def create_channels_threshold_dict(experimenter, json_config):
             'empty_2': 0
         }
 
-    elif experimenter in ['RD', 'AR']:
+    elif experimenter in ['RD', 'AR'] or json_config['mouse_name']=='PB124':
         channels_dict = {
             'trial_TTL': 2,
             'lick_trace': 0,
             'galvo_position': 1,
             'cam1': 3,
             'cam2': 4,
-            'context': 5,
+            #'context': 5,
         }
         threshold_dict = {
             'trial_TTL': 4,
@@ -238,15 +231,27 @@ def create_channels_threshold_dict(experimenter, json_config):
             },
         }
 
-    # elif experimenter in ['PB']:
+        context_channel_date = "20230524"  # one day before first session with added channel odd number // 24 even
+        context_channel_date = datetime.datetime.strptime(context_channel_date, "%Y%m%d")
+        session_date = datetime.datetime.strptime(json_config['date'], "%Y%m%d")
+        if session_date > context_channel_date:
+            channels_dict.update({'context': 5})
+            threshold_dict.update({'context': 4})
+
+
+
+    # elif experimenter in ['PB'] and json_config['mouse_name']!='PB124':
     # ...
 
     return channels_dict, threshold_dict
 
 
 if __name__ == '__main__':
+    # Select mouse IDs.
     # mouse_ids = ['RD001', 'RD002', 'RD003', 'RD004', 'RD005', 'RD006']
-    mouse_ids = ['AB082']
+    mouse_ids = [50,51,52,54,56,58,59,68,72,73,75,76,77,778,79,80,81,82,83]
+    mouse_ids = ['AB0{}'.format(i) for i in mouse_ids]
+    mouse_ids = ['PB124']
     # last_done_day = "20230601"
 
     for mouse_id in mouse_ids:
@@ -254,6 +259,7 @@ if __name__ == '__main__':
         # Find data and analysis folders on server for that mouse.
         data_folder = get_subject_data_folder(mouse_id)
         analysis_folder = get_subject_analysis_folder(mouse_id)
+        analysis_folder = analysis_folder.replace('Robin_Dard', 'Axel_Bisi') #TODO: delete
         if not os.path.exists(analysis_folder):
             os.makedirs(analysis_folder)
 
