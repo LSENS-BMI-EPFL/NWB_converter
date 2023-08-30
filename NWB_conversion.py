@@ -76,12 +76,14 @@ if __name__ == '__main__':
     # mouse_ids = ['RD001', 'RD003', 'RD005']
     # mouse_ids = ['RD002', 'RD004', 'RD006']
     # mouse_ids = ['RD002', 'RD004']
-    mouse_ids = ['AB082']
+    mouse_ids = ['PB124']
 
     for mouse_id in mouse_ids:
         data_folder = get_subject_data_folder(mouse_id)
         analysis_folder = get_subject_analysis_folder(mouse_id)
+        analysis_folder = analysis_folder.replace('Robin_Dard', 'Axel_Bisi') #TODO: delete
         nwb_folder = get_nwb_folder(mouse_id)
+        nwb_folder = nwb_folder.replace('Robin_Dard', 'Axel_Bisi')   #TODO: delete
         # nwb_folder = 'C:/Users/rdard/Documents/NWB_files/Anthony'
 
         # Find session list and session description.
@@ -91,9 +93,9 @@ if __name__ == '__main__':
         for isession, iday in training_days:
             # Filter sessions to do :
             # session_to_do = ["RD001_20230624_123913", "RD003_20230624_134719", "RD005_20230624_145511"]
-            session_to_do = ["AB082_20230630_101353"]
-            if isession not in session_to_do:
-                continue
+            #session_to_do = ["AB082_20230630_101353"]
+            #if isession not in session_to_do:
+            #    continue
 
             # date_to_do = "20230629"
             # if date_to_do not in isession:

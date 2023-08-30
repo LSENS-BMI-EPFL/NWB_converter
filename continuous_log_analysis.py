@@ -37,11 +37,12 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
         movie_files = server_paths.get_movie_files(config_file)
         tiff_file = server_paths.get_imaging_file(config_file)
 
-    # Load config file
+    # Load NWB config file
     with open(config_file, 'r', encoding='utf8') as stream:
         config = yaml.safe_load(stream)
     channels_dict = config['log_continuous_metadata']['channels_dict']
     threshold_dict = config['log_continuous_metadata']['threshold_dict']
+
     if 'scanimage_dict' in config['log_continuous_metadata']:
         scanimage_dict = config['log_continuous_metadata']['scanimage_dict']
     else:

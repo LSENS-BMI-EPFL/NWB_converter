@@ -118,7 +118,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     behaviour_metadata = {
         'path_to_config_file': json_path,
         'behaviour_type': json_config['behaviour_type'],
-        'trial_table': 'full', # for raw NWB trial data, 'full' or 'simple'
+        'trial_table': 'simple', # for raw NWB trial data, 'full' or 'simple'
         'camera_flag': json_config['camera_flag'],
     }
     if 'camera_exposure_time' in json_config.keys():
@@ -137,7 +137,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
         6: 'early_lick',
     }
 
-    # 2P imaging metadata.
+    # 2P imaging metadata. #TODO: make this from external experimenter-dependent excel file
     # ####################
 
     two_photon_metadata = {
@@ -148,7 +148,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
         'indicator': 'GCaMP8m',
     }
 
-    # Extracell. ephys. metadata.
+    # Extracell. ephys. metadata. #TODO: make this from external experimenter-dependent excel file
     # ####################
 
     ephys_metadata = {
@@ -166,6 +166,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
         'trial_map': trial_map,
     }
 
+    # Depending on session type, add relevant dictionary
     if json_config['twophoton_session']:
         main_dict.update({'two_photon_metadata': two_photon_metadata})
 
@@ -249,9 +250,9 @@ def create_channels_threshold_dict(experimenter, json_config):
 if __name__ == '__main__':
     # Select mouse IDs.
     # mouse_ids = ['RD001', 'RD002', 'RD003', 'RD004', 'RD005', 'RD006']
-    mouse_ids = [50,51,52,54,56,58,59,68,72,73,75,76,77,778,79,80,81,82,83]
+    mouse_ids = [50,51,52,54,56,58,59,68,72,73,75,76,77,78,79,80,81,82,83]
     mouse_ids = ['AB0{}'.format(i) for i in mouse_ids]
-    mouse_ids = ['PB124']
+    mouse_ids = ['RD004']
     # last_done_day = "20230601"
 
     for mouse_id in mouse_ids:

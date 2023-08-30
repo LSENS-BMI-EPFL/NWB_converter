@@ -241,24 +241,24 @@ def build_full_trial_table(behavior_results_file, timestamps_dict):
     return full_trial_table
 
 
-def add_trials_to_nwb(nwb_file, simplified_trial_table):
-    column_names = simplified_trial_table.columns
+def add_trials_to_nwb(nwb_file, trial_table):
+    column_names = trial_table.columns
     columns_to_add = column_names[3:]
 
     for column in columns_to_add:
         nwb_file.add_trial_column(name=column, description="None")
 
-    n_trials = simplified_trial_table['trial_type'].size
+    n_trials = trial_table['trial_type'].size
     for trial in range(n_trials):
-        nwb_file.add_trial(start_time=simplified_trial_table['trial_start'].values[trial],
-                           stop_time=simplified_trial_table['trial_stop'].values[trial],
-                           reaction_time=simplified_trial_table['reaction_time'].values[trial],
-                           trial_type=simplified_trial_table['trial_type'].values[trial],
-                           wh_reward=simplified_trial_table['wh_reward'].values[trial],
-                           aud_reward=simplified_trial_table['aud_reward'].values[trial],
-                           trial_outcome=simplified_trial_table['trial_outcome'].values[trial],
-                           early_lick=simplified_trial_table['early_lick'].values[trial],
-                           context_block=simplified_trial_table['context_block'].values[trial])
+        nwb_file.add_trial(start_time=trial_table['trial_start'].values[trial],
+                           stop_time=trial_table['trial_stop'].values[trial],
+                           reaction_time=trial_table['reaction_time'].values[trial],
+                           trial_type=trial_table['trial_type'].values[trial],
+                           wh_reward=trial_table['wh_reward'].values[trial],
+                           aud_reward=trial_table['aud_reward'].values[trial],
+                           trial_outcome=trial_table['trial_outcome'].values[trial],
+                           early_lick=trial_table['early_lick'].values[trial],
+                           context_block=trial_table['context_block'].values[trial])
 
     return
 
