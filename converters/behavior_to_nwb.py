@@ -2,7 +2,8 @@ import numpy as np
 import os
 import yaml
 
-from utils.behavior_converter_misc import get_trial_timestamps_dict, build_simplified_trial_table, build_full_trial_table, add_trials_to_nwb, \
+from utils.behavior_converter_misc import get_trial_timestamps_dict, build_simplified_trial_table, \
+    build_full_trial_table, add_trials_to_nwb, \
     get_context_timestamps_dict, add_trials_full_to_nwb
 from pynwb.behavior import BehavioralEvents, BehavioralEpochs
 from pynwb.base import TimeSeries
@@ -12,7 +13,6 @@ from utils import continuous_processing
 
 
 def convert_behavior_data(nwb_file, timestamps_dict, config_file):
-
     # Get session behaviour results file
     behavior_results_file = server_paths.get_behavior_results_file(config_file)
 
@@ -33,8 +33,6 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
     else:
         trial_table = build_simplified_trial_table(behavior_results_file=behavior_results_file,
                                                    timestamps_dict=timestamps_dict)
-
-
 
     print("Adding trials to NWB file")
     if config_dict.get('behaviour_metadata').get('trial_table') == 'full':
@@ -57,7 +55,6 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
     except KeyError:
         behavior_events = BehavioralEvents(name='BehavioralEvents')
         bhv_module.add_data_interface(behavior_events)
-
 
     # For each trial type, add a time series of trial timestamps
     trial_types = list(trial_timestamps_dict.keys())
@@ -84,7 +81,6 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
         behavior_events.add_timeseries(trial_timeseries)
         print(f"Adding {len(data_to_store)} {trial_type} to BehavioralEvents")
 
-
     # If context, add context timestamps to NWB file
     if context_timestamps_dict is not None:
         print("Adding epochs to NWB file")
@@ -109,27 +105,51 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
                                                    description=description,
                                                    control=None, control_description=None)
 
-    # If behaviour video filming, add movie frame timestamps
-    movie_files = server_paths.get_movie_files(config_file)
+    # Check if behaviour video filming
+    if config_dict.get('session_metadata').get('experimenter') == 'AB':
+        movie_files = server_paths.get_session_movie_files(config_file)
+    else:
+        movie_files = server_paths.get_movie_files(config_file)
+
+    # If there is a behaviour video, add camera frame timestamps to NWB file
     if movie_files is not None:
         print("Adding behavior movies as external file to NWB file")
         for movie_index, movie in enumerate(movie_files):
+
+            # If movie file does not exist, skip
             if not os.path.exists(movie):
                 print(f"File not found, do next video")
                 continue
 
+            # Get information about video
             video_length, video_frame_rate = continuous_processing.read_behavior_avi_movie(movie_files=movie_files)
 
-            # check n frames vs n_timestamps in ttl
-            on_off_timestamps = timestamps_dict['cam1']
+            # check n_frames vs n_timestamps TLLs
+            if config_dict.get('session_metadata').get('experimenter') == 'AB':
+                key_view_mapper = {
+                    'top': 'cam1',
+                    'side': 'cam2'
+                }
+                movie_file_names = [os.path.basename(f) for f in movie_files]
+                movie_file_parts = [f.split('-')[0] for f in movie_file_names]
+                movie_file_suffix = [f.split('_')[1] for f in movie_file_parts][0]  # side or top
+                cam_key = key_view_mapper[movie_file_suffix]
+
+                movie_nwb_file_name = movie_file_names[0]
+            else:
+                cam_key = 'cam1'
+                movie_nwb_file_name = f"{os.path.splitext(movie)[0]}_camera_{movie_index}" #Should this index match 1 or 2, rather?
+
+            # Get frame timestamps
+            on_off_timestamps = timestamps_dict[cam_key]
             if len(on_off_timestamps) - video_length > 2:
-                print("Difference in number of frames vs detected frames is larger than 2, do next video")
+                print("Difference in number of frames ({}) vs detected frames ({}) is larger than 2, do next video".format(video_length, len(on_off_timestamps)))
                 continue
             else:
                 movie_timestamps = [on_off_timestamps[i][0] for i in range(video_length)]
 
             behavior_external_file = ImageSeries(
-                name=f"{os.path.splitext(movie)[0]}_camera_{movie_index}",
+                name=movie_nwb_file_name,
                 description="Behavior video of animal in the task",
                 unit="n.a.",
                 external_file=[movie],
@@ -139,9 +159,3 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
             )
 
             nwb_file.add_acquisition(behavior_external_file)
-
-
-
-
-
-

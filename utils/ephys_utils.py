@@ -70,8 +70,8 @@ def format_ephys_timestamps(config_file, ephys_timestamps_dict):
 
     movie_files = server_paths.get_session_movie_files(config_file)
     movie_file_names = [os.path.basename(f) for f in movie_files]
-    movie_file_parts = [f.split('-')[0] for f in movie_file_names]
-    movie_file_parts = [f.split('_')[1] for f in movie_file_parts]
+    movie_file_suffix = [f.split('-')[0] for f in movie_file_names]
+    movie_file_suffix = [f.split('_')[1] for f in movie_file_suffix]
 
     # Format each timestamps type separately
     for event in ephys_timestamps_dict.keys():
@@ -101,7 +101,7 @@ def format_ephys_timestamps(config_file, ephys_timestamps_dict):
             # If not movies or specific movie absent, set timestamps to empty list
             if movie_files is None:
                 timestamps_dict[event] = []
-            elif view_key_mapper[event] not in movie_file_parts:
+            elif view_key_mapper[event] not in movie_file_suffix:
                 timestamps_dict[event] = []
             else:
                 ts_on = timestamps

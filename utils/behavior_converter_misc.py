@@ -4,8 +4,8 @@ import pandas as pd
 import yaml
 import json
 
-#TODO: make this more general OR customable
-def find_training_days(subject_id, input_folder):
+def find_training_days(subject_id, input_folder): #TODO: make this more general OR customable
+
     """
     Find days of behavioural training, excluding other test/dummy sessions.
     Args:
@@ -297,4 +297,6 @@ def add_trials_full_to_nwb(nwb_file, trial_table):
                            is_reward=trial_table['is_reward'].values[trial]
                            )
     return
+
+
 
