@@ -22,6 +22,10 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
 
     """
 
+    # Load NWB config file
+    with open(config_file, 'r', encoding='utf8') as stream:
+        config = yaml.safe_load(stream)
+
     if __name__ == "__main__":
         with open(config_file, 'r', encoding='utf8') as stream:
             config = yaml.safe_load(stream)
@@ -32,14 +36,16 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
         else:
             movie_files = None
         tiff_file = config['ci_tiff_path']
+
     else:
         bin_file = server_paths.get_log_continuous_file(config_file)
-        movie_files = server_paths.get_movie_files(config_file)
+
+        if config['session_metadata']['experimenter'] == 'AB':
+            movie_files = server_paths.get_session_movie_files(config_file)
+        else:
+            movie_files = server_paths.get_movie_files(config_file)
         tiff_file = server_paths.get_imaging_file(config_file)
 
-    # Load NWB config file
-    with open(config_file, 'r', encoding='utf8') as stream:
-        config = yaml.safe_load(stream)
     channels_dict = config['log_continuous_metadata']['channels_dict']
     threshold_dict = config['log_continuous_metadata']['threshold_dict']
 
@@ -59,16 +65,20 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
                                                         scanimage_dict=scanimage_dict,
                                                         filter_cameras=camera_filtering)
 
-    if 'ephys_metadata' in config:
-        timestamps_dict, n_frames_dict = get_ephys_timestamps(config_file=config_file, log_timestamps_dict=timestamps_dict)
-
-
-
-    # Optionally plot continuous data for inspection, given a start and stop time
+    # Optionally plot log_continuous.bin data for inspection, given a start and stop time
     if do_plot:
-        plot_continuous_data_dict(continuous_data_dict, timestamps_dict, ni_session_sr=5000,
-                                  t_start=plot_start, t_stop=plot_stop,
+        plot_continuous_data_dict(continuous_data_dict=continuous_data_dict,
+                                  timestamps_dict=timestamps_dict,
+                                  ni_session_sr=5000,
+                                  t_start=plot_start,
+                                  t_stop=plot_stop,
                                   black_background=False)
+
+
+    if 'ephys_metadata' in config:
+        ephys_timestamps_dict, n_frames_dict = get_ephys_timestamps(config_file=config_file, log_timestamps_dict=timestamps_dict)
+        timestamps_dict = ephys_timestamps_dict
+
 
     if movie_files is not None:
         read_behavior_avi_movie(movie_files=movie_files)
