@@ -4,6 +4,15 @@ from pynwb import NWBHDF5IO
 
 
 def save_nwb_file(nwb_file, output_folder):
+    """
+    Save nwb file to output folder.
+    Args:
+        nwb_file: NWB file object
+        output_folder: output folder path
+
+    Returns:
+
+    """
     time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
     nwb_name = nwb_file.identifier + "_" + time_str + ".nwb"
 
