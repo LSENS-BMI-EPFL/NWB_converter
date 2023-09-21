@@ -87,6 +87,7 @@ def format_ephys_timestamps(config_file, ephys_timestamps_dict):
             behavior_results_file = server_paths.get_behavior_results_file(config_file)
             trial_table = pd.read_csv(behavior_results_file)
             trial_durations_sec = trial_table.trial_duration.values / 1000
+            trial_durations_sec = 1.0 # max. response window
             ts_off = ts_on + trial_durations_sec
             timestamps = list(zip(ts_on, ts_off))
 
