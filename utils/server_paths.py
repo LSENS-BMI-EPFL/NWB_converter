@@ -78,8 +78,10 @@ def get_movie_files(config_file):
     data_folder = get_subject_data_folder(mouse_name)
     movies_path = os.path.join(data_folder, 'Recording', 'Video', session_name)
     if not os.path.exists(movies_path):
-        os.makedirs(movies_path)
-    movies = [os.path.join(movies_path, m) for m in os.listdir(movies_path) if os.path.splitext(m)[1] in ['.avi', '.mp4']]
+        movies = None
+        return movies
+    movies = [os.path.join(movies_path, m) for m in os.listdir(movies_path)
+              if os.path.splitext(m)[1] in ['.avi', '.mp4']]
     if not movies:
         movies = None
 
@@ -109,8 +111,10 @@ def get_imaging_file(config_file):
     data_folder = get_subject_data_folder(mouse_name)
     tiff_path = os.path.join(data_folder, 'Recording', 'Imaging', session_name)
     if not os.path.exists(tiff_path):
-        os.makedirs(tiff_path)
-    tiff_file = [os.path.join(tiff_path, m) for m in os.listdir(tiff_path) if os.path.splitext(m)[1] == '.tif']
+        tiff_file = None
+        return tiff_file
+    tiff_file = [os.path.join(tiff_path, m) for m in os.listdir(tiff_path)
+                 if os.path.splitext(m)[1] in ['.tif', '.tiff']]
     if tiff_file:
         # Assuming there is a single tiff file.
         tiff_file = tiff_file[0]
@@ -186,3 +190,24 @@ def get_cwaves_folder(imec_probe_folder):
         return None
     else:
         return cwaves_folder
+
+def get_anat_images_files(config_file):
+    with open(config_file, 'r', encoding='utf8') as stream:
+        config = yaml.safe_load(stream)
+    mouse_name = config['subject_metadata']['subject_id']
+    session_name = config['session_metadata']['session_id']
+    data_folder = get_subject_data_folder(mouse_name)
+    anat_images_path = os.path.join(data_folder, 'Recording', 'Imaging', 'Anat', session_name)
+    if not os.path.exists(anat_images_path):
+        anat_images = None
+        return anat_images
+    anat_images = [os.path.join(anat_images_path, m) for m in os.listdir(anat_images_path)
+                   if os.path.splitext(m)[1] in ['.tif', '.tiff']]
+
+    if not anat_images:
+        anat_images = None
+
+    return anat_images
+
+
+

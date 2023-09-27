@@ -7,6 +7,7 @@ from converters.ci_movie_to_nwb import convert_ci_movie
 from converters.suite2p_to_nwb import convert_suite2p_data
 from converters.nwb_saving import save_nwb_file
 from converters.behavior_to_nwb import convert_behavior_data
+from converters.images_to_nwb import convert_images_data
 from continuous_log_analysis import analyze_continuous_log
 from utils.behavior_converter_misc import find_training_days
 from utils.server_paths import get_subject_data_folder, get_subject_analysis_folder, get_nwb_folder

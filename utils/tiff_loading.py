@@ -78,3 +78,12 @@ def get_tiff_movie_shape(tif_movie_file_name):
 
     return tiff_movie_shape
 
+
+def load_tiff_image(tiff_image_path):
+    im = pil_image.open(tiff_image_path)
+    image_array = np.array(im)
+    dim_y, dim_x = image_array.shape
+    print(f"Image dimensions: dim_x {dim_x}, dim_y {dim_y}")
+
+    return image_array
+

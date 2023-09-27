@@ -129,7 +129,7 @@ def plot_continuous_data_dict(continuous_data_dict, timestamps_dict, ni_session_
 
             if timestamps_dict is not None and timestamps_dict.get(channel_name) is not None:
                 on_off_times = timestamps_dict.get(channel_name)
-                if channel_name in ["trial_TTL", "cam1", "cam2", "context"]:
+                if channel_name in ["trial_TTL", "cam1", "cam2", "context", "widefield"]:
                     for on_off in on_off_times:
                         if t_start is not None and on_off[0] < t_start:
                             continue
@@ -219,6 +219,9 @@ def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scan
             frame_points = sci_si.find_peaks(data, height=threshold,
                                              distance=int(ci_movie_frame_gap * ni_session_sr))[0]
             if len(frame_points) == 0:
+                print(f"No detected CI frames from galvo position")
+                timestamps_dict[key] = []
+                n_frames_dict[key] = 0
                 continue
             ci_frame_times = frame_points / ni_session_sr
             ci_has_pause, n_pauses, pause_frame_index = detect_ci_pause(ci_frame_times)
