@@ -22,7 +22,7 @@ def convert_ci_movie(nwb_file, config_file, movie_format, ci_frame_timestamps):
 
     with open(config_file, 'r') as stream:
         config = yaml.safe_load(stream)
-    two_p_metadata = config['2P_metadata']
+    two_p_metadata = config['two_photon_metadata']
 
     device = Device(two_p_metadata['device'])
     nwb_file.add_device(device)
