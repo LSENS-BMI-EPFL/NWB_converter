@@ -14,6 +14,12 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
     :return:
     """
 
+    # First check whether there is data to add in the ophys module
+    suite2p_folder = get_suite2p_folder(config_file)
+    if suite2p_folder is None:
+        print(f"No suite2p folder to add")
+        return
+
     if 'ophys' in nwb_file.processing:
         module = nwb_file.processing['ophys']
     else:
@@ -35,25 +41,21 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
     # Load Suite2p data
     suite2p_raw = None
     suite2p_deconvolve = None
-    suite2p_folder = get_suite2p_folder(config_file)
-    if suite2p_folder is None:
-        print(f"No suite2p folder to add")
+
+    suite2p_folder = os.path.join(suite2p_folder, "plane0")
+    if not os.path.isfile(os.path.join(suite2p_folder, "stat.npy")):
+        print(f"Stat file missing in {suite2p_folder}")
         return
     else:
-        suite2p_folder = os.path.join(suite2p_folder, "plane0")
-        if not os.path.isfile(os.path.join(suite2p_folder, "stat.npy")):
-            print(f"Stat file missing in {suite2p_folder}")
-            return
-        else:
-            stat = np.load(os.path.join(suite2p_folder, "stat.npy"), allow_pickle=True)
-        if os.path.isfile(os.path.join(suite2p_folder, "iscell.npy")):
-            is_cell = np.load(os.path.join(suite2p_folder, "iscell.npy"), allow_pickle=True)
-        else:
-            is_cell = None
-        if os.path.isfile(os.path.join(suite2p_folder, "spks.npy")):
-            suite2p_deconvolve = np.load(os.path.join(suite2p_folder, "spks.npy"), allow_pickle=True)
-        if os.path.isfile(os.path.join(suite2p_folder, "F.npy")):
-            suite2p_raw = np.load(os.path.join(suite2p_folder, "F.npy"), allow_pickle=True)
+        stat = np.load(os.path.join(suite2p_folder, "stat.npy"), allow_pickle=True)
+    if os.path.isfile(os.path.join(suite2p_folder, "iscell.npy")):
+        is_cell = np.load(os.path.join(suite2p_folder, "iscell.npy"), allow_pickle=True)
+    else:
+        is_cell = None
+    if os.path.isfile(os.path.join(suite2p_folder, "spks.npy")):
+        suite2p_deconvolve = np.load(os.path.join(suite2p_folder, "spks.npy"), allow_pickle=True)
+    if os.path.isfile(os.path.join(suite2p_folder, "F.npy")):
+        suite2p_raw = np.load(os.path.join(suite2p_folder, "F.npy"), allow_pickle=True)
 
     # Check image dimension
     if image_series is not None:

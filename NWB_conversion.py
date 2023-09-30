@@ -43,7 +43,7 @@ def convert_data_to_nwb(config_file, output_folder):
     nwb_file = create_nwb_file(config_file=config_file)
 
     # # TODO: update/remove the link to motion corrected ci tiff.
-    if config_dict.get("2P_metadata") is not None:
+    if config_dict.get("two_photon_metadata") is not None:
         print(" ")
         print("Convert CI movie")
         convert_ci_movie(nwb_file=nwb_file, config_file=config_file,

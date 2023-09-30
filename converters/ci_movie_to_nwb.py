@@ -15,6 +15,11 @@ def convert_ci_movie(nwb_file, config_file, movie_format, ci_frame_timestamps):
 
     """
 
+    motion_corrected_file_name = get_imaging_file(config_file)
+    if motion_corrected_file_name is None:
+        print(f"No calcium imaging movie to add")
+        return
+
     with open(config_file, 'r') as stream:
         config = yaml.safe_load(stream)
     two_p_metadata = config['2P_metadata']
@@ -37,11 +42,6 @@ def convert_ci_movie(nwb_file, config_file, movie_format, ci_frame_timestamps):
                                                   imaging_rate=float(ci_sampling_rate),
                                                   indicator=indicator,
                                                   location=image_plane_location)
-
-    motion_corrected_file_name = get_imaging_file(config_file)
-    if motion_corrected_file_name is None:
-        print(f"No calcium imaging movie to add")
-        return
 
     if movie_format != 'link':
         tiff_movie = load_tiff_movie_in_memory(motion_corrected_file_name,
