@@ -27,6 +27,7 @@ def find_training_days(subject_id, input_folder): #TODO: make this more general 
         with open(json_path, 'r') as f:
             json_config = json.load(f)
         behavior_type.append(json_config['behaviour_type'])
+    behavior_type = ['free_licking' if behavior == 'free licking' else behavior for behavior in behavior_type]
     n_aud = len([s for s in behavior_type if s in ['free_licking', 'auditory']])
     n_wh = len([s for s in behavior_type if s in ['whisker', 'context']])
     label = list(range(-n_aud, 0)) + list(range(0, n_wh))
