@@ -74,9 +74,33 @@ def load_tiff_movie_in_memory(tif_movie_file_name, frames_to_add=None):
 
 
 def get_tiff_movie_shape(tif_movie_file_name):
-    tiff_movie_shape = ScanImageTiffReader(tif_movie_file_name).shape()
+    starting_frames = [0]
+    if len(tif_movie_file_name) == 1:
+        print("Found 1 tif files in folder, count total number of frames")
+        start_time = time.time()
+        tiff_movie_shape = ScanImageTiffReader(tif_movie_file_name[0]).shape()
+        stop_time = time.time()
+        print(f"Time for reading CI movie frames with ScanImageTiffReader: {np.round(stop_time - start_time, 3)} s")
+    else:
+        tiff_movie_shape = ScanImageTiffReader(tif_movie_file_name[0]).shape()
+        n_tiff_files = len(tif_movie_file_name)
+        print(f"Found {n_tiff_files} tif files in folder, count total number of frames")
+        total_frames = 0
+        start_time = time.time()
+        for file_index, file in enumerate(tif_movie_file_name):
+            tiff_shape = ScanImageTiffReader(file).shape()
+            starting_frames.append(total_frames + tiff_shape[0])
+            total_frames = total_frames + tiff_shape[0]
+        stop_time = time.time()
+        print(f"Time for reading CI movie frames with ScanImageTiffReader: {np.round(stop_time - start_time, 3)} s")
+        tiff_movie_shape[0] = total_frames
+        starting_frames = starting_frames[0:-1]
 
-    return tiff_movie_shape
+    n_frames = tiff_movie_shape[0]
+    n_lines = tiff_movie_shape[1]
+    n_cols = tiff_movie_shape[2]
+
+    return n_frames, n_lines, n_cols, starting_frames
 
 
 def load_tiff_image(tiff_image_path):

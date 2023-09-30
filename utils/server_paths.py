@@ -115,10 +115,8 @@ def get_imaging_file(config_file):
         return tiff_file
     tiff_file = [os.path.join(tiff_path, m) for m in os.listdir(tiff_path)
                  if os.path.splitext(m)[1] in ['.tif', '.tiff']]
-    if tiff_file:
-        # Assuming there is a single tiff file.
-        tiff_file = tiff_file[0]
-    else:
+
+    if not tiff_file:
         tiff_file = None
 
     return tiff_file

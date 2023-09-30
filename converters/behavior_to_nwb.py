@@ -122,6 +122,7 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
                 continue
 
             # Get information about video
+            print("Check length and frame rate")
             video_length, video_frame_rate = continuous_processing.read_behavior_avi_movie(movie_files=movie_files)
 
             # check n_frames vs n_timestamps TLLs
@@ -138,7 +139,7 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
                 movie_nwb_file_name = movie_file_names[0]
             else:
                 cam_key = 'cam1'
-                movie_nwb_file_name = f"{os.path.splitext(movie)[0]}_camera_{movie_index}" #Should this index match 1 or 2, rather?
+                movie_nwb_file_name = f"{os.path.splitext(movie)[0]}_camera_{movie_index + 1}"
 
             # Get frame timestamps
             on_off_timestamps = timestamps_dict[cam_key]

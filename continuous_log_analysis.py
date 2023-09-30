@@ -3,8 +3,9 @@ import yaml
 import os
 from utils.continuous_processing import read_binary_continuous_log, \
     plot_continuous_data_dict, extract_timestamps, read_behavior_avi_movie, \
-    read_tiff_ci_movie_frames, print_info_dict
+    print_info_dict
 from utils import server_paths
+from utils import tiff_loading
 from utils.ephys_utils import get_ephys_timestamps
 
 
@@ -74,22 +75,21 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
                                   t_stop=plot_stop,
                                   black_background=False)
 
-
     if 'ephys_metadata' in config:
         ephys_timestamps_dict, n_frames_dict = get_ephys_timestamps(config_file=config_file, log_timestamps_dict=timestamps_dict)
         timestamps_dict = ephys_timestamps_dict
 
-
-    if movie_files is not None:
-        read_behavior_avi_movie(movie_files=movie_files)
-
-
-    if tiff_file is not None:
-        print(f"Tiff file found, reading number of CI frames")
-        read_tiff_ci_movie_frames(tiff_file)
-
     print("Number of timestamps per acquisition:")
     print_info_dict(n_frames_dict)
+
+    if __name__ == "__main__":
+        if movie_files is not None:
+            print(f"Check numer video filming frames")
+            read_behavior_avi_movie(movie_files=movie_files)
+
+        if tiff_file is not None:
+            print(f"Tiff file found, reading number of CI frames")
+            tiff_loading.get_tiff_movie_shape(tiff_file)
 
     return timestamps_dict, n_frames_dict
 

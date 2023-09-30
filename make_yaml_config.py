@@ -118,7 +118,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     behaviour_metadata = {
         'path_to_config_file': json_path,
         'behaviour_type': json_config['behaviour_type'],
-        'trial_table': 'simple', # for raw NWB trial data, 'full' or 'simple'
+        'trial_table': 'simple',  # for raw NWB trial data, 'full' or 'simple'
         'camera_flag': json_config['camera_flag'],
     }
     if 'camera_exposure_time' in json_config.keys():

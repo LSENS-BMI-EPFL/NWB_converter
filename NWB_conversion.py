@@ -15,13 +15,7 @@ from utils.server_paths import get_subject_data_folder, get_subject_analysis_fol
 
 def convert_data_to_nwb(config_file, output_folder):
     """
-    :param subject_data_yaml: Path to the subject data yaml config file containing mouse ID and metadata
-    :param session_data_yaml: Path to the session data yaml config file containing session metadata
-    :param log_yaml_file: Path to the yaml config file used to analyse continuous logging and behavior
-    :param two_p_yaml_file: Path to the yaml config file containing 2P info
-    :param suite2p_folder: Path to the suite2p output folder
-    :param behavior_results_file: Path to the 'results.csv' behavior file
-    :param bhv_mapping_file: Path to the dictionary mapping performance number in behavior file with trial name
+    :param config_file: Path to the yaml config file containing mouse ID and metadata for the session to convert
     :param output_folder: Path to the folder to save NWB files
     :return: NWB file
     """
@@ -30,7 +24,9 @@ def convert_data_to_nwb(config_file, output_folder):
     with open(config_file, 'r', encoding='utf8') as stream:
         config_dict = yaml.safe_load(stream)
 
+    print(" ")
     print("Start NWB conversion")
+
     print(" ")
     print("Extract timestamps")
 

@@ -1,3 +1,4 @@
+import numpy as np
 import yaml
 from pynwb.ophys import TwoPhotonSeries, OpticalChannel, Device
 from utils.tiff_loading import load_tiff_movie_in_memory, get_tiff_movie_shape
@@ -5,11 +6,13 @@ from utils.server_paths import get_imaging_file
 
 
 def convert_ci_movie(nwb_file, config_file, movie_format, ci_frame_timestamps):
+
     """
 
     :param nwb_file: nwb file
     :param config_file: Main yaml config file including 2P imaging metadata
     :param movie_format: either 'tiff' or 'link' if link add the path to the NWB file if tiff add the data
+    :param: ci_frame_timestamps: timestamps of each imaging frame
     :return: create ImagingPlane, add acquisition
 
 
@@ -17,7 +20,7 @@ def convert_ci_movie(nwb_file, config_file, movie_format, ci_frame_timestamps):
 
     motion_corrected_file_name = get_imaging_file(config_file)
     if motion_corrected_file_name is None:
-        print(f"No calcium imaging movie to add")
+        print(f"No calcium imaging movie to add, return")
         return
 
     with open(config_file, 'r') as stream:
@@ -44,8 +47,17 @@ def convert_ci_movie(nwb_file, config_file, movie_format, ci_frame_timestamps):
                                                   location=image_plane_location)
 
     if movie_format != 'link':
-        tiff_movie = load_tiff_movie_in_memory(motion_corrected_file_name,
-                                               frames_to_add=None)
+        if len(motion_corrected_file_name) == 1:
+            print("Load data from single tiff")
+            file_name = motion_corrected_file_name[0]
+            tiff_movie = load_tiff_movie_in_memory(file_name, frames_to_add=None)
+        else:
+            print(f"Load data from multi-tiff, (found {len(motion_corrected_file_name)} tiff files)")
+            first_file = motion_corrected_file_name[0]
+            tiff_movie = load_tiff_movie_in_memory(first_file, frames_to_add=None)
+            for file_index, file_name in enumerate(motion_corrected_file_name[1:]):
+                tif_file = load_tiff_movie_in_memory(file_name, frames_to_add=None)
+                tiff_movie = np.concatenate(tiff_movie, tif_file, axis=0)
 
         n_frames, n_lines, n_cols = tiff_movie.shape
         print(f"Movie dimensions n_frames, n_lines, n_cols :{n_frames, n_lines, n_cols}")
@@ -57,14 +69,15 @@ def convert_ci_movie(nwb_file, config_file, movie_format, ci_frame_timestamps):
                                                       timestamps=ci_frame_timestamps,
                                                       unit="lux")
     elif movie_format == 'link':
-        n_frames, n_lines, n_cols = get_tiff_movie_shape(motion_corrected_file_name)
+        print(f"Extract tiff movie shape:")
+        n_frames, n_lines, n_cols, starting_frames = get_tiff_movie_shape(motion_corrected_file_name)
 
         print(f"Movie dimensions n_frames, n_lines, n_cols :{n_frames, n_lines, n_cols}")
         motion_corrected_img_series = TwoPhotonSeries(name='motion_corrected_ci_movie',
                                                       dimension=[n_frames, n_lines, n_cols],
-                                                      external_file=[motion_corrected_file_name],
+                                                      external_file=motion_corrected_file_name,
                                                       imaging_plane=imaging_plane,
-                                                      starting_frame=[0], format='external',
+                                                      starting_frame=starting_frames, format='external',
                                                       timestamps=ci_frame_timestamps,
                                                       unit="lux")
 
