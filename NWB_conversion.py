@@ -73,18 +73,16 @@ def convert_data_to_nwb(config_file, output_folder):
 
 if __name__ == '__main__':
     # Run the conversion
-    # mouse_ids = ['RD001', 'RD002', 'RD003', 'RD004', 'RD005', 'RD006']
-    # mouse_ids = ['RD001', 'RD003', 'RD005']
-    # mouse_ids = ['RD002', 'RD004', 'RD006']
+    # mouse_ids = ['RD013', 'RD014', 'RD015', 'RD016', 'RD017']
+    # mouse_ids = ['RD014', 'RD015', 'RD016']
+    # mouse_ids = ['RD025', 'RD026']
     # mouse_ids = ['RD002', 'RD004']
-    mouse_ids = ['PB124']
+    mouse_ids = ['AR103']
 
     for mouse_id in mouse_ids:
         data_folder = get_subject_data_folder(mouse_id)
         analysis_folder = get_subject_analysis_folder(mouse_id)
-        analysis_folder = analysis_folder.replace('Robin_Dard', 'Axel_Bisi') #TODO: delete
         nwb_folder = get_nwb_folder(mouse_id)
-        nwb_folder = nwb_folder.replace('Robin_Dard', 'Axel_Bisi')   #TODO: delete
         # nwb_folder = 'C:/Users/rdard/Documents/NWB_files/Anthony'
 
         # Find session list and session description.
