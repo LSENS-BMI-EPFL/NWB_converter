@@ -13,6 +13,77 @@ import pandas as pd
 from utils import server_paths
 
 
+# MAP of (AP,ML) coordinates relative to bregma
+AREA_COORDINATES_MAP = {
+    'wS1': 'IOS',
+    'wS2': 'IOS',
+    'A1': 'IOS',
+    'wM1': (1, 1),
+    'wM2': (2, 1),
+    'mPFC': (2, 0.5),
+    'Vis': (-3.8, 2.5),
+    'PPC': (-2, 1.75),
+    'dCA1': (-2.7, 2),
+    'tjM1': (2, 2),
+    'DLS': (0, 3.5)
+}
+
+def get_target_location(config_file, device_name):
+    """
+    Read location target: hemisphere, stereotaxic coordinate, angles.
+    Args:
+        config_file: Path to config file
+        device_name: Name of the device (e.g. imec0)
+
+    Returns:
+    """
+
+    # Read config file
+    with open(config_file, 'r') as f:
+        config = yaml.load(f, Loader=yaml.FullLoader)
+
+    location_dict = dict()
+
+    # This is experimenter-specific tracking of that information
+    if config.get('session_metadata').get('experimenter') == 'AB':
+
+        # Load probe insertion table
+        path_to_info_file = r'M:\analysis\Axel_Bisi\mice_info\probe_insertion_info.xlsx'
+        location_df = pd.read_excel(path_to_info_file, sheet_name='Sheet1')
+
+        # Keep subset for mouse and probe
+        mouse_name = config.get('subject_metadata').get('subject_id')
+        location_df = location_df[(location_df['mouse_name'] == mouse_name)
+                                  &
+                                  (location_df['probe_id'] == int(device_name[-1]))
+                                  ]
+
+        print(location_df, len(location_df)) # must be 1 length
+
+        target_area = location_df['target_area'].values[0]
+        # TODO: continue here
+        if target_area in AREA_COORDINATES_MAP.keys():
+            ap, ml = AREA_COORDINATES_MAP[target_area]
+        else:
+            print('No standard coordinates found for this target area. Setting to NaN')
+            ap, ml = (np.nan, np.nan)
+
+        location_dict = {
+            'hemisphere': 'left',
+            'area': location_df['target_area'].values[0],
+            'ap': ap,
+            'ml': ml,
+            'azimuth': location_df['azimuth'].values[0],
+            'elevation': location_df['elevation'].values[0],
+            'depth': location_df['depth'].values[0],
+        }
+
+    else:
+        print('No location information found for this experimenter.')
+        raise NotImplementedError
+
+    return location_dict
+
 def load_ephys_sync_timestamps(config_file, log_timestamps_dict):
     """
     Load sync timestamps derived from CatGT/TPrime from config file.
