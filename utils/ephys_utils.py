@@ -42,8 +42,6 @@ def get_target_location(config_file, device_name):
     with open(config_file, 'r') as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
 
-    location_dict = dict()
-
     # This is experimenter-specific tracking of that information
     if config.get('session_metadata').get('experimenter') == 'AB':
 
@@ -51,23 +49,35 @@ def get_target_location(config_file, device_name):
         path_to_info_file = r'M:\analysis\Axel_Bisi\mice_info\probe_insertion_info.xlsx'
         location_df = pd.read_excel(path_to_info_file, sheet_name='Sheet1')
 
-        # Keep subset for mouse and probe
+        # Keep subset for mouse and probe_id
         mouse_name = config.get('subject_metadata').get('subject_id')
         location_df = location_df[(location_df['mouse_name'] == mouse_name)
                                   &
                                   (location_df['probe_id'] == int(device_name[-1]))
                                   ]
 
-        print(location_df, len(location_df)) # must be 1 length
-
+        # Get coordinates of target area
         target_area = location_df['target_area'].values[0]
-        # TODO: continue here
         if target_area in AREA_COORDINATES_MAP.keys():
-            ap, ml = AREA_COORDINATES_MAP[target_area]
+
+            if type(AREA_COORDINATES_MAP[target_area]) is tuple:
+
+                ap = AREA_COORDINATES_MAP[target_area][0]
+                ml = AREA_COORDINATES_MAP[target_area][1]
+
+            elif type(AREA_COORDINATES_MAP[target_area]) is str:
+
+                ap = AREA_COORDINATES_MAP[target_area]
+                ml = AREA_COORDINATES_MAP[target_area]
+            else:
+                print('Unknown type for AP, ML coordinates. Setting to NaN')
+                ap, ml = (np.nan, np.nan)
+
         else:
             print('No standard coordinates found for this target area. Setting to NaN')
             ap, ml = (np.nan, np.nan)
 
+        # Create ephys target location dictionary
         location_dict = {
             'hemisphere': 'left',
             'area': location_df['target_area'].values[0],

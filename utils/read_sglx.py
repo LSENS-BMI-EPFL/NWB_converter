@@ -2,7 +2,7 @@
 """
 @author: Axel Bisi
 @project: ephys_utils
-@file: readSGLX.py
+@file: read_sglx.py
 @time: 24.03.2023 11:39
 """
 
