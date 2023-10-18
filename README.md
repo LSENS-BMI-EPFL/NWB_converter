@@ -1,6 +1,9 @@
 # **NWB converter**
 
-Ongoing work to convert neurophysology data to the NWB data format
+Ongoing work to convert neurophysology data to the NWB data format.
+
+Dictionary of data entries:
+https://docs.google.com/document/d/1VGH9Myq_kk0-qZW8uU_7FD9cMEc4-RvjtmP7y11hRlk/edit?usp=sharing
 
 # **Installation**
 
