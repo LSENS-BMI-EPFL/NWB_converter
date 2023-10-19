@@ -615,6 +615,7 @@ def MetaToCoords(metaFullPath, outType, badChan=np.zeros((0), dtype='int'), dest
     else:
         [nShank, shankWidth, shankPitch, shankInd, xCoord, yCoord, connected] = shankMapToGeom(meta);
 
+
     if showPlot:
         plotSaved(xCoord, yCoord, shankInd, meta)
 

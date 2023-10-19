@@ -69,6 +69,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     # Session metadata.
     # #################
 
+
     # session data
     session_metadata = {
         'identifier': session_id,  # key to name the NWB file

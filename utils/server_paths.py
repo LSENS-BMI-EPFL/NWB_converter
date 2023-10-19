@@ -1,6 +1,5 @@
 import os
 import yaml
-from scipy.io import loadmat
 
 
 EXPERIMENTER_MAP = {

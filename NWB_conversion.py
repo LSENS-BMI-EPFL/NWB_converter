@@ -1,5 +1,6 @@
 """_summary_
 """
+# Imports
 import os
 import yaml
 from converters.subject_to_nwb import create_nwb_file
@@ -8,6 +9,7 @@ from converters.suite2p_to_nwb import convert_suite2p_data
 from converters.nwb_saving import save_nwb_file
 from converters.behavior_to_nwb import convert_behavior_data
 from converters.images_to_nwb import convert_images_data
+from converters.ephys_to_nwb import convert_ephys_recording
 from continuous_log_analysis import analyze_continuous_log
 from utils.behavior_converter_misc import find_training_days
 from utils.server_paths import get_subject_data_folder, get_subject_analysis_folder, get_nwb_folder
@@ -38,6 +40,12 @@ def convert_data_to_nwb(config_file, output_folder):
     print("Open NWB file and add metadata")
     nwb_file = create_nwb_file(config_file=config_file)
 
+
+    print(" ")
+    print("Convert behavior data")
+    convert_behavior_data(nwb_file=nwb_file, timestamps_dict=timestamps_dict, config_file=config_file)
+
+
     # # TODO: update/remove the link to motion corrected ci tiff.
     if config_dict.get("two_photon_metadata") is not None:
         print(" ")
@@ -54,11 +62,11 @@ def convert_data_to_nwb(config_file, output_folder):
 
     if config_dict.get("ephys_metadata") is not None:
         print(" ")
-        print("Convert ephys spike data")
+        print("Convert extracellular electrophysiology data")
 
-    print(" ")
-    print("Convert behavior data")
-    convert_behavior_data(nwb_file, timestamps_dict, config_file)
+        convert_ephys_recording(nwb_file=nwb_file,
+                             config_file=config_file)
+
 
     print(" ")
     print("Saving NWB file")
@@ -68,29 +76,28 @@ def convert_data_to_nwb(config_file, output_folder):
 
 
 if __name__ == '__main__':
+
     # Run the conversion
-    # mouse_ids = ['RD013', 'RD014', 'RD015', 'RD016', 'RD017']
-    # mouse_ids = ['RD014', 'RD015', 'RD016']
-    # mouse_ids = ['RD025', 'RD026']
-    # mouse_ids = ['RD002', 'RD004']
-    mouse_ids = ['AR103']
+    mouse_ids = ['AB082']
 
     for mouse_id in mouse_ids:
         data_folder = get_subject_data_folder(mouse_id)
         analysis_folder = get_subject_analysis_folder(mouse_id)
         nwb_folder = get_nwb_folder(mouse_id)
-        # nwb_folder = 'C:/Users/rdard/Documents/NWB_files/Anthony'
 
         # Find session list and session description.
         training_days = find_training_days(mouse_id, data_folder)
 
         # Create NWB by looping over sessions.
         for isession, iday in training_days:
+
+            print(isession, iday)
             # Filter sessions to do :
             # session_to_do = ["RD001_20230624_123913", "RD003_20230624_134719", "RD005_20230624_145511"]
-            #session_to_do = ["AB082_20230630_101353"]
-            #if isession not in session_to_do:
-            #    continue
+
+            session_to_do = ["AB082_20230630_101353"]
+            if isession not in session_to_do:
+                continue
 
             # date_to_do = "20230629"
             # if date_to_do not in isession:
@@ -98,6 +105,7 @@ if __name__ == '__main__':
 
             # Find yaml config file and behavior results for this session.
             config_yaml = os.path.join(analysis_folder, isession, f"config_{isession}.yaml")
+
             # Make conversion.
             print(f" ------------------ ")
             print(f"Session: {isession}")

@@ -14,8 +14,7 @@ def create_nwb_file(config_file):
     Create an NWB file object using all metadata containing in YAML file
 
     Args:
-        subject_data_yaml_file (str): Absolute path to YAML file containing the subject metadata
-        session_data_yaml_file (str): Absolute path to YAML file containing the session metadata
+        config_file (str): Absolute path to YAML file containing the subject experimental metadata
 
     """
 

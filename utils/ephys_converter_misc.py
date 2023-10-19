@@ -2,7 +2,7 @@
 """
 @author: Axel Bisi
 @project: NWB_converter
-@file: ephys_utils.py
+@file: ephys_converter_misc.py
 @time: 8/24/2023 9:25 AM
 """
 
@@ -11,7 +11,6 @@ import yaml
 import numpy as np
 import pandas as pd
 from utils import server_paths
-
 
 # MAP of (AP,ML) coordinates relative to bregma
 AREA_COORDINATES_MAP = {
@@ -28,9 +27,10 @@ AREA_COORDINATES_MAP = {
     'DLS': (0, 3.5)
 }
 
+
 def get_target_location(config_file, device_name):
     """
-    Read location target: hemisphere, stereotaxic coordinate, angles.
+    Read location target: hemisphere, stereotaxic coordinate, angles from a metadata external file.
     Args:
         config_file: Path to config file
         device_name: Name of the device (e.g. imec0)
@@ -94,6 +94,7 @@ def get_target_location(config_file, device_name):
 
     return location_dict
 
+
 def load_ephys_sync_timestamps(config_file, log_timestamps_dict):
     """
     Load sync timestamps derived from CatGT/TPrime from config file.
@@ -128,12 +129,15 @@ def load_ephys_sync_timestamps(config_file, log_timestamps_dict):
 
         # Make sure same number as from log_continuous.bin
         if len(timestamps) != len(log_timestamps_dict[event_map[event]]):
-            print(f'Warning: {event} has {len(timestamps)} timestamps from nidq.bin (CatGT), while {event_map[event]} has {len(log_timestamps_dict[event_map[event]])} timestamps from log_continuous.bin')
+            print(
+                'Warning: {event} has {len(timestamps)} timestamps from nidq.bin (CatGT), while {event_map[event]} '
+                'has {len(log_timestamps_dict[event_map[event]])} timestamps from log_continuous.bin')
 
         # Add to dictionary
         timestamps_dict[event_map[event]] = timestamps
 
     return timestamps_dict
+
 
 def format_ephys_timestamps(config_file, ephys_timestamps_dict):
     """
@@ -164,11 +168,13 @@ def format_ephys_timestamps(config_file, ephys_timestamps_dict):
             # Remove last timestamp that signals session end
             ts_on = timestamps[:-1]
 
-            # Get trial stops
+            # Get trial stop times
             behavior_results_file = server_paths.get_behavior_results_file(config_file)
             trial_table = pd.read_csv(behavior_results_file)
-            trial_durations_sec = trial_table.trial_duration.values / 1000
-            trial_durations_sec = 1.0 # max. response window
+            trial_response_windows = trial_table.response_window.values / 1000
+            trial_artifact_windows = trial_table.artifact_window.values / 1000
+            trial_durations_sec = trial_response_windows + trial_artifact_windows
+            trial_durations_sec = trial_durations_sec.astype(float)
             ts_off = ts_on + trial_durations_sec
             timestamps = list(zip(ts_on, ts_off))
 
@@ -196,9 +202,9 @@ def format_ephys_timestamps(config_file, ephys_timestamps_dict):
         else:
             print('Warning: {} is not a recognized timestamp type'.format(event))
 
-
-    print('Done formattting ephys timestamps as tuples')
+    print('Done formatting ephys timestamps as tuples')
     return timestamps_dict
+
 
 def get_ephys_timestamps(config_file, log_timestamps_dict):
     """
@@ -219,6 +225,47 @@ def get_ephys_timestamps(config_file, log_timestamps_dict):
 
     assert type(timestamps_dict['trial_TTL'][0]) == tuple
 
-    n_frames_dict = {k:len(v) for k,v in timestamps_dict.items()}
+    n_frames_dict = {k: len(v) for k, v in timestamps_dict.items()}
 
     return timestamps_dict, n_frames_dict
+
+
+def create_electrode_table(nwb_file):
+    """
+    Create electrode table in nwb file.
+    Args:
+        nwb_file: NWB file object
+
+    Returns:
+
+    """
+    # Create ElectrodeTable object
+    dict_columns_to_add = {'index_on_probe': 'index of saved channel per probe per shank',
+                           'ccf_ml': 'ccf coordinate in ml axis',
+                           'ccf_ap': 'ccf coordinate in ap axis',
+                           'ccf_dv': 'ccf coordinate in dv axis',
+                           'shank': 'shank number',
+                           'shank_col': 'column number of electrode on shank',
+                           'shank_row': 'row number of electrode on shank',
+                           'ccf_location': 'ccf area of electrode'
+                           }
+
+    for col_key, col_desc in dict_columns_to_add.items():
+        nwb_file.add_electrode_column(name=col_key, description=col_desc)
+
+    return
+
+
+def create_units_table(nwb_file):
+    """
+    Create units table in nwb file.
+    Args:
+        nwb_file: NWB file object
+
+    Returns:
+
+    """
+    # Create Units table
+    dict_columns_to_add = {}
+    for col_key, col_desc in dict_columns_to_add.items():
+        nwb_file.add_unit_column(name=col_key, description=col_desc)

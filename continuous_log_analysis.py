@@ -6,7 +6,7 @@ from utils.continuous_processing import read_binary_continuous_log, \
     print_info_dict
 from utils import server_paths
 from utils import tiff_loading
-from utils.ephys_utils import get_ephys_timestamps
+from utils.ephys_converter_misc import get_ephys_timestamps
 
 
 def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_stop=None, camera_filtering=False):

@@ -13,6 +13,17 @@ from utils import continuous_processing
 
 
 def convert_behavior_data(nwb_file, timestamps_dict, config_file):
+    """
+    Convert behavior data to NWB format and add to NWB file.
+    Args:
+        nwb_file:
+        timestamps_dict:
+        config_file:
+
+    Returns:
+
+    """
+
     # Get session behaviour results file
     behavior_results_file = server_paths.get_behavior_results_file(config_file)
 
