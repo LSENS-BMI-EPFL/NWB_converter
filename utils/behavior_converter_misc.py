@@ -201,6 +201,7 @@ def list_standard_trial_type(results_table):
 
 def build_standard_trial_table(config_file, behavior_results_file, timestamps_dict):
     """
+    Build the standard trial table from behavior (and opto) results file and timestamps dictionary, used for all downstream analyses.
 
     Args:
         config_file: NWB configuration file
@@ -305,8 +306,7 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
         standard_trial_table['opto_stim_frequency'] = 'NA'
 
 
-
-    return
+    return standard_trial_table
 
 
 def build_simplified_trial_table(behavior_results_file, timestamps_dict):
@@ -439,6 +439,66 @@ def add_trials_full_to_nwb(nwb_file, trial_table):
                            is_reward=trial_table['is_reward'].values[trial]
                            )
     return
+
+
+def add_trials_standard_to_nwb(nwb_file, trial_table):
+    """
+    Add trial table to NWB file.
+    Args:
+        nwb_file:
+        trial_table:
+
+    Returns:
+
+    """
+
+    column_names = trial_table.columns
+    columns_to_add = [c for c in column_names if c not in ['id', 'trial_start', 'trial_stop']]
+
+    for column in columns_to_add:
+        nwb_file.add_trial_column(name=column, description="None")
+
+    n_trials = trial_table['trial_type'].size
+    for trial in range(n_trials):
+        nwb_file.add_trial(id=trial_table['id'].values[trial],
+                           start_time=trial_table['trial_start'].values[trial],
+                           stop_time=trial_table['trial_stop'].values[trial],
+                           trial_type=trial_table['trial_type'].values[trial],
+                           perf=trial_table['perf'].values[trial],
+                           whisker_stim=trial_table['whisker_stim'].values[trial],
+                           whisker_stim_amplitude=trial_table['whisker_stim_amplitude'].values[trial],
+                           whisker_stim_duration=trial_table['whisker_stim_duration'].values[trial],
+                           whisker_stim_time=trial_table['whisker_stim_time'].values[trial],
+                           whisker_stim_shape=trial_table['whisker_stim_shape'].values[trial],
+                           auditory_stim=trial_table['auditory_stim'].values[trial],
+                           auditory_stim_amplitude=trial_table['auditory_stim_amplitude'].values[trial],
+                           auditory_stim_frequency=trial_table['auditory_stim_frequency'].values[trial],
+                           auditory_stim_duration=trial_table['auditory_stim_duration'].values[trial],
+                           auditory_stim_time=trial_table['auditory_stim_time'].values[trial],
+                           auditory_stim_shape=trial_table['auditory_stim_shape'].values[trial],
+                           no_stim=trial_table['no_stim'].values[trial],
+                           no_stim_time=trial_table['no_stim_time'].values[trial],
+                           reward_available=trial_table['reward_available'].values[trial],
+                           response_window_start_time=trial_table['response_window_start_time'].values[trial],
+                           response_window_stop_time=trial_table['response_window_stop_time'].values[trial],
+                           lick_flag=trial_table['lick_flag'].values[trial],
+                           lick_time=trial_table['lick_time'].values[trial],
+                           abort_window_start_time=trial_table['abort_window_start_time'].values[trial],
+                           abort_window_stop_time=trial_table['abort_window_stop_time'].values[trial],
+                           early_lick=trial_table['early_lick'].values[trial],
+                           context_block=trial_table['context_block'].values[trial],
+                           context_background=trial_table['context_background'].values[trial],
+                           opto_stim=trial_table['opto_stim'].values[trial],
+                           opto_stim_start_time=trial_table['opto_stim_start_time'].values[trial],
+                           opto_stim_stop_time=trial_table['opto_stim_stop_time'].values[trial],
+                           opto_stim_amplitude=trial_table['opto_stim_amplitude'].values[trial],
+                           opto_stim_frequency=trial_table['opto_stim_frequency'].values[trial],
+                           opto_stim_ap=trial_table['opto_stim_ap'].values[trial],
+                           opto_stim_ml=trial_table['opto_stim_ml'].values[trial],
+                           opto_stim_no=trial_table['opto_stim_no'].values[trial]
+                           )
+
+
 
 
 
