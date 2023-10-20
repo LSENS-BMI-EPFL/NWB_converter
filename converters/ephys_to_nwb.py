@@ -30,11 +30,7 @@ def convert_ephys_recording(nwb_file, config_file):
 
     # Create dynamic tables
     create_electrode_table(nwb_file=nwb_file)
-    create_units_table(nwb_file=nwb_file)
-
-    # Read config file to know what data to convert.
-    with open(config_file, 'r', encoding='utf8') as stream:
-        config_dict = yaml.safe_load(stream)
+    #create_units_table(nwb_file=nwb_file)
 
     # Get number of probes used
     imec_probe_list = get_imec_probe_folder_list(config_file=config_file)
@@ -59,7 +55,7 @@ def convert_ephys_recording(nwb_file, config_file):
             manufacturer='IMEC'
         )
 
-        # Get stereotaxic targeted location from meta-data file
+        # Get stereotaxic targeted location from metadata file
         location_dict = get_target_location(config_file=config_file,
                                             device_name=device_name)
 
@@ -106,6 +102,5 @@ def convert_ephys_recording(nwb_file, config_file):
 
             # Increment total number of electrode
             electrode_counter += 1
-
 
     return

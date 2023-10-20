@@ -1,16 +1,15 @@
 import os
 import yaml
 
-
 EXPERIMENTER_MAP = {
-        'AR': 'Anthony_Renard',
-        'RD': 'Robin_Dard',
-        'AB': 'Axel_Bisi',
-        'MP': 'Mauro_Pulin',
-        'PB': 'Pol_Bech',
-        'MM': 'Meriam_Malekzadeh',
-        'LS': 'Lana_Smith',
-        }
+    'AR': 'Anthony_Renard',
+    'RD': 'Robin_Dard',
+    'AB': 'Axel_Bisi',
+    'MP': 'Mauro_Pulin',
+    'PB': 'Pol_Bech',
+    'MM': 'Meriam_Malekzadeh',
+    'LS': 'Lana_Smith',
+}
 
 
 def get_subject_data_folder(subject_id):
@@ -58,6 +57,18 @@ def get_behavior_results_file(config_file):
 
     return behavior_results_file
 
+
+def get_session_config_file(config_file):
+    with open(config_file, 'r', encoding='utf8') as stream:
+        config = yaml.safe_load(stream)
+    mouse_name = config['subject_metadata']['subject_id']
+    session_name = config['session_metadata']['session_id']
+    data_folder = get_subject_data_folder(mouse_name)
+    session_config_file = os.path.join(data_folder, 'Recording', session_name, 'session_config.json')
+
+    return session_config_file
+
+
 def get_calibration_file(config_file):
     with open(config_file, 'r', encoding='utf8') as stream:
         config = yaml.safe_load(stream)
@@ -69,7 +80,6 @@ def get_calibration_file(config_file):
     calibration_file = os.path.join(data_folder, 'Recording', session_name, file_name)
 
     return calibration_file
-
 
 
 def get_log_continuous_file(config_file):
@@ -100,6 +110,7 @@ def get_movie_files(config_file):
 
     return movies
 
+
 def get_session_movie_files(config_file):
     with open(config_file, 'r', encoding='utf8') as stream:
         config = yaml.safe_load(stream)
@@ -109,7 +120,8 @@ def get_session_movie_files(config_file):
     movies_path = os.path.join(data_folder, 'Recording', session_name, 'Video')
     if not os.path.exists(movies_path):
         os.makedirs(movies_path)
-    movies = [os.path.join(movies_path, m) for m in os.listdir(movies_path) if os.path.splitext(m)[1] in ['.avi', '.mp4']]
+    movies = [os.path.join(movies_path, m) for m in os.listdir(movies_path) if
+              os.path.splitext(m)[1] in ['.avi', '.mp4']]
     if not movies:
         movies = None
 
@@ -148,6 +160,7 @@ def get_suite2p_folder(config_file):
     else:
         return suite2p_path
 
+
 def get_ephys_folder(config_file):
     """Returns the path to the ephys folder for a given session."""
     with open(config_file, 'r', encoding='utf8') as stream:
@@ -164,6 +177,7 @@ def get_ephys_folder(config_file):
     else:
         return ephys_path
 
+
 def get_imec_probe_folder_list(config_file):
     """ Get list of all imec probe folders for a given session."""
     with open(config_file, 'r', encoding='utf8') as stream:
@@ -179,6 +193,7 @@ def get_imec_probe_folder_list(config_file):
     else:
         return imec_folder_list
 
+
 def get_sync_event_times_folder(config_file):
     """ Get the path to the sync_event_times folder for a given session."""
     with open(config_file, 'r', encoding='utf8') as stream:
@@ -193,6 +208,7 @@ def get_sync_event_times_folder(config_file):
     else:
         return sync_event_times_path
 
+
 def get_cwaves_folder(imec_probe_folder):
     """ Get the path to the cwaves folder for a given imec probe folder."""
     cwaves_folder = os.path.join(imec_probe_folder, 'cwaves')
@@ -201,6 +217,7 @@ def get_cwaves_folder(imec_probe_folder):
         return None
     else:
         return cwaves_folder
+
 
 def get_anat_images_files(config_file):
     with open(config_file, 'r', encoding='utf8') as stream:
@@ -221,4 +238,29 @@ def get_anat_images_files(config_file):
     return anat_images
 
 
+def get_opto_results_file(config_file):
+    with open(config_file, 'r', encoding='utf8') as stream:
+        config = yaml.safe_load(stream)
+    mouse_name = config['subject_metadata']['subject_id']
+    session_name = config['session_metadata']['session_id']
+    data_folder = get_subject_data_folder(mouse_name)
+    behavior_results_file = os.path.join(data_folder, 'Training', session_name, 'results_opto.csv')
+    if not os.path.exists(behavior_results_file):
+        print(f"No opto results file found for {session_name} session from {mouse_name}")
+        return None
 
+    return behavior_results_file
+
+def get_opto_config_file(config_file):
+    with open(config_file, 'r', encoding='utf8') as stream:
+        config = yaml.safe_load(stream)
+    mouse_name = config['subject_metadata']['subject_id']
+    session_name = config['session_metadata']['session_id']
+    data_folder = get_subject_analysis_folder(mouse_name)
+    opto_config_file = os.path.join(data_folder, 'Recording', session_name, 'session_config.json')
+
+    if not os.path.exists(opto_config_file):
+        print(f"No opto config file found for {session_name} session from {mouse_name}")
+        return None
+
+    return opto_config_file

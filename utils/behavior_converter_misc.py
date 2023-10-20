@@ -3,6 +3,8 @@ import numpy as np
 import pandas as pd
 import yaml
 import json
+from utils import server_paths
+
 
 def find_training_days(subject_id, input_folder): #TODO: make this more general OR customable
 
@@ -168,6 +170,143 @@ def list_trial_type(results_table):
         trial_type_list[light_trial] = "light"
 
     return trial_type_list
+
+def list_standard_trial_type(results_table):
+    """
+    Get list and name trial types from results table.
+    Args:
+        results_table:
+
+    Returns:
+
+    """
+    auditory_trials = np.where(results_table['is_auditory'])[0].astype(int)
+    whisker_trials = np.where(results_table['is_whisker'])[0].astype(int)
+    catch_trials = np.where(np.logical_not(results_table['is_stim']).astype(int))[0]
+    light_trials = np.where(results_table['is_light'])[0].astype(int)
+
+    n_trials = results_table['perf'].size
+
+    trial_type_list = ["NA" for trial in range(n_trials)]
+    for auditory_trial in auditory_trials:
+        trial_type_list[auditory_trial] = "auditory_trial"
+    for whisker_trial in whisker_trials:
+        trial_type_list[whisker_trial] = "whisker_trial"
+    for catch_trial in catch_trials:
+        trial_type_list[catch_trial] = "no_stim_trial"
+    for light_trial in light_trials:
+        trial_type_list[light_trial] = "light_trial"
+
+    return trial_type_list
+
+def build_standard_trial_table(config_file, behavior_results_file, timestamps_dict):
+    """
+
+    Args:
+        config_file: NWB configuration file
+        behavior_results_file: results file from behavior
+        timestamps_dict: dictionary of timestamps from NWB file
+
+    Returns:
+
+    """
+
+    # Read session configuration file
+    session_config_file = server_paths.get_session_config_file(config_file=config_file)
+    with open(session_config_file) as json_file:
+        session_config = json.load(json_file)
+
+    # Init. table, read behaviour results file and get trial timestamps
+    standard_trial_table = pd.DataFrame()
+    trial_table = pd.read_csv(behavior_results_file)
+    trial_timestamps = np.array(timestamps_dict['trial_TTL'])
+    trial_type_list = list_standard_trial_type(results_table=trial_table)
+
+    n_trials = trial_table['perf'].size
+    print(f"Read '.csv' file to build trial NWB trial table ({n_trials} trials)")
+
+    if len(trial_timestamps[:, 0]) > n_trials:
+        print(f"csv table has one less trial than TTL up/down signal session must have been stop "
+              f"before saving very last trial")
+        trial_timestamps = trial_timestamps[0:-1, :]
+
+
+    # Data preparation
+    lick = trial_table['lick_flag'].values
+    trial_outcome = ["Hit" if lick[trial] == 1 else "Miss" for trial in range(n_trials)]
+    whisker_stim_time = [t if trial_table.iloc[i].is_whisker==1 else 'nan' for i,t in enumerate(trial_timestamps[:, 0])]
+    auditory_stim_time = [t if trial_table.iloc[i].is_auditory==1 else 'nan' for i,t in enumerate(trial_timestamps[:, 0])]
+    no_stim_time = [t if trial_table.iloc[i].is_stim==0 else 'nan' for i,t in enumerate(trial_timestamps[:, 0]) ]
+    response_window_start_time = trial_timestamps[:, 0] + trial_table['artifact_window'] + trial_table['baseline_window']
+    response_window_stop_time = response_window_start_time + trial_table['response_window']
+
+
+    # Build trial table
+    standard_trial_table['id'] = trial_table['trial_number'] - 1 # zero-indexed
+    standard_trial_table['trial_start'] = trial_timestamps[:, 0]
+    standard_trial_table['trial_stop'] = trial_timestamps[:, 1]
+    standard_trial_table['trial_type'] = trial_type_list
+    standard_trial_table['perf'] = trial_table['perf']
+
+    standard_trial_table['whisker_stim'] = trial_table['is_whisker']
+    standard_trial_table['whisker_stim_amplitude'] = trial_table['whisker_stim_amplitude'] #convert in mT
+    standard_trial_table['whisker_stim_duration'] = trial_table['wh_stim_duration']
+    standard_trial_table['whisker_stim_time'] = whisker_stim_time
+    standard_trial_table['whisker_stim_shape'] = 'nan' #TODO
+
+    standard_trial_table['auditory_stim'] = trial_table['is_auditory']
+    standard_trial_table['auditory_stim_amplitude'] = trial_table['aud_stim_amplitude'] # convert in dB
+    standard_trial_table['auditory_stim_frequency'] = trial_table['aud_stim_frequency']
+    standard_trial_table['auditory_stim_duration'] = trial_table['aud_stim_duration']
+    standard_trial_table['auditory_stim_time'] = auditory_stim_time
+    standard_trial_table['auditory_stim_shape'] = 'nan' #TODO
+
+    standard_trial_table['no_stim'] = np.invert(trial_table['is_stim'])
+    standard_trial_table['no_stim_time'] = no_stim_time
+
+    standard_trial_table['reward_available'] = trial_table['is_reward']
+    standard_trial_table['response_window_start_time'] = response_window_start_time
+    standard_trial_table['response_window_stop_time'] = response_window_stop_time
+
+    standard_trial_table['lick_flag'] = trial_table['lick_flag']
+    standard_trial_table['lick_time'] = trial_table['reaction_time']
+    standard_trial_table['abort_window_start_time'] = trial_timestamps[:, 0] - trial_table['baseline_window'] # lick in quiet window does not abord, but delay
+    standard_trial_table['abort_window_stop_time'] = response_window_start_time - trial_table['artifact_window']
+    standard_trial_table['early_lick'] = trial_table['early_lick']
+
+    standard_trial_table['context_block'] = trial_table['context_block']
+    standard_trial_table['context_background'] = trial_table['context_background']
+
+    # Add optogenetics information if relevant, NA otherwise
+    if session_config['opto_session']:
+        opto_config_file = server_paths.get_opto_config_file(config_file=config_file)
+        with open(opto_config_file) as json_file:
+            opto_config = json.load(json_file)
+        opto_results_file = server_paths.get_opto_results_file(config_file=config_file)
+        opto_trial_table = pd.read_csv(opto_results_file)
+
+        #TODO: format this
+        standard_trial_table['opto_stim'] = opto_trial_table['is_opto']
+        standard_trial_table['opto_grid_ap'] = opto_trial_table['opto_grid_ap']
+        standard_trial_table['opto_grid_ml'] = opto_trial_table['opto_grid_ml']
+        standard_trial_table['opto_grid_no'] = opto_trial_table['opto_grid_no']
+        standard_trial_table['opto_stim_start_time'] = opto_trial_table['opto_stim_start_time']
+        standard_trial_table['opto_stim_stop_time'] = opto_trial_table['opto_stim_stop_time']
+        standard_trial_table['opto_stim_amplitude'] = opto_trial_table['opto_stim_amplitude']
+        standard_trial_table['opto_stim_frequency'] = opto_trial_table['opto_stim_frequency']
+    else:
+        standard_trial_table['opto_stim'] = 'NA'
+        standard_trial_table['opto_grid_ap'] = 'NA'
+        standard_trial_table['opto_grid_ml'] = 'NA'
+        standard_trial_table['opto_grid_no'] = 'NA'
+        standard_trial_table['opto_stim_start_time'] = 'NA'
+        standard_trial_table['opto_stim_stop_time'] = 'NA'
+        standard_trial_table['opto_stim_amplitude'] = 'NA'
+        standard_trial_table['opto_stim_frequency'] = 'NA'
+
+
+
+    return
 
 
 def build_simplified_trial_table(behavior_results_file, timestamps_dict):

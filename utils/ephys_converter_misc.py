@@ -266,6 +266,27 @@ def create_units_table(nwb_file):
 
     """
     # Create Units table
-    dict_columns_to_add = {}
+    dict_columns_to_add = {
+        'id': 'unique unit index (out of all probes)',
+        'cluster_id': 'cluster index, from KS(probe-wise)',
+        'peak_channel': 'electrode with max waveform amplitude, from KS',
+        'rel_x': 'peak channel x-coordinate in probe space (as above)',
+        'rel_y': 'peak channel y-coordinate in probe space (as above)',
+        'electrode_group': 'ElectrodeGroup object (i.e. probe) recording the unit',
+        'depth': 'depth of peak electrode, in probe space, from KS',
+        'ks_label': 'unit quality label, form Kilosort and curation (Phy): “good”, “mua”',
+        'firing_rate': 'total firing rate in session, in Hz',
+        'spike_times': 'spike times for that unit, from Kilosort',
+        #'spike_times_index': 'spike times index, from Kilosort',
+        'ccf_area': 'atlas label from anatomical estimation',
+        'ccf_area_layer': 'same as ccf_area, with layer-specficity',
+        'waveform_mean': 'mean spike waveform (a vector), in uV',
+        'spike_width': 'spike duration, in ms, form trough to baseline',
+        'peak_to_trough': 'spike duration, in ms, from peak to trough',
+        'unit_type': '“rsu” or “fsu” classification',
+        'sampling_rate': 'sampling rate used for that probe, in Hz',
+        'isi_violation': '',
+        'isolation_distance': '',
+}
     for col_key, col_desc in dict_columns_to_add.items():
         nwb_file.add_unit_column(name=col_key, description=col_desc)

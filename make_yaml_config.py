@@ -8,6 +8,18 @@ import pandas as pd
 from utils.behavior_converter_misc import find_training_days
 from utils.server_paths import get_subject_data_folder, get_subject_analysis_folder
 
+# Update your keywords
+GENERAL_KEYWORDS = ['neurophysiology', 'behaviour', 'mouse']
+KEYWORD_MAP = {
+    'AR': '',
+    'RD': '',
+    'AB': ['electrophysiology', 'neuropixels'],
+    'MP': '',
+    'PB': '',
+    'MM': '',
+    'LS': '',
+
+}
 
 def make_yaml_config(subject_id, session_id, session_description, input_folder, output_folder,
                      mouse_line='C57BL/6', gmo=True):
@@ -70,17 +82,17 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     # #################
 
 
-    # session data
+    # session data #TODO: improve metadata information
     session_metadata = {
         'identifier': session_id,  # key to name the NWB file
         'session_id': session_id,
         'session_start_time': session_id.split('_')[1] + ' ' + session_id.split('_')[2],
         'session_description': session_description,
         'experimenter': subject_id[:2],
-        'institution': 'EPFL',
-        'lab': 'LSENS',
+        'institution': 'Ecole Polytechnique Federale de Lausanne',
+        'lab': 'Laboratory of Sensory Processing',
         'experiment_description': 'na',
-        'keywords': [],
+        'keywords': GENERAL_KEYWORDS + KEYWORD_MAP[subject_id[:2]],
         'notes': 'na',
         'pharmacology': 'na',
         'protocol': 'na',
@@ -119,7 +131,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     behaviour_metadata = {
         'path_to_config_file': json_path,
         'behaviour_type': json_config['behaviour_type'],
-        'trial_table': 'simple',  # for raw NWB trial data, 'full' or 'simple'
+        'trial_table': 'simple',  # for raw NWB trial data, 'standard', 'full', 'simple'
         'camera_flag': json_config['camera_flag'],
     }
     if 'camera_exposure_time' in json_config.keys():
@@ -153,7 +165,8 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     # ####################
 
     ephys_metadata = {
-        'device': 'Neuropixels setup 1 AI3209',
+        'setup': 'Neuropixels setup 1 AI3209',
+
     }
 
     # Write to yaml file.
@@ -253,7 +266,7 @@ if __name__ == '__main__':
     # mouse_ids = ['RD001', 'RD002', 'RD003', 'RD004', 'RD005', 'RD006']
     mouse_ids = [50,51,52,54,56,58,59,68,72,73,75,76,77,78,79,80,81,82,83]
     mouse_ids = ['AB0{}'.format(i) for i in mouse_ids]
-    mouse_ids = ['RD004']
+    mouse_ids = ['AB082']
     # last_done_day = "20230601"
 
     for mouse_id in mouse_ids:
