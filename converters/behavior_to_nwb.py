@@ -2,14 +2,16 @@ import numpy as np
 import os
 import yaml
 
-from utils.behavior_converter_misc import get_trial_timestamps_dict, build_simplified_trial_table, \
-    build_full_trial_table, add_trials_to_nwb, \
-    get_context_timestamps_dict, add_trials_full_to_nwb
+from utils.behavior_converter_misc import get_trial_timestamps_dict, build_simplified_trial_table, add_trials_to_nwb,\
+    build_full_trial_table, add_trials_full_to_nwb, \
+    build_standard_trial_table, \
+    get_context_timestamps_dict
 from pynwb.behavior import BehavioralEvents, BehavioralEpochs
 from pynwb.base import TimeSeries
 from pynwb.image import ImageSeries
 from utils import server_paths
 from utils import continuous_processing
+
 
 
 def convert_behavior_data(nwb_file, timestamps_dict, config_file):
@@ -30,12 +32,18 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
     # Get trial timestamps and indexes
     trial_timestamps_dict, trial_indexes_dict = get_trial_timestamps_dict(timestamps_dict,
                                                                           behavior_results_file, config_file)
-    # Make trial table # TODO: make this more general?
+    # Make trial table
     with open(config_file, 'r', encoding='utf8') as stream:
         config_dict = yaml.safe_load(stream)
 
     if 'behaviour_metadata' in config_dict:
-        if config_dict.get('behaviour_metadata').get('trial_table') == 'simple':
+        if config_dict.get('behaviour_metadata').get('trial_table') == 'standard':
+            trial_table = build_standard_trial_table(
+                config_file=config_file,
+                behavior_results_file=behavior_results_file,
+                timestamps_dict=timestamps_dict
+            )
+        elif config_dict.get('behaviour_metadata').get('trial_table') == 'simple':
             trial_table = build_simplified_trial_table(behavior_results_file=behavior_results_file,
                                                        timestamps_dict=timestamps_dict)
         elif config_dict.get('behaviour_metadata').get('trial_table') == 'full':
