@@ -7,12 +7,16 @@
 """
 
 import os
+import pathlib
+
 import yaml
 import numpy as np
 import pandas as pd
 from utils import server_paths
 
 # MAP of (AP,ML) coordinates relative to bregma
+from utils.server_paths import get_sync_event_times_folder
+
 AREA_COORDINATES_MAP = {
     'wS1': 'IOS',
     'wS2': 'IOS',
@@ -256,7 +260,35 @@ def create_electrode_table(nwb_file):
     return
 
 
-def create_units_table(nwb_file):
+def create_simplified_unit_table(nwb_file):
+    """
+    Create a simplified units table in nwb file.
+    Args:
+        nwb_file: NWB file object
+
+    Returns:
+
+    """
+    # Create Units table
+    dict_columns_to_add = {
+        #'id': 'unique unit index (out of all probes)',
+        'cluster_id': 'cluster index, from KS(probe-wise)',
+        'peak_channel': 'electrode with max waveform amplitude, from KS',
+        'electrode_group': 'ElectrodeGroup object (i.e. probe) recording the unit',
+        'depth': 'depth of peak electrode, in probe space, from KS',
+        'ks_label': 'unit quality label, form Kilosort and curation (Phy): “good”, “mua”',
+        'firing_rate': 'total firing rate in session, in Hz',
+        #'spike_times': 'spike times for that unit, from Kilosort',
+        'waveform_mean': 'mean spike waveform (a vector), in uV',
+        'sampling_rate': 'sampling rate used for that probe, in Hz',
+}
+    for col_key, col_desc in dict_columns_to_add.items():
+        nwb_file.add_unit_column(name=col_key, description=col_desc)
+
+    return
+
+
+def create_unit_table(nwb_file):
     """
     Create units table in nwb file.
     Args:
@@ -290,3 +322,70 @@ def create_units_table(nwb_file):
 }
     for col_key, col_desc in dict_columns_to_add.items():
         nwb_file.add_unit_column(name=col_key, description=col_desc)
+
+
+def build_simplified_unit_table(imec_folder,
+                                sync_spike_times_path):
+
+    # Init. table
+    unit_table = pd.DataFrame()
+
+    # Load unit data
+    # 2. Cwaves waveform data + metrics todo
+    # 3. track localization output (electrode) -> function matching electrode peak channel and neuron area
+
+    # Load cluster table
+    cluster_info_path = pathlib.Path(imec_folder, 'cluster_info.tsv')
+    try:
+        cluster_info_df = pd.read_csv(cluster_info_path, sep='\t')
+    except FileNotFoundError:
+        print('No spike sorting at: {}'.format(cluster_info_path))
+        return
+
+    cluster_info_df.rename(columns={'KSLabel': 'ks_label',
+                                    'Amplitude': 'amplitude',
+                                    'ContamPct': 'contam_pct'}, inplace=True)
+
+
+    # Find if cluster had a curated label
+    cluster_info_df['curated'] = cluster_info_df.apply(lambda x: 0 if pd.isnull(x.group) else 1, axis=1)
+
+    # Phy-based new clusters/ new splits have no ks_label: convert NaN to None
+    cluster_info_df.fillna(value='', inplace=True)  # returns None
+
+    unit_table['cluster_id'] = cluster_info_df['cluster_id']
+    unit_table['peak_channel'] = cluster_info_df['ch']
+    unit_table['depth'] = cluster_info_df['depth']
+    unit_table['ks_label'] = cluster_info_df['ks_label']
+    unit_table['firing_rate'] = cluster_info_df['fr']
+
+    # Load spikes times
+    spike_times_sync = np.load(sync_spike_times_path)
+    spike_times_sync_df = pd.DataFrame(data=spike_times_sync, columns=['spike_times'])
+    spike_times_sync_df.index.name = 'spike_id'
+    spike_times_per_cluster = []
+
+    # Load spike cluster assignments
+    spike_clusters = np.load(os.path.join(imec_folder, 'spike_clusters.npy'))
+    spike_clusters_df = pd.DataFrame(data=spike_clusters, columns=['cluster_id'])
+    spike_clusters_df.index.name = 'spike_id'
+
+    # Note: Iterate over selected good cluster only !
+    for c_id in cluster_info_df.cluster_id.values:
+        spike_ids = spike_clusters_df[spike_clusters_df.cluster_id == c_id].index
+        spike_times_per_cluster.append(np.array(spike_times_sync_df.iloc[spike_ids].spike_times))
+    cluster_info_df['spike_times'] = spike_times_per_cluster
+
+    unit_table['spike_times'] = cluster_info_df['spike_times']
+
+    # Load mean waveform data #TODO: waveform metrics should be already calculated
+    mean_wfs = np.load(os.path.join(imec_folder, 'cwaves', 'mean_waveforms.npy'))
+    valid_cluster_ids = cluster_info_df[cluster_info_df.ks_label.isin(['good', 'mua'])].index
+    peak_channels = cluster_info_df.loc[valid_cluster_ids, 'ch'].values
+    mean_wfs = mean_wfs[valid_cluster_ids, peak_channels, :]
+    unit_table['waveform_mean'] = pd.DataFrame(mean_wfs).to_numpy().tolist()
+
+    return unit_table
+
+def build_unit_table(config_file):
+    return

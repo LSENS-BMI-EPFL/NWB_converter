@@ -270,7 +270,7 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
     standard_trial_table['response_window_stop_time'] = response_window_stop_time
 
     standard_trial_table['lick_flag'] = trial_table['lick_flag']
-    standard_trial_table['lick_time'] = trial_table['reaction_time']
+    standard_trial_table['lick_time'] = trial_table['reaction_time'] #TODO: reaction time of 0 to NaN to filter out
     standard_trial_table['abort_window_start_time'] = trial_timestamps[:, 0] - trial_table['baseline_window'] # lick in quiet window does not abord, but delay
     standard_trial_table['abort_window_stop_time'] = response_window_start_time - trial_table['artifact_window']
     standard_trial_table['early_lick'] = trial_table['early_lick']
@@ -337,10 +337,11 @@ def build_simplified_trial_table(behavior_results_file, timestamps_dict):
 
     return simplified_trial_table
 
-def build_full_trial_table(behavior_results_file, timestamps_dict):
+def build_full_trial_table(config_file, behavior_results_file, timestamps_dict):
     """
     Build a trial table from the results.csv file session timestamps.
     Args:
+        config_file: path to the config file
         behavior_results_file: path to the results.csv file
         timestamps_dict: dictionary of session timestamps       
 
@@ -367,12 +368,20 @@ def build_full_trial_table(behavior_results_file, timestamps_dict):
     full_trial_table['trial_index'] = trial_table['trial_number']
     full_trial_table['trial_start'] = trial_timestamps[:, 0]
     full_trial_table['trial_stop'] = trial_timestamps[:, 1]
-    full_trial_table['reaction_time'] = trial_table['reaction_time']
+
+    # Make reaction time Nan if zero
+    full_trial_table['reaction_time'] = trial_table['reaction_time'].replace(0, np.nan)
     full_trial_table['trial_type'] = trial_type_list
     full_trial_table['wh_reward'] = trial_table['wh_reward']
     full_trial_table['aud_reward'] = trial_table['aud_reward']
     full_trial_table['trial_outcome'] = trial_outcome
+    full_trial_table['perf'] = trial_table['perf']
 
+    # Read yaml config file
+    with open(config_file, 'r') as stream:
+        config_file = yaml.safe_load(stream)
+    trial_map = config_file.get('trial_map')
+    full_trial_table['trial_type_perf'] = trial_table['perf'].map(trial_map)
     full_trial_table['association_flag'] = trial_table['association_flag']
     full_trial_table['quiet_window'] = trial_table['quiet_window']
     full_trial_table['iti'] = trial_table['iti']
@@ -431,6 +440,8 @@ def add_trials_full_to_nwb(nwb_file, trial_table):
                            wh_reward=trial_table['wh_reward'].values[trial],
                            aud_reward=trial_table['aud_reward'].values[trial],
                            trial_outcome=trial_table['trial_outcome'].values[trial],
+                           perf=trial_table['perf'].values[trial],
+                            trial_type_perf=trial_table['trial_type_perf'].values[trial],
                            association_flag=trial_table['association_flag'].values[trial],
                            quiet_window=trial_table['quiet_window'].values[trial],
                            iti=trial_table['iti'].values[trial],

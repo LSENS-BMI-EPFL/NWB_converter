@@ -8,12 +8,14 @@
 
 # Imports
 import os
+import pandas as pd
 import yaml
 import pathlib
 import numpy as np
 from utils.sglx_meta_to_coords import readMeta, MetaToCoords
-from utils.ephys_converter_misc import get_target_location, create_electrode_table, create_units_table
-from utils.server_paths import get_imec_probe_folder_list
+from utils.ephys_converter_misc import get_target_location, create_electrode_table, create_unit_table, \
+    create_simplified_unit_table, build_simplified_unit_table
+from utils.server_paths import get_imec_probe_folder_list, get_sync_event_times_folder
 
 
 def convert_ephys_recording(nwb_file, config_file):
@@ -26,19 +28,26 @@ def convert_ephys_recording(nwb_file, config_file):
     Returns:
 
     """
-    #TODO: this will require modifications for other types of Neuropixels probes
+    # TODO: this will require modifications for other types of Neuropixels probes
 
-    # Create dynamic tables
+    with open(config_file, 'r') as stream:
+        config = yaml.safe_load(stream)
+
+    # First, create dynamic tables that will be filled with data
     create_electrode_table(nwb_file=nwb_file)
-    #create_units_table(nwb_file=nwb_file)
+    if config.get('ephys_metadata').get('unit_table') == 'simple':
+        create_simplified_unit_table(nwb_file=nwb_file)
+    else:
+        create_unit_table(nwb_file=nwb_file)
 
     # Get number of probes used
     imec_probe_list = get_imec_probe_folder_list(config_file=config_file)
 
     # Counter for total number of electrode in recording
     electrode_counter = 0
+    neuron_counter = 0
 
-    # Iterate over each probe/device used in recording
+    # Then, iterate over each probe/device used in recording
     for imec_id, imec_folder in enumerate(imec_probe_list):
         print('Probe IMEC{}'.format(imec_id), imec_folder)
 
@@ -48,10 +57,10 @@ def convert_ephys_recording(nwb_file, config_file):
         probe_serial_number = ap_meta_data['imDatPrb_sn']
 
         # Create Device object
-        device_name = 'imec{}'.format(imec_id) # SpikeGLX indices at acquisition time
+        device_name = 'imec{}'.format(imec_id)  # SpikeGLX indices at acquisition time
         device = nwb_file.create_device(
             name=device_name,
-            description=probe_serial_number, # serial number
+            description=probe_serial_number,  # serial number
             manufacturer='IMEC'
         )
 
@@ -61,8 +70,8 @@ def convert_ephys_recording(nwb_file, config_file):
 
         # Create ElectrodeGroup object
         electrode_group = nwb_file.create_electrode_group(
-            name=device_name +'_shank',
-            description='imec probe',
+            name=device_name + '_shank0',
+            description='IMEC probe',
             device=device,
             location=str(location_dict),
         )
@@ -72,35 +81,71 @@ def convert_ephys_recording(nwb_file, config_file):
         xcoords = coords[0]
         ycoords = coords[1]
         shank_id = coords[2]
-        shank_cols = np.tile([1,3,0,2], reps=int(xcoords.shape[0]/4))
+        shank_cols = np.tile([1, 3, 0, 2], reps=int(xcoords.shape[0] / 4))
         shank_rows = np.divide(ycoords, 20)
-        connected = coords[3] #whether bad channels
-        n_chan_total = int(coords[4]) #includes SY sync channel 768
-
+        connected = coords[3]  # whether bad channels
+        n_chan_total = int(coords[4])  # includes SY sync channel 768
 
         # Add electrodes to ElectrodeTable
-        for electrode_id in range(n_chan_total-1): # ignore reference channel 768
+        for electrode_id in range(n_chan_total - 1):  # ignore reference channel 768
 
             nwb_file.add_electrode(
-               id=electrode_counter,
-               index_on_probe=electrode_id,
-               group=electrode_group,
-               group_name=device_name,
+                id=electrode_counter,
+                index_on_probe=electrode_id,
+                group=electrode_group,
+                group_name=device_name,
                 # TODO: resolve this for location (ElectrodeGroup vs Electrode), SGLX vs anatomical estimates
-               location= str(location_dict),
-               ccf_location='nan',
-               rel_x=xcoords[electrode_id],
-               rel_y=ycoords[electrode_id],
-               rel_z=0.0,
-               shank=shank_id[electrode_id],
-               shank_col=shank_cols[electrode_id],
-               shank_row=shank_rows[electrode_id],
-               ccf_dv='nan',
-               ccf_ml='nan',
-               ccf_ap='nan'
+                location=str(location_dict),
+                ccf_location='nan',
+                rel_x=xcoords[electrode_id],
+                rel_y=ycoords[electrode_id],
+                rel_z=0.0,
+                shank=shank_id[electrode_id],
+                shank_col=shank_cols[electrode_id],
+                shank_row=shank_rows[electrode_id],
+                ccf_dv='nan',
+                ccf_ml='nan',
+                ccf_ap='nan'
             )
 
             # Increment total number of electrode
             electrode_counter += 1
+
+        # Add units to UnitsTable
+        if config.get('ephys_metadata').get('unit_table') == 'simple':
+
+            # Build unit table with preprocessed ephys/spike data
+            sync_path = get_sync_event_times_folder(config_file)
+            spike_times_sync_file = [f for f in os.listdir(sync_path) if str(imec_id) in f][0]
+            sync_spike_times_path = pathlib.Path(sync_path, spike_times_sync_file)
+            unit_table = build_simplified_unit_table(
+                imec_folder=imec_folder,
+                sync_spike_times_path=sync_spike_times_path,
+
+
+            )
+
+            n_neurons = len(unit_table)
+            for neuron_id in range(n_neurons):
+
+                nwb_file.add_unit(
+                    cluster_id=unit_table['cluster_id'].values[neuron_id],
+                    peak_channel=unit_table['peak_channel'].values[neuron_id],
+                    electrode_group=electrode_group,
+                    depth=unit_table['depth'].values[neuron_id],
+                    ks_label=unit_table['ks_label'].values[neuron_id],
+                    firing_rate=unit_table['firing_rate'].values[neuron_id],
+                    spike_times=unit_table['spike_times'].values[neuron_id],
+                    waveform_mean=unit_table['waveform_mean'].values[neuron_id],
+                    sampling_rate=ap_meta_data['imSampRate'],
+                    #id=neuron_counter,
+
+                )
+
+                # Increment total number of neuron
+                neuron_counter += 1
+
+        elif config.get('ephys_metadata').get('unit_table') == 'standard':
+            print('Standard unit table not yet implemented')
 
     return

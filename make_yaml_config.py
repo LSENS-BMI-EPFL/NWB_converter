@@ -73,6 +73,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     json_path = os.path.join(input_folder, 'Training', session_id, 'session_config.json')
     with open(json_path, 'r') as f:
         json_config = json.load(f)
+
     if 'mouse_weight_before' in json_config:
         subject_metadata['weight'] = json_config['mouse_weight_before']
     else:
@@ -128,14 +129,9 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     # Behaviour metadata. #TODO: this should also be experimenter-dependent and a function of the json config file.
     # ###################
 
-    behaviour_metadata = {
-        'path_to_config_file': json_path,
-        'behaviour_type': json_config['behaviour_type'],
-        'trial_table': 'simple',  # for raw NWB trial data, 'standard', 'full', 'simple'
-        'camera_flag': json_config['camera_flag'],
-    }
-    if 'camera_exposure_time' in json_config.keys():
-        behaviour_metadata.update({'camera_exposure_time': json_config['camera_exposure_time']})
+    behaviour_metadata = create_behaviour_metadata(subject_id=subject_id[:2],
+                                                   path_to_json_config=json_path)
+
 
     # Trial outcome mapping.
     # ######################
@@ -163,11 +159,9 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
 
     # Extracell. ephys. metadata. #TODO: make this from external experimenter-dependent excel file
     # ####################
+    if subject_id[:2] == 'AB':
+        ephys_metadata = create_ephys_metadata()
 
-    ephys_metadata = {
-        'setup': 'Neuropixels setup 1 AI3209',
-
-    }
 
     # Write to yaml file.
     # ###################
@@ -197,6 +191,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
 
     return
 
+
 def create_channels_threshold_dict(experimenter, json_config):
     """
     Make log_continuous channels & thresholds dictionary for a given experimenter and session.
@@ -206,6 +201,8 @@ def create_channels_threshold_dict(experimenter, json_config):
     Returns:
 
     """
+    channels_dict, threshold_dict = {}, {}
+
     if experimenter in ['AB']:
         lick_threshold = json_config['lick_threshold']
         channels_dict = {
@@ -246,6 +243,7 @@ def create_channels_threshold_dict(experimenter, json_config):
             },
         }
 
+        # Add context channel and threshold
         context_channel_date = "20230524"  # one day before first session with added channel odd number // 24 even
         context_channel_date = datetime.datetime.strptime(context_channel_date, "%Y%m%d")
         session_date = datetime.datetime.strptime(json_config['date'], "%Y%m%d")
@@ -259,6 +257,47 @@ def create_channels_threshold_dict(experimenter, json_config):
     # ...
 
     return channels_dict, threshold_dict
+
+def create_behaviour_metadata(subject_id, path_to_json_config):
+    """
+    Make behaviour metadata dictionary.
+    Args:
+        subject_id:
+        path_to_json_config:
+
+    Returns:
+
+    """
+    with open(path_to_json_config, 'r') as f:
+        json_config = json.load(f)
+
+    behaviour_metadata = {
+        'path_to_config_file': path_to_json_config,
+        'behaviour_type': json_config['behaviour_type'],
+        'trial_table': 'simple',  # for raw NWB trial data, 'standard', 'full', 'simple'
+        'camera_flag': json_config['camera_flag'],
+    }
+    if 'camera_exposure_time' in json_config.keys():
+        behaviour_metadata.update({'camera_exposure_time': json_config['camera_exposure_time']})
+
+    if subject_id == 'AB':
+        behaviour_metadata.update({'trial_table':'full'})
+
+    return behaviour_metadata
+
+
+
+def create_ephys_metadata():
+    """
+    Make ephys metadata dictionary.
+    Returns:
+
+    """
+    ephys_metadata = {
+        'setup': 'Neuropixels setup 1 AI3209',
+        'unit_table': 'simple', # 'simple' or 'standard'
+    }
+    return ephys_metadata
 
 
 if __name__ == '__main__':
@@ -274,7 +313,6 @@ if __name__ == '__main__':
         # Find data and analysis folders on server for that mouse.
         data_folder = get_subject_data_folder(mouse_id)
         analysis_folder = get_subject_analysis_folder(mouse_id)
-        analysis_folder = analysis_folder.replace('Robin_Dard', 'Axel_Bisi') #TODO: delete
         if not os.path.exists(analysis_folder):
             os.makedirs(analysis_folder)
 

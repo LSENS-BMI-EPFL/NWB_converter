@@ -47,7 +47,7 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
             trial_table = build_simplified_trial_table(behavior_results_file=behavior_results_file,
                                                        timestamps_dict=timestamps_dict)
         elif config_dict.get('behaviour_metadata').get('trial_table') == 'full':
-            trial_table = build_full_trial_table(behavior_results_file=behavior_results_file,
+            trial_table = build_full_trial_table(config_file, behavior_results_file=behavior_results_file,
                                                  timestamps_dict=timestamps_dict)
     else:
         trial_table = build_simplified_trial_table(behavior_results_file=behavior_results_file,
