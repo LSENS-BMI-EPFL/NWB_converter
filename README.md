@@ -22,3 +22,7 @@ pip install -r <petersenlab_to_nwb_env.txt>
 
 1. Create '.yaml' files for each session using 'make_yaml_config.py'
 2. Create NWB files using 'NWB_conversion.py'
+
+
+# Development
+- Some implemented functions are experimenter-dependent (initials). They should be implemented for experimenter-dependent purposes.
