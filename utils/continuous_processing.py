@@ -9,9 +9,9 @@ import os
 
 def get_continuous_time_periods(binary_array):
     """
-    take a binary array and return a list of tuples representing the first and last position(included) of continuous
-    positive period
-    This code was copied from another project or from a forum, but i've lost the reference.
+    Take a binary array and return a list of tuples representing the first and last position(included) of continuous
+    positive period.
+    This code was copied from another project or from a forum, but the reference was lost.
     :param binary_array:
     :return:
     """
@@ -85,6 +85,64 @@ def read_binary_continuous_log(bin_file, channels_dict, ni_session_sr=5000, t_st
     print(f"start : {timestamps[0]}s, end at {np.round(timestamps[-1], 2)}s")
 
     return continuous_data_dict
+
+
+def detect_piezo_lick_times(continuous_data_dict, ni_session_sr=5000, lick_threshold=None):
+    """
+        Detect lick times from the lick data envelope.
+        The lick data is first filtered with a low pass filter to remove high frequency fluctuations.
+    Args:
+        continuous_data_dict: Dictionary containing continuous data
+        ni_session_sr: Sampling rate of session
+        lick_threshold: Lick threshold of session
+
+    Returns:
+
+    """
+
+    def butter_lowpass(cutoff, fs, order=5):
+        return sci_si.butter(order, cutoff, fs=fs, btype='low', analog=False)
+
+    def butter_lowpass_filter(data, cutoff, fs, order=5):
+        b, a = butter_lowpass(cutoff, fs, order=order)
+        y = sci_si.lfilter(b, a, data)
+        return y
+
+    # Get lick data envelope using Hilbert transform
+    lick_data = continuous_data_dict.get("lick_trace")
+    lick_data_lowpass = butter_lowpass_filter(lick_data, cutoff=50, fs=5000, order=5)
+    from scipy.ndimage import gaussian_filter
+
+    lick_data_lowpass = gaussian_filter(lick_data, sigma=10)
+    lick_analytic_signal = sci_si.hilbert(lick_data)
+    lick_envelope = np.abs(lick_analytic_signal)
+
+    if lick_threshold is None:
+        print("No lick threshold provided, using 99.9 percentile of lick envelope")
+        lick_threshold = np.percentile(lick_envelope, 99.9) # a copilot suggestion...
+
+    # Detect piezo data crossings using a conservative threshold
+    lick_timestamps = np.where(lick_envelope > lick_threshold )[0] / ni_session_sr
+
+    # Debugging: optional plotting
+    max_duration_secs = lick_data.shape[0] / ni_session_sr
+    t_start=100
+    t_stop=120
+    plt.figure()
+    plt.plot(lick_data, label="lick_data", lw=0.5)
+    plt.plot(lick_data_lowpass, label="lick_data_lowpass", lw=0.5)
+    #plt.plot(lick_envelope, label="lick_envelope")
+    for lick_time in lick_timestamps:
+        plt.axvline(x=lick_time, color="red", alpha=0.5)
+    plt.xlim(t_start * ni_session_sr,t_stop * ni_session_sr)
+    plt.ylim(-0.05, 5*lick_threshold)
+    plt.legend()
+    plt.show()
+
+    assert lick_timestamps.size > 0, "No lick detected, try to lower the threshold"
+    assert isinstance(lick_timestamps, np.ndarray), "lick_times should be a numpy array"
+
+    return lick_timestamps
 
 
 def plot_continuous_data_dict(continuous_data_dict, timestamps_dict, ni_session_sr=5000, t_start=None, t_stop=None,
@@ -197,8 +255,20 @@ def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scan
     for key, data in continuous_data_dict.items():
 
         # Do not extract timestamps for these keys
-        if key in ["timestamps", "lick_trace", 'empty_1', 'empty_2']:
+        if key in ["timestamps", 'empty_1', 'empty_2']:
+
             continue
+
+        if key == "lick_trace":
+
+            continue
+            # TODO: this takes time...
+            lick_threshold = float(threshold_dict.get(key))
+            lick_timestamps = detect_piezo_lick_times(continuous_data_dict,
+                                                      ni_session_sr=ni_session_sr,
+                                                      lick_threshold=lick_threshold)
+            lick_timestamps_on_off = zip(lick_timestamps, [np.nan])
+            timestamps_dict[key] = lick_timestamps_on_off
 
         elif key == "galvo_position":
 

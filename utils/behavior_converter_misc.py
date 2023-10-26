@@ -6,7 +6,7 @@ import json
 from utils import server_paths
 
 
-def find_training_days(subject_id, input_folder): #TODO: make this more general OR customable
+def find_training_days(subject_id, input_folder): #TODO: make this more general OR customable?
 
     """
     Find days of behavioural training, excluding other test/dummy sessions.
@@ -17,27 +17,51 @@ def find_training_days(subject_id, input_folder): #TODO: make this more general 
     Returns:
 
     """
-    print('Finding training days for subject {}'.format(subject_id))
+    print('Finding training days for subject {}:'.format(subject_id))
 
     sessions_list = os.listdir(os.path.join(input_folder, 'Training'))
     sessions_list = [s for s in sessions_list if os.path.isdir(os.path.join(input_folder, 'Training', s))]
-    # Ordering in time with lexicographic ordering assumes %Y%m%d data format in session id.
+
+    # Ordering in time with lexicographic ordering assumes %Y%m%d data format in session id
     sessions_list = sorted(sessions_list)
 
-    # Find session type (auditory or whisker day) and label days with integer relative to first whisker training day.
+    # Find session type (auditory or whisker day) and label days with integer relative to first whisker training day
     behavior_type = []
     for isession in sessions_list:
         json_path = os.path.join(input_folder, 'Training', isession, 'session_config.json')
         with open(json_path, 'r') as f:
             json_config = json.load(f)
+
+        if json_config['dummy_session_flag']:
+            print('Ignoring dummy session found: {}'.format(isession))
+            continue
+
+        # Add to list of behaviours
         behavior_type.append(json_config['behaviour_type'])
+
+    print('Found the following sessions behaviors from raw data: {}'.format(behavior_type))
+
+    # Fixing typo in behavior type
     behavior_type = ['free_licking' if behavior == 'free licking' else behavior for behavior in behavior_type]
-    n_aud = len([s for s in behavior_type if s in ['free_licking', 'auditory']])
-    n_wh = len([s for s in behavior_type if s in ['whisker', 'context']])
+
+    # Format behavior type for NWB
+    pretraining_behaviours = ['free_licking',
+                              'auditory']
+    n_aud = len([s for s in behavior_type if s in pretraining_behaviours])
+
+    whisker_behaviours = ['whisker',
+                           'whisker_psy',
+                           'context',
+                          'whisker_on_1',
+                          'whisker_off,'
+                          'whisker_on_2']
+    n_wh = len([s for s in behavior_type if s in whisker_behaviours])
+
     label = list(range(-n_aud, 0)) + list(range(0, n_wh))
     label = [f"+{d}" if d > 0 else str(d) for d in label]
     behavior_type = [f"{t}_{l}" for t, l in zip(behavior_type, label)]
 
+    # Create list of training days
     training_days = list(zip(sessions_list, behavior_type))
 
     return training_days
@@ -272,8 +296,8 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
     standard_trial_table['response_window_stop_time'] = response_window_stop_time
 
     standard_trial_table['lick_flag'] = trial_table['lick_flag']
-    standard_trial_table['lick_time'] = trial_table['reaction_time']  #lick times in response windows only
-    standard_trial_table['abort_window_start_time'] = trial_timestamps[:, 0] - trial_table['baseline_window'] # lick in quiet window does not abort, but delay
+    standard_trial_table['lick_time'] = response_window_start_time + trial_table['reaction_time']  #first lick time in response windows only
+    standard_trial_table['abort_window_start_time'] = trial_timestamps[:, 0] - trial_table['quiet_window'] # baseline is already at start, if not zero
     standard_trial_table['abort_window_stop_time'] = response_window_start_time - trial_table['artifact_window']
     standard_trial_table['early_lick'] = trial_table['early_lick']
 
@@ -293,7 +317,7 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
         opto_results_file = server_paths.get_opto_results_file(config_file=config_file)
         opto_trial_table = pd.read_csv(opto_results_file)
 
-        #TODO: format this
+        #TODO: format this @Pol
         standard_trial_table['opto_stim'] = opto_trial_table['is_opto']
         standard_trial_table['opto_grid_ap'] = opto_trial_table['opto_grid_ap']
         standard_trial_table['opto_grid_ml'] = opto_trial_table['opto_grid_ml']
@@ -311,7 +335,6 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
         standard_trial_table['opto_stim_stop_time'] = np.nan
         standard_trial_table['opto_stim_amplitude'] = np.nan
         standard_trial_table['opto_stim_frequency'] = np.nan
-
 
     return standard_trial_table
 
