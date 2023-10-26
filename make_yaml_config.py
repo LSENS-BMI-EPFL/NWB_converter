@@ -11,13 +11,13 @@ from utils.server_paths import get_subject_data_folder, get_subject_analysis_fol
 # Update your keywords
 GENERAL_KEYWORDS = ['neurophysiology', 'behaviour', 'mouse']
 KEYWORD_MAP = {
-    'AR': '',
-    'RD': '',
+    'AR': [''],
+    'RD': [''],
     'AB': ['electrophysiology', 'neuropixels'],
-    'MP': '',
-    'PB': '',
-    'MM': '',
-    'LS': '',
+    'MP': [''],
+    'PB': [''],
+    'MM': [''],
+    'LS': [''],
 
 }
 
