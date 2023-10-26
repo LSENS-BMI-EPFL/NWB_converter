@@ -39,7 +39,14 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
         tiff_file = config['ci_tiff_path']
 
     else:
-        bin_file = server_paths.get_log_continuous_file(config_file)
+        # Get paths to files
+        try:
+            bin_file = server_paths.get_log_continuous_file(config_file)
+        except FileNotFoundError:
+            print("No continuous log file found for this session. Skipping mouse for now.") # TODO: implement behavior only conversion with trial table for older mice
+            timestamps_dict = None
+            n_frames_dict = None
+            return timestamps_dict, n_frames_dict
 
         if config['session_metadata']['experimenter'] == 'AB':
             movie_files = server_paths.get_session_movie_files(config_file)
@@ -56,8 +63,11 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
         scanimage_dict = None
 
     # Extract session timestamps
+
     continuous_data_dict = read_binary_continuous_log(bin_file=bin_file,
-                                                      channels_dict=channels_dict, ni_session_sr=5000, t_stop=None)
+                                                      channels_dict=channels_dict,
+                                                      ni_session_sr=5000,
+                                                      t_stop=None)
     if movie_files is None:
         camera_filtering = False
 
@@ -76,7 +86,8 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
                                   black_background=False)
 
     if 'ephys_metadata' in config:
-        ephys_timestamps_dict, n_frames_dict = get_ephys_timestamps(config_file=config_file, log_timestamps_dict=timestamps_dict)
+        ephys_timestamps_dict, n_frames_dict = get_ephys_timestamps(config_file=config_file,
+                                                                    log_timestamps_dict=timestamps_dict)
         timestamps_dict = ephys_timestamps_dict
 
     print("Number of timestamps per acquisition:")

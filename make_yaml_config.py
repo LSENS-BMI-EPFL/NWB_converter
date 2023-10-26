@@ -40,7 +40,15 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     # Select most recent metadata export from SLIMS folder.
     slims_csv = sorted(os.listdir(os.path.join(input_folder, 'SLIMS')))[-1]
     slims_csv_path = os.path.join(input_folder, 'SLIMS', slims_csv)
-    slims = pd.read_csv(slims_csv_path, sep=';', engine='python')
+    try:
+        slims = pd.read_csv(slims_csv_path, sep=';', engine='python')
+    except UnicodeDecodeError:
+        print('Error: SLIMS file may not be in a .csv file. Please export it again from SLIMS as .csv.')
+        return
+    except FileNotFoundError:
+        print('Error: SLIMS file not found. Please export it from SLIMS as .csv.')
+        return
+
     slims = slims.loc[slims.cntn_cf_mouseName == mouse_id]
 
     subject_metadata = {
