@@ -289,7 +289,7 @@ def create_behaviour_metadata(subject_id, path_to_json_config):
         behaviour_metadata.update({'camera_exposure_time': json_config['camera_exposure_time']})
 
     if subject_id == 'AB':
-        behaviour_metadata.update({'trial_table':'full'})
+        behaviour_metadata.update({'trial_table':'standard'})
 
     return behaviour_metadata
 
@@ -311,9 +311,9 @@ def create_ephys_metadata():
 if __name__ == '__main__':
     # Select mouse IDs.
     # mouse_ids = ['RD001', 'RD002', 'RD003', 'RD004', 'RD005', 'RD006']
-    mouse_ids = [50,51,52,54,56,58,59,68,72,73,75,76,77,78,79,80,81,82,83]
+    mouse_ids = [50,51,52,54,56,58,59,68,72,73,75,76,77,78,79,80,81,82,83,85,87,88,89,90,91]
     mouse_ids = ['AB0{}'.format(i) for i in mouse_ids]
-    mouse_ids = ['AB082']
+    #mouse_ids = ['AB082']
     # last_done_day = "20230601"
 
     for mouse_id in mouse_ids:

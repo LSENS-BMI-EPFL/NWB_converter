@@ -3,8 +3,7 @@ import os
 import yaml
 
 from utils.behavior_converter_misc import get_trial_timestamps_dict, build_simplified_trial_table, add_trials_to_nwb,\
-    build_full_trial_table, add_trials_full_to_nwb, \
-    build_standard_trial_table, \
+    build_standard_trial_table, add_trials_standard_to_nwb, \
     get_context_timestamps_dict
 from pynwb.behavior import BehavioralEvents, BehavioralEpochs
 from pynwb.base import TimeSeries
@@ -46,16 +45,13 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
         elif config_dict.get('behaviour_metadata').get('trial_table') == 'simple':
             trial_table = build_simplified_trial_table(behavior_results_file=behavior_results_file,
                                                        timestamps_dict=timestamps_dict)
-        elif config_dict.get('behaviour_metadata').get('trial_table') == 'full':
-            trial_table = build_full_trial_table(config_file, behavior_results_file=behavior_results_file,
-                                                 timestamps_dict=timestamps_dict)
-    else:
+    else: #TODO: remove this else statement once all config files have behaviour_metadata
         trial_table = build_simplified_trial_table(behavior_results_file=behavior_results_file,
                                                    timestamps_dict=timestamps_dict)
 
     print("Adding trials to NWB file")
-    if config_dict.get('behaviour_metadata').get('trial_table') == 'full':
-        add_trials_full_to_nwb(nwb_file=nwb_file, trial_table=trial_table)
+    if config_dict.get('behaviour_metadata').get('trial_table') == 'standard':
+        add_trials_standard_to_nwb(nwb_file=nwb_file, trial_table=trial_table)
     else:
         add_trials_to_nwb(nwb_file=nwb_file, trial_table=trial_table)
 

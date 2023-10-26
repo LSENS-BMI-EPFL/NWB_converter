@@ -272,19 +272,20 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
 
     # Build trial table
     standard_trial_table['id'] = trial_table['trial_number'] - 1 # zero-indexed
-    standard_trial_table['trial_start'] = trial_timestamps[:, 0]
-    standard_trial_table['trial_stop'] = trial_timestamps[:, 1]
+    standard_trial_table['start_time'] = trial_timestamps[:, 0]
+    standard_trial_table['stop_time'] = trial_timestamps[:, 1]
     standard_trial_table['trial_type'] = trial_type_list
     standard_trial_table['perf'] = trial_table['perf']
 
     standard_trial_table['whisker_stim'] = trial_table['is_whisker']
-    standard_trial_table['whisker_stim_amplitude'] = trial_table['whisker_stim_amplitude'] # TODO: convert from calibration data to mT
+
+    standard_trial_table['whisker_stim_amplitude'] = trial_table['wh_stim_amp'] # TODO: convert from calibration data to mT
     standard_trial_table['whisker_stim_duration'] = trial_table['wh_stim_duration']
     standard_trial_table['whisker_stim_time'] = whisker_stim_time
 
     standard_trial_table['auditory_stim'] = trial_table['is_auditory']
-    standard_trial_table['auditory_stim_amplitude'] = trial_table['aud_stim_amplitude'] # TODO: convert from calibration data
-    standard_trial_table['auditory_stim_frequency'] = trial_table['aud_stim_frequency']
+    standard_trial_table['auditory_stim_amplitude'] = trial_table['aud_stim_amp'] # TODO: convert from calibration data
+    standard_trial_table['auditory_stim_frequency'] = trial_table['aud_stim_freq']
     standard_trial_table['auditory_stim_duration'] = trial_table['aud_stim_duration']
     standard_trial_table['auditory_stim_time'] = auditory_stim_time
 
@@ -317,7 +318,7 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
         opto_results_file = server_paths.get_opto_results_file(config_file=config_file)
         opto_trial_table = pd.read_csv(opto_results_file)
 
-        #TODO: format this @Pol
+        #TODO: to be formated @Pol
         standard_trial_table['opto_stim'] = opto_trial_table['is_opto']
         standard_trial_table['opto_grid_ap'] = opto_trial_table['opto_grid_ap']
         standard_trial_table['opto_grid_ml'] = opto_trial_table['opto_grid_ml']
@@ -409,8 +410,8 @@ def add_trials_standard_to_nwb(nwb_file, trial_table):
     n_trials = trial_table['trial_type'].size
     for trial in range(n_trials):
         nwb_file.add_trial(id=trial_table['id'].values[trial],
-                           start_time=trial_table['trial_start'].values[trial],
-                           stop_time=trial_table['trial_stop'].values[trial],
+                           start_time=trial_table['start_time'].values[trial],
+                           stop_time=trial_table['stop_time'].values[trial],
                            trial_type=trial_table['trial_type'].values[trial],
                            perf=trial_table['perf'].values[trial],
 
@@ -446,9 +447,9 @@ def add_trials_standard_to_nwb(nwb_file, trial_table):
                            opto_stim_stop_time=trial_table['opto_stim_stop_time'].values[trial],
                            opto_stim_amplitude=trial_table['opto_stim_amplitude'].values[trial],
                            opto_stim_frequency=trial_table['opto_stim_frequency'].values[trial],
-                           opto_stim_ap=trial_table['opto_stim_ap'].values[trial],
-                           opto_stim_ml=trial_table['opto_stim_ml'].values[trial],
-                           opto_stim_no=trial_table['opto_stim_no'].values[trial]
+                           opto_grid_ap=trial_table['opto_grid_ap'].values[trial],
+                           opto_grid_ml=trial_table['opto_grid_ml'].values[trial],
+                           opto_grid_no=trial_table['opto_grid_no'].values[trial]
                            )
 
 

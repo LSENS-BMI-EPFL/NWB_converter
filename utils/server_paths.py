@@ -64,7 +64,7 @@ def get_session_config_file(config_file):
     mouse_name = config['subject_metadata']['subject_id']
     session_name = config['session_metadata']['session_id']
     data_folder = get_subject_data_folder(mouse_name)
-    session_config_file = os.path.join(data_folder, 'Recording', session_name, 'session_config.json')
+    session_config_file = os.path.join(data_folder, 'Training', session_name, 'session_config.json')
 
     return session_config_file
 
@@ -77,7 +77,7 @@ def get_calibration_file(config_file):
     session_date = session_name.split('_')[1]
     file_name = '{}_{}_stim_coil_calibration.mat'.format(mouse_name, session_date)
     data_folder = get_subject_data_folder(mouse_name)
-    calibration_file = os.path.join(data_folder, 'Recording', session_name, file_name)
+    calibration_file = os.path.join(data_folder, 'Training', session_name, file_name)
 
     return calibration_file
 
