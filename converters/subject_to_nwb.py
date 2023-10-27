@@ -58,13 +58,13 @@ def create_nwb_file(config_file):
             if not isinstance(kwargs_nwb_file[key], list):
                 kwargs_nwb_file[key] = str(kwargs_nwb_file[key])
     if 'session_description' not in kwargs_nwb_file:
-        print('session_description is needed in the file config file.')
+        print('session_description is needed in the config file.')
         return
     if 'identifier' not in kwargs_nwb_file:
-        print('identifier is needed in the file config file.')
+        print('identifier is needed in the config file.')
         return
     if 'session_start_time' not in kwargs_nwb_file:
-        print('session_start_time is needed in the file config file.')
+        print('session_start_time is needed in the config file.')
         return
     else:
         session_start_time = datetime.strptime(kwargs_nwb_file['session_start_time'], '%Y%m%d %H%M%S')
@@ -74,7 +74,7 @@ def create_nwb_file(config_file):
         kwargs_nwb_file['session_id'] = kwargs_nwb_file['identifier']
 
     #####################################
-    # ###    creating the NWB file    ###
+    # ###    Creating the NWB file    ###
     #####################################
     print('Session')
     print_info_dict(kwargs_nwb_file)

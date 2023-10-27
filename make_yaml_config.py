@@ -4,9 +4,10 @@ import os
 import datetime
 import json
 import yaml
+import numpy as np
 import pandas as pd
 from utils.behavior_converter_misc import find_training_days
-from utils.server_paths import get_subject_data_folder, get_subject_analysis_folder
+from utils.server_paths import get_subject_data_folder, get_subject_analysis_folder, get_ref_weight_folder
 
 # Update your keywords
 GENERAL_KEYWORDS = ['neurophysiology', 'behaviour', 'mouse']
@@ -38,15 +39,18 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     # #################
 
     # Select most recent metadata export from SLIMS folder.
-    slims_csv = sorted(os.listdir(os.path.join(input_folder, 'SLIMS')))[-1]
-    slims_csv_path = os.path.join(input_folder, 'SLIMS', slims_csv)
     try:
+        slims_csv = sorted(os.listdir(os.path.join(input_folder, 'SLIMS')))[-1]
+        slims_csv_path = os.path.join(input_folder, 'SLIMS', slims_csv)
         slims = pd.read_csv(slims_csv_path, sep=';', engine='python')
+    except IndexError:
+        print('Error: SLIMS folder may be empty. Export SLIMS info .csv file.')
+        return
     except UnicodeDecodeError:
         print('Error: SLIMS file may not be in a .csv file. Please export it again from SLIMS as .csv.')
         return
     except FileNotFoundError:
-        print('Error: SLIMS file not found. Please export it from SLIMS as .csv.')
+        print('Error: SLIMS file not found. Export SLIMS info .csv file.')
         return
 
     slims = slims.loc[slims.cntn_cf_mouseName == mouse_id]
@@ -78,20 +82,72 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
         subject_metadata['genotype'] = 'WT'
 
     # Add weight at the beginning of the session from json config file.
-    json_path = os.path.join(input_folder, 'Training', session_id, 'session_config.json')
-    with open(json_path, 'r') as f:
+    session_config_json_path = os.path.join(input_folder, 'Training', session_id, 'session_config.json')
+    with open(session_config_json_path, 'r') as f:
         json_config = json.load(f)
 
+    # Get mouse session weight
     if 'mouse_weight_before' in json_config:
         subject_metadata['weight'] = json_config['mouse_weight_before']
     else:
         subject_metadata['weight'] = 'na'
 
+    # Get mouse reference weight
+    ref_weight_path = get_ref_weight_folder(experimenter=subject_id[:2])
+    ref_weight_csv_path = os.path.join(ref_weight_path, 'mouse_reference_weight.xlsx')
+    if not os.path.exists(ref_weight_csv_path):
+        print(f'Error: reference weight file not found for {subject_id[:2]}. Please create it.')
+        ref_weight = np.nan
+    else:
+        ref_weight_df = pd.read_excel(ref_weight_csv_path)
+        # Make sure subject is in the reference weight file
+        if subject_id not in ref_weight_df.mouse_name.values:
+            print(f'Error: subject {subject_id} not found in reference weight file for {subject_id}. Please add it.')
+            ref_weight = np.nan
+        else:
+            ref_weight_cols = [col for col in ref_weight_df.columns if 'weight' in col]
+            if len(ref_weight_cols) > 1:
+                print(f'NotImplementedError: more than one reference weight column found for {subject_id[:2]}. Please check.')
+                ref_weight = np.nan
+            else:
+                ref_weight = ref_weight_df.loc[ref_weight_df.mouse_name == subject_id, ref_weight_cols[0]].values[0]
+                assert isinstance(ref_weight, float), f'Error: reference weight for {subject_id} is not a float. Please check.'
+
+    # Generating session metadata dictionary
+    session_type_flags = [sess_key_flag for sess_key_flag in json_config.keys() if 'session' in sess_key_flag]
+    session_type_flags.remove('session_time')
+    session_type_flags.remove('dummy_session_flag')
+    session_type_ticked = [sess_key_flag for sess_key_flag in session_type_flags if json_config[sess_key_flag] == True]
+    if session_type_ticked:
+        session_type_prefixes = [sess_key_flag.split('_')[0] for sess_key_flag in session_type_ticked]
+        session_type_prefixes.append('session')
+        session_type = '_'.join(session_type_prefixes)  # e.g. 'twophoton_session', or 'wf_opto_session', etc.
+    else:
+        session_type = 'behaviour_only_session'
+
+    session_experiment_metadata = {
+        'reference_weight': ref_weight, # reference weight before water-restriction
+        'session_type': session_type,
+        'wh_reward': json_config['wh_reward'],
+        'aud_reward': json_config['aud_reward'],
+        'reward_proba': json_config['reward_proba'],
+        'lick_threshold': json_config['lick_threshold'],
+        'no_stim_weight': json_config['no_stim_weight'],
+        'wh_stim_weight': sum([v for k, v in json_config.items() if 'wh_stim_weight' in k]),
+        'aud_stim_weight': sum([v for k, v in json_config.items() if 'aud_stim_weight' in k]),
+        'camera_flag': json_config['camera_flag'],
+        'camera_freq': json_config['camera_freq'],
+        'camera_exposure_time': [json_config['camera_exposure_time'] if 'camera_exposure_time' in json_config.keys() else 'na'][0],
+        'camera_start_delay': [json_config['camera_start_delay'] if 'camera_start_delay' in json_config.keys() else 'na'][0],
+        'artifact_window': json_config['artifact_window'],
+
+    }
+
     # Session metadata.
     # #################
 
 
-    # session data #TODO: improve metadata information
+    # session data
     session_metadata = {
         'identifier': session_id,  # key to name the NWB file
         'session_id': session_id,
@@ -100,7 +156,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
         'experimenter': subject_id[:2],
         'institution': 'Ecole Polytechnique Federale de Lausanne',
         'lab': 'Laboratory of Sensory Processing',
-        'experiment_description': 'na',
+        'experiment_description': str(session_experiment_metadata),
         'keywords': GENERAL_KEYWORDS + KEYWORD_MAP[subject_id[:2]],
         'notes': 'na',
         'pharmacology': 'na',
@@ -138,7 +194,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     # ###################
 
     behaviour_metadata = create_behaviour_metadata(subject_id=subject_id[:2],
-                                                   path_to_json_config=json_path)
+                                                   path_to_json_config=session_config_json_path)
 
 
     # Trial outcome mapping.

@@ -45,6 +45,24 @@ def get_nwb_folder(subject_id):
     return nwb_folder
 
 
+def get_ref_weight_folder(experimenter):
+    """
+    Get the path to the folder where the reference weights are stored.
+    Args:
+        experimenter:
+
+    Returns:
+
+    """
+
+    ref_weight_folder = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis',
+                                     EXPERIMENTER_MAP[experimenter], 'mice_info')
+    if not os.path.exists(ref_weight_folder):
+        os.makedirs(ref_weight_folder)
+
+    return ref_weight_folder
+
+
 def get_behavior_results_file(config_file):
     with open(config_file, 'r', encoding='utf8') as stream:
         config = yaml.safe_load(stream)
