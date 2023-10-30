@@ -16,7 +16,7 @@ KEYWORD_MAP = {
     'RD': [''],
     'AB': ['electrophysiology', 'neuropixels'],
     'MP': [''],
-    'PB': [''],
+    'PB': ['behaviour', 'optogenetics', 'widefield', 'two_photon'],
     'MM': [''],
     'LS': [''],
 
@@ -307,6 +307,22 @@ def create_channels_threshold_dict(experimenter, json_config):
             },
         }
 
+    elif experimenter in ['PB']:
+        channels_dict = {
+            'trial_TTL': 2,
+            'lick_trace': 0,
+            'widefield': 1,
+            'cam1': 3,
+            'cam2': 4,
+            #'context': 5,
+        }
+        threshold_dict = {
+            'trial_TTL': 4,
+            'cam1': 2,
+            'cam2': 2,
+            'widefield': 2
+        }
+
         # Add context channel and threshold
         context_channel_date = "20230524"  # one day before first session with added channel odd number // 24 even
         context_channel_date = datetime.datetime.strptime(context_channel_date, "%Y%m%d")
@@ -367,9 +383,10 @@ def create_ephys_metadata():
 if __name__ == '__main__':
     # Select mouse IDs.
     # mouse_ids = ['RD001', 'RD002', 'RD003', 'RD004', 'RD005', 'RD006']
-    mouse_ids = [50,51,52,54,56,58,59,68,72,73,75,76,77,78,79,80,81,82,83,85,87,88,89,90,91]
-    mouse_ids = ['AB0{}'.format(i) for i in mouse_ids]
-    #mouse_ids = ['AB082']
+    # mouse_ids = [50,51,52,54,56,58,59,68,72,73,75,76,77,78,79,80,81,82,83,85,87,88,89,90,91]
+    # mouse_ids = ['AB0{}'.format(i) for i in mouse_ids]
+    mouse_ids = ['PB000']
+    # mouse_ids = ['PB164', 'PB165', 'PB166', 'PB167', 'PB168']
     # last_done_day = "20230601"
 
     for mouse_id in mouse_ids:

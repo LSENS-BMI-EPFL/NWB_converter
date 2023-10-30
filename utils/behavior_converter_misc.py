@@ -28,6 +28,8 @@ def find_training_days(subject_id, input_folder): #TODO: make this more general 
     # Find session type (auditory or whisker day) and label days with integer relative to first whisker training day
     behavior_type = []
     for isession in sessions_list:
+        if 'calibration' in isession:
+            continue
         json_path = os.path.join(input_folder, 'Training', isession, 'session_config.json')
         with open(json_path, 'r') as f:
             json_config = json.load(f)
@@ -320,13 +322,13 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
 
         #TODO: to be formated @Pol
         standard_trial_table['opto_stim'] = opto_trial_table['is_opto']
-        standard_trial_table['opto_grid_ap'] = opto_trial_table['opto_grid_ap']
-        standard_trial_table['opto_grid_ml'] = opto_trial_table['opto_grid_ml']
-        standard_trial_table['opto_grid_no'] = opto_trial_table['opto_grid_no']
-        standard_trial_table['opto_stim_start_time'] = opto_trial_table['opto_stim_start_time']
-        standard_trial_table['opto_stim_stop_time'] = opto_trial_table['opto_stim_stop_time']
-        standard_trial_table['opto_stim_amplitude'] = opto_trial_table['opto_stim_amplitude']
-        standard_trial_table['opto_stim_frequency'] = opto_trial_table['opto_stim_frequency']
+        standard_trial_table['opto_grid_ap'] = opto_trial_table['coord_AP']
+        standard_trial_table['opto_grid_ml'] = opto_trial_table['coord_ML']
+        standard_trial_table['opto_grid_no'] = opto_trial_table['grid_no']
+        standard_trial_table['opto_stim_start_time'] = standard_trial_table['start_time'] + opto_trial_table['baseline']
+        standard_trial_table['opto_stim_stop_time'] = standard_trial_table['start_time'] + opto_trial_table['baseline'] + opto_trial_table['opto_duration']
+        standard_trial_table['opto_stim_amplitude'] = opto_trial_table['opto_amp']
+        standard_trial_table['opto_stim_frequency'] = opto_trial_table['opto_freq']
     else:
         standard_trial_table['opto_stim'] = np.nan
         standard_trial_table['opto_grid_ap'] = np.nan

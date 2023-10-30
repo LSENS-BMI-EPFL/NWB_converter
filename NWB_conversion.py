@@ -78,7 +78,8 @@ def convert_data_to_nwb(config_file, output_folder):
 if __name__ == '__main__':
 
     # Run the conversion
-    mouse_ids = ['AB082']
+    # mouse_ids = ['PB164', 'PB165', 'PB166', 'PB167', 'PB168']
+    mouse_ids = ['PB000']
 
     for mouse_id in mouse_ids:
         data_folder = get_subject_data_folder(mouse_id)
@@ -95,11 +96,13 @@ if __name__ == '__main__':
             # Filter sessions to do :
             # session_to_do = ["RD001_20230624_123913", "RD003_20230624_134719", "RD005_20230624_145511"]
 
-            session_to_do = ["AB082_20230630_101353"]
+            if 'calibration' in isession:
+                continue
+            session_to_do = ["PB000_20230922_173524"]
             if isession not in session_to_do:
                 continue
-
-            # date_to_do = "20230629"
+            #
+            # date_to_do = "20231025"
             # if date_to_do not in isession:
             #     continue
 
