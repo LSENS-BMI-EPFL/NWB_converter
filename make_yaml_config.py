@@ -323,13 +323,13 @@ def create_channels_threshold_dict(experimenter, json_config):
             'widefield': 2
         }
 
-        # Add context channel and threshold
-        context_channel_date = "20230524"  # one day before first session with added channel odd number // 24 even
-        context_channel_date = datetime.datetime.strptime(context_channel_date, "%Y%m%d")
-        session_date = datetime.datetime.strptime(json_config['date'], "%Y%m%d")
-        if session_date > context_channel_date:
-            channels_dict.update({'context': 5})
-            threshold_dict.update({'context': 4})
+    # Add context channel and threshold
+    context_channel_date = "20230524"  # one day before first session with added channel odd number // 24 even
+    context_channel_date = datetime.datetime.strptime(context_channel_date, "%Y%m%d")
+    session_date = datetime.datetime.strptime(json_config['date'], "%Y%m%d")
+    if session_date > context_channel_date:
+        channels_dict.update({'context': 5})
+        threshold_dict.update({'context': 4})
 
 
 
