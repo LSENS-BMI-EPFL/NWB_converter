@@ -40,13 +40,7 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
 
     else:
         # Get paths to files
-        try:
-            bin_file = server_paths.get_log_continuous_file(config_file)
-        except FileNotFoundError:
-            print("No continuous log file found for this session. Skipping mouse for now.") # TODO: implement behavior only conversion with trial table for older mice
-            timestamps_dict = None
-            n_frames_dict = None
-            return timestamps_dict, n_frames_dict
+        bin_file = server_paths.get_log_continuous_file(config_file)
 
         if config['session_metadata']['experimenter'] == 'AB':
             movie_files = server_paths.get_session_movie_files(config_file)
@@ -54,6 +48,7 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
             movie_files = server_paths.get_movie_files(config_file)
         tiff_file = server_paths.get_imaging_file(config_file)
 
+    # Get relevant continuous processing information
     channels_dict = config['log_continuous_metadata']['channels_dict']
     threshold_dict = config['log_continuous_metadata']['threshold_dict']
 
@@ -63,11 +58,14 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
         scanimage_dict = None
 
     # Extract session timestamps
-
     continuous_data_dict = read_binary_continuous_log(bin_file=bin_file,
                                                       channels_dict=channels_dict,
                                                       ni_session_sr=5000,
                                                       t_stop=None)
+    if continuous_data_dict is None:
+        print("No continuous data found for this session. No timestamps available: using trial table information only")
+        return None, None
+
     if movie_files is None:
         camera_filtering = False
 
@@ -85,7 +83,7 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
                                   t_stop=plot_stop,
                                   black_background=False)
 
-    if 'ephys_metadata' in config:
+    if 'ephys_metadata' in config and config['ephys_metadata']['processed']=='true':
         ephys_timestamps_dict, n_frames_dict = get_ephys_timestamps(config_file=config_file,
                                                                     log_timestamps_dict=timestamps_dict)
         timestamps_dict = ephys_timestamps_dict

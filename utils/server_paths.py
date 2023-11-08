@@ -137,7 +137,9 @@ def get_session_movie_files(config_file):
     data_folder = get_subject_data_folder(mouse_name)
     movies_path = os.path.join(data_folder, 'Recording', session_name, 'Video')
     if not os.path.exists(movies_path):
-        os.makedirs(movies_path)
+        movies = None
+        return movies
+        #os.makedirs(movies_path)
     movies = [os.path.join(movies_path, m) for m in os.listdir(movies_path) if
               os.path.splitext(m)[1] in ['.avi', '.mp4']]
     if not movies:

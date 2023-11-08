@@ -97,7 +97,13 @@ def get_trial_timestamps_dict(timestamps_dict, behavior_results_file, config_fil
     # Get trial outcomes, number of trials and trial types
     trial_outcomes = behavior_results['perf'].values
     trial_types = np.unique(trial_outcomes)
-    trial_timestamps = np.array(timestamps_dict['trial_TTL'])
+
+    if timestamps_dict is None:
+        trial_timestamps = np.zeros((len(behavior_results), 2))
+        trial_timestamps[:,0] = behavior_results['trial_time'].values
+        trial_timestamps[:,1] = behavior_results['trial_time'].values + 1.0
+    else:
+        trial_timestamps = np.array(timestamps_dict['trial_TTL'])
     trial_timestamps_dict = dict()
     trial_indexes_dict = dict()
 
@@ -121,12 +127,17 @@ def get_trial_timestamps_dict(timestamps_dict, behavior_results_file, config_fil
 def get_context_timestamps_dict(timestamps_dict, nwb_trial_table):
     context_timestamps_dict = dict()
     context_sound_dict = dict()
+
+    # Handle case where no context timestamps are found
+    if timestamps_dict is None:
+        return None, None
     if 'context' not in list(timestamps_dict.keys()):
         return None, None
     if len(np.unique(nwb_trial_table['context_block'].values[:])) == 1:
         print(f"Found only 1 value in 'context_block' column from csv file : {nwb_trial_table['context_block'].values[0]}")
         return None, None
 
+    # Get context timestamps
     context_on_off = timestamps_dict.get('context')
     if len(context_on_off) == 1:
         return None, None
@@ -236,39 +247,48 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
 
     """
 
+    # Initialize table
+    standard_trial_table = pd.DataFrame()
+
     # Read session configuration file
     session_config_file = server_paths.get_session_config_file(config_file=config_file)
     with open(session_config_file) as json_file:
         session_config = json.load(json_file)
 
-    # Get behaviour results and logged timestamps
-    standard_trial_table = pd.DataFrame()
+    # Get behaviour results and formatted trial type formatted as a list
     trial_table = pd.read_csv(behavior_results_file)
-    trial_timestamps = np.array(timestamps_dict['trial_TTL'])
-
-    # Get trial type list from trial table
     trial_type_list = list_standard_trial_type(results_table=trial_table)
-
     n_trials = trial_table['perf'].size
     print(f"Read '.csv' file to build trial NWB trial table ({n_trials} trials)")
 
-    if len(trial_timestamps[:, 0]) > n_trials:
-        print(f"The .csv table has one less trial than TTL up/down signal session must have been stopped "
-              f"before saving the very last trial. Ignoring last trial TTL of session.")
-        trial_timestamps = trial_timestamps[0:-1, :]
+    # Get logged timestamps
+    if timestamps_dict is not None:
+        trial_timestamps = np.array(timestamps_dict['trial_TTL'])
 
-    # Get timestamps for specific events
+        if len(trial_timestamps[:, 0]) > n_trials:
+            print(f"The .csv table has one less trial than TTL up/down signal session must have been stopped "
+                  f"before saving the very last trial. Ignoring last trial TTL of session.")
+            trial_timestamps = trial_timestamps[0:-1, :]
+
+    # Case when sessions were acquired before continuous logging of behavioral data
+    else:
+        trial_timestamps = np.zeros((n_trials, 2))
+        trial_timestamps[:, 0] = trial_table['trial_time'] # use results table information instead
+        trial_timestamps[:, 1] = trial_table['trial_time'] + 1.0 # response window
+        if session_config['mouse_name'][0:2] == 'AB' and int(session_config['mouse_name'][2:-1]) < 68:
+            trial_table = check_trial_table_content(trial_table=trial_table)
+
+    # Format timestamps for specific events
     whisker_stim_time = [t if trial_table.iloc[i].is_whisker==1 else np.nan for i,t in enumerate(trial_timestamps[:, 0])]
     auditory_stim_time = [t if trial_table.iloc[i].is_auditory==1 else np.nan for i,t in enumerate(trial_timestamps[:, 0])]
     no_stim_time = [t if trial_table.iloc[i].is_stim==0 else np.nan for i,t in enumerate(trial_timestamps[:, 0]) ]
 
-    # Calculate response window times, relative to start time
+    # Format response window times, relative to start time
     response_window_start_time = trial_timestamps[:, 0] + trial_table['artifact_window'] + trial_table['baseline_window']
     response_window_stop_time = response_window_start_time + trial_table['response_window']
 
-    # Absence of licks: make reaction time as NaN
+    # Format absence of licks: make reaction time as NaN
     trial_table['reaction_time'].replace(0, np.nan, inplace=True)
-
 
     # Build trial table
     standard_trial_table['id'] = trial_table['trial_number'] - 1 # zero-indexed
@@ -303,7 +323,7 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
     standard_trial_table['early_lick'] = trial_table['early_lick']
 
     # Add contextual information if relevant, nan otherwise
-    if session_config['context_flag']:
+    if 'context_flag' in session_config.keys() and session_config['context_flag']:
         standard_trial_table['context_block'] = trial_table['context_block']
         standard_trial_table['context_background'] = trial_table['context_background']
     else:
@@ -453,6 +473,23 @@ def add_trials_standard_to_nwb(nwb_file, trial_table):
                            )
 
 
+def check_trial_table_content(trial_table):
+    """
+    Check if trial table contains all necessary columns.
+    Relevant for older trial tables acquired before continuous logging.
+    Somewhat arbitrary values but necessary to have them to add in NWB files.
+    Args:
+        trial_table:
 
+    Returns:
 
+    """
+    if 'artifact_window' not in trial_table.columns:
+        trial_table['artifact_window'] = 100
+    if 'baseline_window' not in trial_table.columns:
+        trial_table['baseline_window'] = 0
+    if 'response_window' not in trial_table.columns:
+        trial_table['response_window'] = 1000
+
+    return trial_table
 

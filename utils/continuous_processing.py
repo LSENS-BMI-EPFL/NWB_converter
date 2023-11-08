@@ -62,24 +62,48 @@ def get_continuous_time_periods(binary_array):
 
 
 def read_binary_continuous_log(bin_file, channels_dict, ni_session_sr=5000, t_stop=None):
+    """
+    Read binary continuous log file and return a dictionary with the data per channel.
+    Args:
+        bin_file:
+        channels_dict:
+        ni_session_sr:
+        t_stop:
+
+    Returns:
+
+    """
+    # Get logged channel information
     channel_names = list(channels_dict.keys())
     n_channels = len(channel_names)
     continuous_data_dict = {}
-    continuous_file = open(bin_file, mode="rb")
+
+    # Read binary data
+    try:
+        continuous_file = open(bin_file, mode="rb")
+    except FileNotFoundError:
+        print("No continuous log file found for this session. No continuous processing available.")
+        return None
+
+    # Get number of samples to read
     if t_stop is not None:
         count_param = t_stop * ni_session_sr * n_channels
     else:
         count_param = -1
 
+    # Read specific data points
     continuous_data = np.fromfile(continuous_file, np.dtype('float'), count=count_param)
 
+    # Rearrange data points per channel and store as dictionary
     for key, channel_index in channels_dict.items():
         channel_data = continuous_data[np.arange(start=int(channel_index), stop=int(len(continuous_data)),
                                                  step=n_channels)]
         if key == "lick_trace":
+            # Convert lick trace to absolute values, like in the behaviour control GUI
             channel_data = np.abs(channel_data)
         continuous_data_dict[key] = channel_data
 
+    # Add timestamps to dictionary
     timestamps = np.arange(0, int(len(continuous_data) / n_channels)) / ni_session_sr
     continuous_data_dict["timestamps"] = timestamps
     print(f"start : {timestamps[0]}s, end at {np.round(timestamps[-1], 2)}s")

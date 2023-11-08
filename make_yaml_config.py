@@ -40,7 +40,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
 
     # Select most recent metadata export from SLIMS folder.
     try:
-        slims_csv = sorted(os.listdir(os.path.join(input_folder, 'SLIMS')))[-1]
+        slims_csv = sorted(os.listdir(os.path.join(input_folder, 'SLIMS')))[-1] #post-euthanasia SLIMS file has more information
         slims_csv_path = os.path.join(input_folder, 'SLIMS', slims_csv)
         slims = pd.read_csv(slims_csv_path, sep=';', engine='python')
     except IndexError:
@@ -190,7 +190,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     log_continuous_metadata.update({'channels_dict': channels_dict})
     log_continuous_metadata.update({'threshold_dict': threshold_dict})
 
-    # Behaviour metadata. #TODO: this should also be experimenter-dependent and a function of the json config file.
+    # Behaviour metadata. #TODO: this could also be experimenter-dependent and a function of the json config file.
     # ###################
 
     behaviour_metadata = create_behaviour_metadata(subject_id=subject_id[:2],
@@ -210,7 +210,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
         6: 'early_lick',
     }
 
-    # 2P imaging metadata. #TODO: make this from external experimenter-dependent excel file
+    # 2P imaging metadata.
     # ####################
 
     two_photon_metadata = {
@@ -221,10 +221,15 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
         'indicator': 'GCaMP8m',
     }
 
-    # Extracell. ephys. metadata. #TODO: make this from external experimenter-dependent excel file
+    # Extracell. ephys. metadata.
     # ####################
     if subject_id[:2] == 'AB':
-        ephys_metadata = create_ephys_metadata()
+        if subject_id == 'AB091':
+            processed = False
+        else:
+            processed = True
+
+        ephys_metadata = create_ephys_metadata(processed=processed)
 
 
     # Write to yaml file.
@@ -351,7 +356,7 @@ def create_behaviour_metadata(subject_id, path_to_json_config):
 
 
 
-def create_ephys_metadata():
+def create_ephys_metadata(processed=False):
     """
     Make ephys metadata dictionary.
     Returns:
@@ -359,7 +364,8 @@ def create_ephys_metadata():
     """
     ephys_metadata = {
         'setup': 'Neuropixels setup 1 AI3209',
-        'unit_table': 'simple', # 'simple' or 'standard'
+        'unit_table': 'simple',         # 'simple' or 'standard'
+        'processed': processed,
     }
     return ephys_metadata
 
@@ -369,8 +375,9 @@ if __name__ == '__main__':
     # mouse_ids = ['RD001', 'RD002', 'RD003', 'RD004', 'RD005', 'RD006']
     mouse_ids = [50,51,52,54,56,58,59,68,72,73,75,76,77,78,79,80,81,82,83,85,87,88,89,90,91]
     mouse_ids = ['AB0{}'.format(i) for i in mouse_ids]
-    #mouse_ids = ['AB082']
-    # last_done_day = "20230601"
+
+    last_done_day = "20231102"
+    last_done_day = None
 
     for mouse_id in mouse_ids:
 
@@ -382,14 +389,18 @@ if __name__ == '__main__':
 
         # Make config files.
         training_days = find_training_days(mouse_id, data_folder)
-        for session_id, day in training_days:
+
+        for session_id, day in training_days[-2:]:
             session_date = session_id.split('_')[1]
             session_date = datetime.datetime.strptime(session_date, "%Y%m%d")
-            # if session_date <= datetime.datetime.strptime(last_done_day, "%Y%m%d"):
-            #     continue
-            # sessions_to_do = ["PB124_20230404_141456"]
+
+            if last_done_day is not None:
+                if session_date <= datetime.datetime.strptime(last_done_day, "%Y%m%d"):
+                    continue
+
+            #sessions_to_do = ["PB124_20230404_141456"]
             # if session_id not in sessions_to_do:
             #    continue
-            # else:
+
             make_yaml_config(mouse_id, session_id, day, data_folder, analysis_folder,
-                             mouse_line='C57BL/6', gmo=False)
+                                 mouse_line='C57BL/6', gmo=False)

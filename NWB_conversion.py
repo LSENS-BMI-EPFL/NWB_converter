@@ -3,6 +3,7 @@
 # Imports
 import os
 import yaml
+import datetime
 from converters.subject_to_nwb import create_nwb_file
 from converters.ci_movie_to_nwb import convert_ci_movie
 from converters.suite2p_to_nwb import convert_suite2p_data
@@ -60,7 +61,7 @@ def convert_data_to_nwb(config_file, output_folder):
                              config_file=config_file,
                              ci_frame_timestamps=timestamps_dict['galvo_position'])
 
-    if config_dict.get("ephys_metadata") is not None:
+    if config_dict.get("ephys_metadata") is not None and config_dict.get("ephys_metadata").get("processed") == "true":
         print(" ")
         print("Convert extracellular electrophysiology data")
 
@@ -78,7 +79,11 @@ def convert_data_to_nwb(config_file, output_folder):
 if __name__ == '__main__':
 
     # Run the conversion
-    mouse_ids = ['AB082']
+    mouse_ids = [50,51,52,54,56,58,59,68,72,73,75,76,77,78,79,80,81,82,83,85,86,87]
+    mouse_ids = ['AB0{}'.format(i) for i in mouse_ids]
+
+    last_done_day = "20231102"
+    last_done_day = None
 
     for mouse_id in mouse_ids:
         data_folder = get_subject_data_folder(mouse_id)
@@ -91,18 +96,24 @@ if __name__ == '__main__':
         # Create NWB by looping over sessions.
         for isession, iday in training_days:
 
-            print(isession, iday)
+
             # Filter sessions to do :
             # session_to_do = ["RD001_20230624_123913", "RD003_20230624_134719", "RD005_20230624_145511"]
 
-            session_to_do = ["AB082_20230630_101353"]
-            if isession not in session_to_do:
-                continue
+            #session_to_do = ["AB082_20230630_101353"]
+            #if isession not in session_to_do:
+            #    continue
 
             # date_to_do = "20230629"
             # if date_to_do not in isession:
             #     continue
 
+            session_date = isession.split('_')[1]
+            session_date = datetime.datetime.strptime(session_date, "%Y%m%d")
+
+            if last_done_day is not None:
+                if session_date <= datetime.datetime.strptime(last_done_day, "%Y%m%d"):
+                    continue
             # Find yaml config file and behavior results for this session.
             config_yaml = os.path.join(analysis_folder, isession, f"config_{isession}.yaml")
 
