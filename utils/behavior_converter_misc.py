@@ -265,11 +265,6 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
     if timestamps_dict is not None:
         trial_timestamps = np.array(timestamps_dict['trial_TTL'])
 
-        if len(trial_timestamps[:, 0]) > n_trials:
-            print(f"The .csv table has one less trial than TTL up/down signal session must have been stopped "
-                  f"before saving the very last trial. Ignoring last trial TTL of session.")
-            trial_timestamps = trial_timestamps[0:-1, :]
-
     # Case when sessions were acquired before continuous logging of behavioral data
     else:
         trial_timestamps = np.zeros((n_trials, 2))
@@ -277,6 +272,12 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
         trial_timestamps[:, 1] = trial_table['trial_time'] + 1.0 # response window
         if session_config['mouse_name'][0:2] == 'AB' and int(session_config['mouse_name'][2:-1]) < 68:
             trial_table = check_trial_table_content(trial_table=trial_table)
+
+    # Compare number of trials in .csv table and TTL timestamps
+    if len(trial_timestamps[:, 0]) > n_trials:
+        print(f"The .csv table has less trial than TTL up/down signal session must have been stopped "
+              f"before saving the very last trial. Ignoring last trial TTLs of session.")
+        trial_timestamps = trial_timestamps[0:n_trials, :]
 
     # Format timestamps for specific events
     whisker_stim_time = [t if trial_table.iloc[i].is_whisker==1 else np.nan for i,t in enumerate(trial_timestamps[:, 0])]

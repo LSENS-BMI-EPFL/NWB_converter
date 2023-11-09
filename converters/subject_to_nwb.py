@@ -67,6 +67,9 @@ def create_nwb_file(config_file):
         print('session_start_time is needed in the config file.')
         return
     else:
+
+        if kwargs_nwb_file['session_start_time'][-2:] == '60': # handle non leap seconds
+            kwargs_nwb_file['session_start_time'] = kwargs_nwb_file['session_start_time'][0:-2] + '59'
         session_start_time = datetime.strptime(kwargs_nwb_file['session_start_time'], '%Y%m%d %H%M%S')
         session_start_time = session_start_time.replace(tzinfo=tzlocal())
         kwargs_nwb_file['session_start_time'] = session_start_time

@@ -31,6 +31,20 @@ def get_subject_analysis_folder(subject_id):
 
     return analysis_folder
 
+def get_subject_mouse_number(subject_id):
+    """Get mouse number for integer comparison"""
+    if len(subject_id) != 5:
+        raise ValueError('Subject mouse name must be 5 characters long. Check subject name.')
+    initials = subject_id[:2]
+    mouse_number = subject_id[2:]
+
+    if mouse_number[0]>0:
+        mouse_number = int(mouse_number)
+    else:
+        mouse_number = int(mouse_number[3:])
+
+    return mouse_number, initials
+
 
 def get_nwb_folder(subject_id):
     if subject_id == 'PB124':

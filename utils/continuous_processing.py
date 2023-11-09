@@ -217,6 +217,7 @@ def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scan
     timestamps_dict = {}
     n_frames_dict = {}
     timestamps = continuous_data_dict['timestamps']
+    print('Content of continuous data:', continuous_data_dict.keys())
 
     for key, data in continuous_data_dict.items():
 
@@ -297,7 +298,7 @@ def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scan
                     on_off_timestamps = filtered_on_off_timestamps
 
             if key in ["trial_TTL"]:
-                # Detection of early licks
+                # Detection of early licks (whether there is a baseline window or not)
                 iti = np.array([on_off_timestamps[i+1][0] - on_off_timestamps[i][1]
                                 for i in range(len(on_off_timestamps) - 1)])
                 early_licks = np.where(iti < 0.4)[0]  # reset trial signal in less than 0.25 s (specific to early lick)

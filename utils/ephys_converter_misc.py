@@ -271,17 +271,17 @@ def create_simplified_unit_table(nwb_file):
     """
     # Create Units table
     dict_columns_to_add = {
-        #'id': 'unique unit index (out of all probes)',
+        # 'id': 'unique unit index (out of all probes)',
         'cluster_id': 'cluster index, from KS(probe-wise)',
         'peak_channel': 'electrode with max waveform amplitude, from KS',
         'electrode_group': 'ElectrodeGroup object (i.e. probe) recording the unit',
         'depth': 'depth of peak electrode, in probe space, from KS',
         'ks_label': 'unit quality label, form Kilosort and curation (Phy): “good”, “mua”',
         'firing_rate': 'total firing rate in session, in Hz',
-        #'spike_times': 'spike times for that unit, from Kilosort',
+        # 'spike_times': 'spike times for that unit, from Kilosort',
         'waveform_mean': 'mean spike waveform (a vector), in uV',
         'sampling_rate': 'sampling rate used for that probe, in Hz',
-}
+    }
     for col_key, col_desc in dict_columns_to_add.items():
         nwb_file.add_unit_column(name=col_key, description=col_desc)
 
@@ -299,7 +299,7 @@ def create_unit_table(nwb_file):
     """
     # Create Units table
     dict_columns_to_add = {
-        'id': 'unique unit index (out of all probes)',
+        # 'id': 'unique unit index (out of all probes)',
         'cluster_id': 'cluster index, from KS(probe-wise)',
         'peak_channel': 'electrode with max waveform amplitude, from KS',
         'rel_x': 'peak channel x-coordinate in probe space (as above)',
@@ -309,7 +309,7 @@ def create_unit_table(nwb_file):
         'ks_label': 'unit quality label, form Kilosort and curation (Phy): “good”, “mua”',
         'firing_rate': 'total firing rate in session, in Hz',
         'spike_times': 'spike times for that unit, from Kilosort',
-        #'spike_times_index': 'spike times index, from Kilosort',
+        # 'spike_times_index': 'spike times index, from Kilosort',
         'ccf_area': 'atlas label from anatomical estimation',
         'ccf_area_layer': 'same as ccf_area, with layer-specficity',
         'waveform_mean': 'mean spike waveform (a vector), in uV',
@@ -319,14 +319,13 @@ def create_unit_table(nwb_file):
         'sampling_rate': 'sampling rate used for that probe, in Hz',
         'isi_violation': '',
         'isolation_distance': '',
-}
+    }
     for col_key, col_desc in dict_columns_to_add.items():
         nwb_file.add_unit_column(name=col_key, description=col_desc)
 
 
 def build_simplified_unit_table(imec_folder,
                                 sync_spike_times_path):
-
     # Init. table
     unit_table = pd.DataFrame()
 
@@ -346,7 +345,6 @@ def build_simplified_unit_table(imec_folder,
                                     'Amplitude': 'amplitude',
                                     'ContamPct': 'contam_pct'}, inplace=True)
 
-
     # Find if cluster had a curated label
     cluster_info_df['curated'] = cluster_info_df.apply(lambda x: 0 if pd.isnull(x.group) else 1, axis=1)
 
@@ -356,7 +354,7 @@ def build_simplified_unit_table(imec_folder,
     unit_table['cluster_id'] = cluster_info_df['cluster_id']
     unit_table['peak_channel'] = cluster_info_df['ch']
     unit_table['depth'] = cluster_info_df['depth']
-    unit_table['ks_label'] = cluster_info_df['ks_label']
+    unit_table['ks_label'] = cluster_info_df['group'] # "group" is the curated label, "KSLabel" is the KS label
     unit_table['firing_rate'] = cluster_info_df['fr']
 
     # Load spikes times
@@ -386,6 +384,7 @@ def build_simplified_unit_table(imec_folder,
     unit_table['waveform_mean'] = pd.DataFrame(mean_wfs).to_numpy().tolist()
 
     return unit_table
+
 
 def build_unit_table(config_file):
     return

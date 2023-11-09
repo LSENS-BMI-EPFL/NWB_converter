@@ -1,6 +1,7 @@
 import numpy as np
 import os
 import yaml
+import re
 
 from utils.behavior_converter_misc import get_trial_timestamps_dict, build_simplified_trial_table, add_trials_to_nwb,\
     build_standard_trial_table, add_trials_standard_to_nwb, \
@@ -127,6 +128,9 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
         movie_files = server_paths.get_movie_files(config_file)
 
     # If there is a behaviour video, add camera frame timestamps to NWB file
+    if config_file['camera_flag'] == False:
+        movie_files = None
+
     if movie_files is not None:
         print("Adding behavior movies as external file to NWB file")
         for movie_index, movie in enumerate(movie_files):
@@ -140,18 +144,22 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
             print("Check length and frame rate")
             video_length, video_frame_rate = continuous_processing.read_behavior_avi_movie(movie_files=movie_files)
 
-            # check n_frames vs n_timestamps TLLs
+            #  Check number of frames in video vs. number of timestamps
             if config_dict.get('session_metadata').get('experimenter') == 'AB':
                 key_view_mapper = {
                     'top': 'cam1',
-                    'side': 'cam2'
+                    'side': 'cam2',
+                    'lateral': 'cam2'
                 }
-                movie_file_names = [os.path.basename(f) for f in movie_files]
-                movie_file_parts = [f.split('-')[0] for f in movie_file_names]
-                movie_file_suffix = [f.split('_')[1] for f in movie_file_parts][0]  # side or top
+                movie_file_name = os.path.basename(movie)
+                movie_file_name = movie_file_name.replace('-', '_')
+                movie_file_name = movie_file_name.replace(' ', '_')
+                move_file_parts = movie_file_name.split('_')
+                movie_file_suffix = [part for part in move_file_parts if part in key_view_mapper.keys()][0]
                 cam_key = key_view_mapper[movie_file_suffix]
 
-                movie_nwb_file_name = movie_file_names[0]
+                movie_nwb_file_name = movie
+
             else:
                 cam_key = 'cam1'
                 movie_nwb_file_name = f"{os.path.splitext(movie)[0]}_camera_{movie_index + 1}"

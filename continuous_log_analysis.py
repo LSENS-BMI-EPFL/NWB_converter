@@ -83,7 +83,7 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
                                   t_stop=plot_stop,
                                   black_background=False)
 
-    if 'ephys_metadata' in config and config['ephys_metadata']['processed']=='true':
+    if 'ephys_metadata' in config and config['ephys_metadata']['processed']==1:
         ephys_timestamps_dict, n_frames_dict = get_ephys_timestamps(config_file=config_file,
                                                                     log_timestamps_dict=timestamps_dict)
         timestamps_dict = ephys_timestamps_dict
