@@ -53,13 +53,16 @@ def find_training_days(subject_id, input_folder): #TODO: make this more general 
 
     whisker_behaviours = ['whisker',
                            'whisker_psy',
-                           'context',
-                          'whisker_on_1',
-                          'whisker_off,'
-                          'whisker_on_2']
+                           'context']
     n_wh = len([s for s in behavior_type if s in whisker_behaviours])
 
+    #control_behaviours = ['whisker_on_1',
+    #                      'whisker_off,'
+    #                      'whisker_on_2']
+    #n_ctrl = len([s for s in behavior_type if s in control_behaviours])
+
     label = list(range(-n_aud, 0)) + list(range(0, n_wh))
+
     label = [f"+{d}" if d > 0 else str(d) for d in label]
     behavior_type = [f"{t}_{l}" for t, l in zip(behavior_type, label)]
 
