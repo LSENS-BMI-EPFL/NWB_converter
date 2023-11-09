@@ -17,7 +17,7 @@ KEYWORD_MAP = {
     'RD': [''],
     'AB': ['electrophysiology', 'neuropixels'],
     'MP': [''],
-    'PB': [''],
+    'PB': ['behaviour', 'optogenetics', 'widefield', 'two_photon'],
     'MM': [''],
     'LS': [''],
 
@@ -316,13 +316,29 @@ def create_channels_threshold_dict(experimenter, json_config):
             },
         }
 
-        # Add context channel and threshold
-        context_channel_date = "20230524"  # one day before first session with added channel odd number // 24 even
-        context_channel_date = datetime.datetime.strptime(context_channel_date, "%Y%m%d")
-        session_date = datetime.datetime.strptime(json_config['date'], "%Y%m%d")
-        if session_date > context_channel_date:
-            channels_dict.update({'context': 5})
-            threshold_dict.update({'context': 4})
+    elif experimenter in ['PB']:
+        channels_dict = {
+            'trial_TTL': 2,
+            'lick_trace': 0,
+            'widefield': 1,
+            'cam1': 3,
+            'cam2': 4,
+            #'context': 5,
+        }
+        threshold_dict = {
+            'trial_TTL': 4,
+            'cam1': 2,
+            'cam2': 2,
+            'widefield': 2
+        }
+
+    # Add context channel and threshold
+    context_channel_date = "20230524"  # one day before first session with added channel odd number // 24 even
+    context_channel_date = datetime.datetime.strptime(context_channel_date, "%Y%m%d")
+    session_date = datetime.datetime.strptime(json_config['date'], "%Y%m%d")
+    if session_date > context_channel_date:
+        channels_dict.update({'context': 5})
+        threshold_dict.update({'context': 4})
 
     # elif experimenter in ['PB'] and json_config['mouse_name']!='PB124':
     # ...
