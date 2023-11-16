@@ -32,7 +32,6 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
     img_seg = ImageSegmentation(name="all_cells")
     module.add_data_interface(img_seg)
     imaging_plane = nwb_file.get_imaging_plane("my_imaging_plane")
-    ci_sampling_rate = imaging_plane.imaging_rate
 
     ps = img_seg.create_plane_segmentation(description='output from segmenting',
                                            imaging_plane=imaging_plane, name='my_plane_segmentation',
@@ -57,19 +56,12 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
     if os.path.isfile(os.path.join(suite2p_folder, "F.npy")):
         suite2p_raw = np.load(os.path.join(suite2p_folder, "F.npy"), allow_pickle=True)
 
-    # Check image dimension
+    # Extract image dimensions
     if image_series is not None:
-        if image_series.format == "tiff":
-            dim_y, dim_x = image_series.data.shape[1:]
-            n_frames = image_series.data.shape[0]
-            print(f"Dimensions double check: n_lines, n_cols: {image_series.data.shape[1:]}")
-        elif image_series.format == "external":
-            im = PIL.Image.open(image_series.external_file[0])
-            n_frames = len(list(ImageSequence.Iterator(im)))
-            dim_y, dim_x = np.array(im).shape
-            print(f"Dimensions double check: n_lines, n_cols: {np.array(im).shape}")
-        else:
-            raise Exception(f"Format of calcium movie imaging {image_series.format} not yet implemented")
+        dim_y, dim_x = image_series.dimension[1:]
+        n_frames = image_series.dimension[0]
+    # else:
+        # TODO : pb if we don't add image series
 
     # Add suite2p pixel mask
     pixel_masks = []

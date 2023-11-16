@@ -71,8 +71,8 @@ def convert_ci_movie(nwb_file, config_file, movie_format, ci_frame_timestamps):
     elif movie_format == 'link':
         print(f"Extract tiff movie shape:")
         n_frames, n_lines, n_cols, starting_frames = get_tiff_movie_shape(motion_corrected_file_name)
-
         print(f"Movie dimensions n_frames, n_lines, n_cols :{n_frames, n_lines, n_cols}")
+
         motion_corrected_img_series = TwoPhotonSeries(name='motion_corrected_ci_movie',
                                                       dimension=[n_frames, n_lines, n_cols],
                                                       external_file=motion_corrected_file_name,

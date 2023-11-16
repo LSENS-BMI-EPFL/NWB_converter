@@ -138,8 +138,8 @@ def get_context_timestamps_dict(timestamps_dict, nwb_trial_table):
         return None, None
     if 'context' not in list(timestamps_dict.keys()):
         return None, None
-    if len(np.unique(nwb_trial_table['context_block'].values[:])) == 1:
-        print(f"Found only 1 value in 'context_block' column from csv file : {nwb_trial_table['context_block'].values[0]}")
+    if len(np.unique(nwb_trial_table['context'].values[:])) == 1:
+        print(f"Found only 1 value in 'context' column from csv file : {nwb_trial_table['context'].values[0]}")
         return None, None
 
     # Get context timestamps
@@ -155,17 +155,17 @@ def get_context_timestamps_dict(timestamps_dict, nwb_trial_table):
     for context_bloc in range(n_context_blocks):
         on_time = context_on_off[context_bloc][0]
         off_time = context_on_off[context_bloc][1]
-        data_table = nwb_trial_table.loc[(nwb_trial_table['trial_start'] > on_time) &
-                                         (nwb_trial_table['trial_stop'] < off_time)]
+        data_table = nwb_trial_table.loc[(nwb_trial_table['start_time'] > on_time) &
+                                         (nwb_trial_table['stop_time'] < off_time)]
         # sanity check :
         if context_bloc == (len(context_on_off) - 1) and data_table.empty:
             print("Last context bloc has no trial skip it")
             n_context_blocks = n_context_blocks - 1
             continue
-        if len(np.unique(data_table.context_block.values[:])) > 1 or len(np.unique(data_table.wh_reward.values[:])) > 1:
+        if len(np.unique(data_table.context.values[:])) > 1:
             print(f"Seems like there is more than one context trial in this {context_bloc} block")
-        rewarded_context.append(data_table.wh_reward.values[0])
-        context_sound.append(data_table.context_block.values[0])
+        rewarded_context.append(data_table.context.values[0])
+        context_sound.append(data_table.context_background.values[0])
 
     rewarded_on_off = [context_on_off[i] for i in range(n_context_blocks) if rewarded_context[i] == 1]
     non_rewarded_on_off = [context_on_off[i] for i in range(n_context_blocks) if rewarded_context[i] == 0]
@@ -329,9 +329,9 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
     standard_trial_table['early_lick'] = trial_table['early_lick']
 
     # Add contextual information if relevant, nan otherwise
-    if 'context_flag' in session_config.keys() and session_config['context_flag']:
-        standard_trial_table['context_block'] = trial_table['context_block']
-        standard_trial_table['context_background'] = trial_table['context_background']
+    if session_config['context_flag']:
+        standard_trial_table['context'] = trial_table['wh_reward']
+        standard_trial_table['context_background'] = trial_table['context_block']
     else:
         standard_trial_table['context_block'] = np.nan
         standard_trial_table['context_background'] = np.nan
@@ -382,15 +382,16 @@ def build_simplified_trial_table(behavior_results_file, timestamps_dict):
     lick = trial_table['lick_flag'].values
     trial_outcome = ["Hit" if lick[trial] == 1 else "Miss" for trial in range(n_trials)]
     simplified_trial_table['trial_index'] = trial_table['trial_number']
-    simplified_trial_table['trial_start'] = trial_timestamps[:, 0]
-    simplified_trial_table['trial_stop'] = trial_timestamps[:, 1]
+    simplified_trial_table['start_time'] = trial_timestamps[:, 0]
+    simplified_trial_table['stop_time'] = trial_timestamps[:, 1]
     simplified_trial_table['reaction_time'] = trial_table['reaction_time']
     simplified_trial_table['trial_type'] = trial_type_list
     simplified_trial_table['wh_reward'] = trial_table['wh_reward']
     simplified_trial_table['aud_reward'] = trial_table['aud_reward']
     simplified_trial_table['trial_outcome'] = trial_outcome
     simplified_trial_table['early_lick'] = trial_table['early_lick']
-    simplified_trial_table['context_block'] = trial_table['context_block']
+    simplified_trial_table['context'] = trial_table['wh_reward']
+    simplified_trial_table['context_background'] = trial_table['context_block']
 
     return simplified_trial_table
 
@@ -404,15 +405,16 @@ def add_trials_to_nwb(nwb_file, trial_table):
 
     n_trials = trial_table['trial_type'].size
     for trial in range(n_trials):
-        nwb_file.add_trial(start_time=trial_table['trial_start'].values[trial],
-                           stop_time=trial_table['trial_stop'].values[trial],
+        nwb_file.add_trial(start_time=trial_table['start_time'].values[trial],
+                           stop_time=trial_table['stop_time'].values[trial],
                            reaction_time=trial_table['reaction_time'].values[trial],
                            trial_type=trial_table['trial_type'].values[trial],
                            wh_reward=trial_table['wh_reward'].values[trial],
                            aud_reward=trial_table['aud_reward'].values[trial],
                            trial_outcome=trial_table['trial_outcome'].values[trial],
                            early_lick=trial_table['early_lick'].values[trial],
-                           context_block=trial_table['context_block'].values[trial])
+                           context=trial_table['context'].values[trial],
+                           context_background=trial_table['context_background'].values[trial])
 
     return
 
@@ -465,7 +467,7 @@ def add_trials_standard_to_nwb(nwb_file, trial_table):
                            abort_window_stop_time=trial_table['abort_window_stop_time'].values[trial],
                            early_lick=trial_table['early_lick'].values[trial],
 
-                           context_block=trial_table['context_block'].values[trial],
+                           context=trial_table['context'].values[trial],
                            context_background=trial_table['context_background'].values[trial],
 
                            opto_stim=trial_table['opto_stim'].values[trial],
