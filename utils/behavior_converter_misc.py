@@ -290,14 +290,14 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
     no_stim_time = [t if trial_table.iloc[i].is_stim==0 else np.nan for i,t in enumerate(trial_timestamps[:, 0]) ]
 
     # Format response window times, relative to start time
-    response_window_start_time = trial_timestamps[:, 0] + trial_table['artifact_window'] + trial_table['baseline_window']
-    response_window_stop_time = response_window_start_time + trial_table['response_window']
+    response_window_start_time = trial_timestamps[:, 0] + trial_table['artifact_window'] / 1000 + trial_table['baseline_window'] / 1000
+    response_window_stop_time = response_window_start_time + trial_table['response_window'] / 1000
 
     # Format absence of licks: make reaction time as NaN
     trial_table['reaction_time'].replace(0, np.nan, inplace=True)
 
     # Build trial table
-    standard_trial_table['id'] = trial_table['trial_number'] - 1 # zero-indexed
+    standard_trial_table['id'] = trial_table['trial_number'] - 1  # zero-indexed
     standard_trial_table['start_time'] = trial_timestamps[:, 0]
     standard_trial_table['stop_time'] = trial_timestamps[:, 1]
     standard_trial_table['trial_type'] = trial_type_list
@@ -305,12 +305,12 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
 
     standard_trial_table['whisker_stim'] = trial_table['is_whisker']
 
-    standard_trial_table['whisker_stim_amplitude'] = trial_table['wh_stim_amp'] # TODO: convert from calibration data to mT
+    standard_trial_table['whisker_stim_amplitude'] = trial_table['wh_stim_amp']  # TODO: convert from calibration data to mT
     standard_trial_table['whisker_stim_duration'] = trial_table['wh_stim_duration']
     standard_trial_table['whisker_stim_time'] = whisker_stim_time
 
     standard_trial_table['auditory_stim'] = trial_table['is_auditory']
-    standard_trial_table['auditory_stim_amplitude'] = trial_table['aud_stim_amp'] # TODO: convert from calibration data
+    standard_trial_table['auditory_stim_amplitude'] = trial_table['aud_stim_amp']  # TODO: convert from calibration data
     standard_trial_table['auditory_stim_frequency'] = trial_table['aud_stim_freq']
     standard_trial_table['auditory_stim_duration'] = trial_table['aud_stim_duration']
     standard_trial_table['auditory_stim_time'] = auditory_stim_time
@@ -323,9 +323,9 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
     standard_trial_table['response_window_stop_time'] = response_window_stop_time
 
     standard_trial_table['lick_flag'] = trial_table['lick_flag']
-    standard_trial_table['lick_time'] = response_window_start_time + trial_table['reaction_time']  #first lick time in response windows only
-    standard_trial_table['abort_window_start_time'] = trial_timestamps[:, 0] - trial_table['quiet_window'] # baseline is already at start, if not zero
-    standard_trial_table['abort_window_stop_time'] = response_window_start_time - trial_table['artifact_window']
+    standard_trial_table['lick_time'] = response_window_start_time + trial_table['reaction_time']  # first lick time in response windows only
+    standard_trial_table['abort_window_start_time'] = trial_timestamps[:, 0] - trial_table['quiet_window'] / 1000  # baseline is already at start, if not zero
+    standard_trial_table['abort_window_stop_time'] = response_window_start_time - trial_table['artifact_window'] / 1000
     standard_trial_table['early_lick'] = trial_table['early_lick']
 
     # Add contextual information if relevant, nan otherwise
