@@ -37,7 +37,6 @@ def get_subject_mouse_number(subject_id):
         raise ValueError('Subject mouse name must be 5 characters long. Check subject name.')
     initials = subject_id[:2]
     mouse_number = subject_id[2:] # a string
-    print(subject_id, mouse_number, int(mouse_number[0]))
 
     if int(mouse_number[0]) > 0:
         mouse_number = int(float(mouse_number))
