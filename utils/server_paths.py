@@ -38,16 +38,16 @@ def get_subject_mouse_number(subject_id):
     initials = subject_id[:2]
     mouse_number = subject_id[2:]
 
-    if mouse_number[0]>0:
+    if int(mouse_number[0]) > 0:
         mouse_number = int(mouse_number)
     else:
-        mouse_number = int(mouse_number[3:])
+        mouse_number = int(subject_id[3:])
 
     return mouse_number, initials
 
 
 def get_nwb_folder(subject_id):
-    if subject_id == 'PB124':
+    if subject_id in ['PB124', 'AR103', 'AR071']:
         experimenter = 'Robin_Dard'
     else:
         experimenter = EXPERIMENTER_MAP[subject_id[:2]]
