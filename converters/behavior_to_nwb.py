@@ -128,7 +128,7 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
         movie_files = server_paths.get_movie_files(config_file)
 
     # If there is a behaviour video, add camera frame timestamps to NWB file
-    if config_file['camera_flag'] == False:
+    if config_dict.get('behaviour_metadata').get('camera_flag') == 0:
         movie_files = None
 
     if movie_files is not None:

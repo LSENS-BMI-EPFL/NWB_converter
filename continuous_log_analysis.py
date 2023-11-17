@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import yaml
 import os
+import ast
 from utils.continuous_processing import read_binary_continuous_log, \
     plot_continuous_data_dict, extract_timestamps, read_behavior_avi_movie, \
     print_info_dict
@@ -20,12 +21,22 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
         camera_filtering:
 
     Returns:
+        timestamps_dict: Dictionary containing timestamps for each data type
+        n_frames_dict:   Dictionary containing number of timestamps for each data type
 
     """
 
     # Load NWB config file
     with open(config_file, 'r', encoding='utf8') as stream:
         config = yaml.safe_load(stream)
+
+
+    # Check if continuous processing is required
+    if config['session_metadata']['experimenter'] == 'AB':
+        exp_desc = ast.literal_eval(config.get('session_metadata').get('experiment_description'))
+        if exp_desc['session_type'] == 'behaviour_only_session':
+            return None, None
+
 
     if __name__ == "__main__":
         with open(config_file, 'r', encoding='utf8') as stream:
