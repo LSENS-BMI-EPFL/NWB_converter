@@ -296,6 +296,11 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
     # Format absence of licks: make reaction time as NaN
     trial_table['reaction_time'].replace(0, np.nan, inplace=True)
 
+    # Define rewards availability
+    reward_available = [1 if(trial_table.iloc[i].is_auditory == 1 or
+                             (trial_table.iloc[i].is_whisker == 1 and trial_table.iloc[i].wh_reward == 1)) else 0
+                        for i in range(n_trials)]
+
     # Build trial table
     standard_trial_table['id'] = trial_table['trial_number'] - 1  # zero-indexed
     standard_trial_table['start_time'] = trial_timestamps[:, 0]
@@ -315,10 +320,10 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
     standard_trial_table['auditory_stim_duration'] = trial_table['aud_stim_duration']
     standard_trial_table['auditory_stim_time'] = auditory_stim_time
 
-    standard_trial_table['no_stim'] = np.invert(trial_table['is_stim'])
+    standard_trial_table['no_stim'] = (~trial_table['is_stim'].astype(bool)).astype(int)
     standard_trial_table['no_stim_time'] = no_stim_time
 
-    standard_trial_table['reward_available'] = trial_table['is_reward']
+    standard_trial_table['reward_available'] = reward_available
     standard_trial_table['response_window_start_time'] = response_window_start_time
     standard_trial_table['response_window_stop_time'] = response_window_stop_time
 
