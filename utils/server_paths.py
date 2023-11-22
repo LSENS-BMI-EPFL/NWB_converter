@@ -9,6 +9,8 @@ EXPERIMENTER_MAP = {
     'PB': 'Pol_Bech',
     'MM': 'Meriam_Malekzadeh',
     'LS': 'Lana_Smith',
+    'GF': 'Anthony_Renard',
+    'MI': 'Anthony_Renard',
 }
 
 
@@ -22,14 +24,15 @@ def get_subject_analysis_folder(subject_id):
     if subject_id == 'PB124':
         experimenter = 'Robin_Dard'
     else:
+        # Map initials to experimenter to get analysis folder path.
         experimenter = EXPERIMENTER_MAP[subject_id[:2]]
-    # Map initials to experimenter to get analysis folder path.
     analysis_folder = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis',
                                    experimenter, 'data', subject_id)
     if not os.path.exists(analysis_folder):
         os.makedirs(analysis_folder)
 
     return analysis_folder
+
 
 def get_subject_mouse_number(subject_id):
     """Get mouse number for integer comparison"""
