@@ -58,7 +58,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
         print('Error: SLIMS file not found. Export SLIMS info .csv file.')
         return
 
-    slims = slims.loc[slims.cntn_cf_mouseName == mouse_id]
+    slims = slims.loc[slims.cntn_cf_mouseName == subject_id]
 
     subject_metadata = {
         'description': subject_id,
