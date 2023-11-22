@@ -39,18 +39,18 @@ def get_subject_mouse_number(subject_id):
     if len(subject_id) != 5:
         raise ValueError('Subject mouse name must be 5 characters long. Check subject name.')
     initials = subject_id[:2]
-    mouse_number = subject_id[2:]
+    mouse_number = subject_id[2:] # a string
 
-    if mouse_number[0]>0:
-        mouse_number = int(mouse_number)
+    if int(mouse_number[0]) > 0:
+        mouse_number = int(float(mouse_number))
     else:
-        mouse_number = int(mouse_number[3:])
+        mouse_number = int(float(mouse_number[1:]))
 
     return mouse_number, initials
 
 
 def get_nwb_folder(subject_id):
-    if subject_id == 'PB124':
+    if subject_id in ['PB124', 'AR103', 'AR071']:
         experimenter = 'Robin_Dard'
     else:
         experimenter = EXPERIMENTER_MAP[subject_id[:2]]
