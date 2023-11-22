@@ -21,7 +21,8 @@ KEYWORD_MAP = {
     'PB': ['behaviour', 'optogenetics', 'widefield', 'two_photon'],
     'MM': [''],
     'LS': [''],
-    'GF': ['optogenetics', 'widefield', 'two_photon', 'calcium_imaging', 'barrel_cortex']
+    'GF': ['optogenetics', 'widefield', 'two_photon', 'calcium_imaging', 'barrel_cortex'],
+    'MI': ['optogenetics', 'widefield', 'two_photon', 'calcium_imaging', 'barrel_cortex']
 }
 
 
