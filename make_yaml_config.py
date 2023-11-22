@@ -13,14 +13,15 @@ from utils.server_paths import get_subject_mouse_number
 # Update your keywords
 GENERAL_KEYWORDS = ['neurophysiology', 'behaviour', 'mouse']
 KEYWORD_MAP = {
-    'AR': [''],
+    'AR': ['optogenetics', 'widefield', 'two_photon', 'calcium_imaging', 'barrel_cortex'],
     'RD': [''],
     'AB': ['electrophysiology', 'neuropixels'],
     'MP': [''],
     'PB': ['behaviour', 'optogenetics', 'widefield', 'two_photon'],
     'MM': [''],
     'LS': [''],
-
+    'GF': ['optogenetics', 'widefield', 'two_photon', 'calcium_imaging', 'barrel_cortex'],
+    'MI': ['optogenetics', 'widefield', 'two_photon', 'calcium_imaging', 'barrel_cortex']
 }
 
 
@@ -40,7 +41,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     # #################
 
     # Get mouse number and experimenter initials from subject ID.
-    mouse_number, experimenter = get_subject_mouse_number(subject_id)
+    _, experimenter = get_subject_mouse_number(subject_id)
 
     # Select most recent metadata export from SLIMS folder.
     try:
@@ -417,8 +418,6 @@ if __name__ == '__main__':
         # Find data and analysis folders on server for that mouse.
         data_folder = get_subject_data_folder(mouse_id)
         analysis_folder = get_subject_analysis_folder(mouse_id)
-        if not os.path.exists(analysis_folder):
-            os.makedirs(analysis_folder)
 
         # Make config files.
         training_days = find_training_days(mouse_id, data_folder)
