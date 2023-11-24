@@ -27,7 +27,7 @@ KEYWORD_MAP = {
 
 
 def make_yaml_config(subject_id, session_id, session_description, input_folder, output_folder,
-                     mouse_line='C57BL/6', gmo=True):
+                     database, mouse_line='C57BL/6', gmo=True):
     """_summary_
 
     Args:
@@ -38,29 +38,34 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
         gmo (bool, optional): _description_. Defaults to True.
     """
 
+    print(f'Creating yaml config file for session {session_id}.', end='\r')
+    
     # Subject metadata.
     # #################
 
     # Get mouse number and experimenter initials from subject ID.
-    mouse_id, experimenter = get_subject_mouse_number(subject_id)
+    _, experimenter = get_subject_mouse_number(subject_id)
 
-    # Select most recent metadata export from SLIMS folder.
-    try:
-        slims_csv = sorted(os.listdir(os.path.join(input_folder, 'SLIMS')))[
-            -1]  # post-euthanasia SLIMS file has more information
-        slims_csv_path = os.path.join(input_folder, 'SLIMS', slims_csv)
+    if experimenter in ['GF', 'MI']:
+        slims_csv_path = '\\\\sv-nas1.rcp.epfl.ch\\Petersen-Lab\\analysis\\Georgios_Foustoukos\\FoustoukosData\\MetaData\\MiceMetaData.csv'
         slims = pd.read_csv(slims_csv_path, sep=';', engine='python')
-    except IndexError:
-        print('Error: SLIMS folder may be empty. Export SLIMS info .csv file.')
-        return
-    except UnicodeDecodeError:
-        print('Error: SLIMS file may not be in a .csv file. Please export it again from SLIMS as .csv.')
-        return
-    except FileNotFoundError:
-        print('Error: SLIMS file not found. Export SLIMS info .csv file.')
-        return
+    else:
+        # Select most recent metadata export from SLIMS folder.
+        try:
+            slims_csv = sorted(os.listdir(os.path.join(input_folder, 'SLIMS')))[-1]  # post-euthanasia SLIMS file has more information
+            slims_csv_path = os.path.join(input_folder, 'SLIMS', slims_csv)
+            slims = pd.read_csv(slims_csv_path, sep=';', engine='python')
+        except IndexError:
+            print('Error: SLIMS folder may be empty. Export SLIMS info .csv file.', end='\r')
+            return
+        except UnicodeDecodeError:
+            print('Error: SLIMS file may not be in a .csv file. Please export it again from SLIMS as .csv.', end='\r')
+            return
+        except FileNotFoundError:
+            print('Error: SLIMS file not found. Export SLIMS info .csv file.', end='\r')
+            return
 
-    slims = slims.loc[slims.cntn_cf_mouseName == mouse_id]
+    slims = slims.loc[slims.cntn_cf_mouseName == subject_id]
 
     subject_metadata = {
         'description': subject_id,
@@ -73,7 +78,9 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
 
     # Compute age in days at session time.
     session_date = session_id.split('_')[1]
-    session_date = datetime.datetime.strptime(session_date, "%Y%m%d")
+    if len(session_date) > 8:
+        session_date = session_date[:8]
+    session_date = datetime.datetime.strptime(session_date, "%d%m%Y")
     birth_date = slims['cntn_cf_dateofbirth'].values[0]
     birth_date = datetime.datetime.strptime(birth_date, "%d/%m/%Y")
     days = (session_date - birth_date).days
@@ -88,16 +95,18 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     else:
         subject_metadata['genotype'] = 'WT'
 
-    # Add weight at the beginning of the session from json config file.
-    session_config_json_path = os.path.join(input_folder, 'Training', session_id, 'session_config.json')
-    with open(session_config_json_path, 'r') as f:
-        json_config = json.load(f)
+    # # Add weight at the beginning of the session from json config file.
+    # session_config_json_path = os.path.join(input_folder, 'Training', session_id, 'session_config.json')
+    # with open(session_config_json_path, 'r') as f:
+    #     json_config = json.load(f)
 
-    # Get mouse session weight
-    if 'mouse_weight_before' in json_config:
-        subject_metadata['weight'] = json_config['mouse_weight_before']
-    else:
-        subject_metadata['weight'] = 'na'
+    # # Get mouse session weight
+    # if 'mouse_weight_before' in json_config:
+    #     subject_metadata['weight'] = json_config['mouse_weight_before']
+    # else:
+    #     subject_metadata['weight'] = 'na'
+
+    subject_metadata['weight'] = 'na'
 
     # Get mouse reference weight
     ref_weight_path = get_ref_weight_folder(experimenter=experimenter)
@@ -122,39 +131,86 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
                 assert isinstance(ref_weight,
                                   float), f'Error: reference weight for {subject_id} is not a float. Please check.'
 
-    # Generating session metadata dictionary as experimenter_description
-    session_type_flags = [sess_key_flag for sess_key_flag in json_config.keys() if 'session' in sess_key_flag]
-    session_type_flags.remove('session_time')
-    session_type_flags.remove('dummy_session_flag')
-    session_type_ticked = [sess_key_flag for sess_key_flag in session_type_flags if json_config[sess_key_flag] == True]
-    if session_type_ticked:
-        session_type_prefixes = [sess_key_flag.split('_')[0] for sess_key_flag in session_type_ticked]
-        session_type_prefixes.append('session')
-        session_type = '_'.join(session_type_prefixes)  # e.g. 'twophoton_session', or 'wf_opto_session', etc.
+    # # Generating session metadata dictionary as experimenter_description
+    # session_type_flags = [sess_key_flag for sess_key_flag in json_config.keys() if 'session' in sess_key_flag]
+    # session_type_flags.remove('session_time')
+    # session_type_flags.remove('dummy_session_flag')
+    # session_type_ticked = [sess_key_flag for sess_key_flag in session_type_flags if json_config[sess_key_flag] == True]
+    # if session_type_ticked:
+    #     session_type_prefixes = [sess_key_flag.split('_')[0] for sess_key_flag in session_type_ticked]
+    #     session_type_prefixes.append('session')
+    #     session_type = '_'.join(session_type_prefixes)  # e.g. 'twophoton_session', or 'wf_opto_session', etc.
+    # else:
+    #     session_type = 'behaviour_only_session'
+
+    # Get session_type from database.
+    if database.loc[database.session_id==session_id, '2P_calcium_imaging'].values[0]:
+        session_type = 'twophoton_session'
+    elif database.loc[database.session_id==session_id, 'optogenetic'].values[0]:
+        session_type = 'opto_session'
+    elif database.loc[database.session_id==session_id, 'pharmacology'].values[0]:
+        session_type = 'pharma_session'
     else:
         session_type = 'behaviour_only_session'
 
+    # Read json performance file.
+    perf_path = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis', 'Anthony_Renard',
+                             'data', subject_id, 'Recordings', 'BehaviourData', session_id, 'performanceResults.json')
+    with open(perf_path, 'r') as f:
+        perf_json = json.load(f)
+    perf_df = pd.DataFrame(perf_json['results'], columns=perf_json['headers'])
+
+    # Check if R+ or R- mouse.
+    if (perf_df.whrew==1).sum() > 0:
+        wh_reward = 1
+    else:
+        wh_reward = 0
+
+    # Infer stimuli proportions from session day.
+    session_day = database.loc[database.session_id==session_id, 'session_day'].values[0]
+    if '-' in session_day:  # Audiotry session, otherwise there are whisker trials.
+        wh_stim_weight = 0
+        aud_stim_weight = 10
+    else:
+        wh_stim_weight = 7
+        aud_stim_weight = 3
+
+    filming_path = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis', 'Anthony_Renard',
+                                'data', subject_id, 'Recordings', 'FilmingData')
+    if os.path.exists(filming_path):
+        camera_flag = 1
+    else:
+        camera_flag = 0
+
     session_experiment_metadata = {
-        'reference_weight': ref_weight,  # reference weight before water-restriction
+        'reference_weight': 'na',  # reference weight before water-restriction
         'session_type': session_type,
-        'wh_reward': json_config['wh_reward'],
-        'aud_reward': json_config['aud_reward'],
-        'reward_proba': json_config['reward_proba'],
-        'lick_threshold': json_config['lick_threshold'],
-        'no_stim_weight': json_config['no_stim_weight'],
-        'wh_stim_weight': sum([v for k, v in json_config.items() if 'wh_stim_weight' in k]),
-        'aud_stim_weight': sum([v for k, v in json_config.items() if 'aud_stim_weight' in k]),
-        'camera_flag': json_config['camera_flag'],
-        'camera_freq': json_config['camera_freq'],
-        'camera_exposure_time':
-            [json_config['camera_exposure_time'] if 'camera_exposure_time' in json_config.keys() else 'na'][0],
-        'camera_start_delay':
-            [json_config['camera_start_delay'] if 'camera_start_delay' in json_config.keys() else 'na'][0],
-        'artifact_window': json_config['artifact_window'],
+        'wh_reward': wh_reward,
+        'aud_reward': 1,
+        'reward_proba': 1,
+        'lick_threshold': 'na',
+        'no_stim_weight': 10,
+        'wh_stim_weight': wh_stim_weight,
+        'aud_stim_weight': aud_stim_weight,
+        'camera_flag': camera_flag,
+        'camera_freq': 100,
+        'camera_exposure_time': 2,
+        'camera_start_delay': 'na',
+        'artifact_window': 100,
     }
 
     # Session metadata.
     # #################
+
+    # Find is there is pharmacolyg, optogentic or chemogenetic.
+    if database.loc[database.session_id==session_id, 'pharmacology'].values[0]:
+        pharma = 1
+    else:
+        pharma = 0
+    if database.loc[database.session_id==session_id, 'optogenetic'].values[0]:
+        opto = 1
+    else:
+        opto = 0
 
     # session data
     session_metadata = {
@@ -168,7 +224,9 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
         'experiment_description': str(session_experiment_metadata),
         'keywords': GENERAL_KEYWORDS + KEYWORD_MAP[experimenter],
         'notes': 'na',
-        'pharmacology': 'na',
+        'pharmacology': pharma,
+        'optogenetic': opto,
+        'chemogenetic': 0,
         'protocol': 'na',
         'related_publications': 'na',
         'source_script': 'na',
@@ -179,30 +237,33 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
         'slices': 'na',
     }
 
-    # Log continuous metadata.
-    # ########################
 
-    log_continuous_metadata = {}
+    # # Log continuous metadata.
+    # # ########################
 
-    # Add logged channels and thresholds (Volt) for edge detections.
-    channels_dict, threshold_dict = create_channels_threshold_dict(experimenter=experimenter,
-                                                                   json_config=json_config)
-    if json_config['twophoton_session'] == 1:
-        scanimage_dict = {
-            'theoretical_ci_sampling_rate': 30,
-            'zoom': 3
-        }
-        log_continuous_metadata.update({'scanimage_dict': scanimage_dict})
+    # log_continuous_metadata = {}
 
-    # Add to general dictionary.
-    log_continuous_metadata.update({'channels_dict': channels_dict})
-    log_continuous_metadata.update({'threshold_dict': threshold_dict})
+    # # Add logged channels and thresholds (Volt) for edge detections.
+    # channels_dict, threshold_dict = create_channels_threshold_dict(experimenter=experimenter,
+    #                                                                json_config=json_config)
+    # if json_config['twophoton_session'] == 1:
+    #     scanimage_dict = {
+    #         'theoretical_ci_sampling_rate': 30,
+    #         'zoom': 3
+    #     }
+    #     log_continuous_metadata.update({'scanimage_dict': scanimage_dict})
 
-    # Behaviour metadata. #TODO: this could also be experimenter-dependent and a function of the json config file.
-    # ###################
+    # # Add to general dictionary.
+    # log_continuous_metadata.update({'channels_dict': channels_dict})
+    # log_continuous_metadata.update({'threshold_dict': threshold_dict})
 
-    behaviour_metadata = create_behaviour_metadata(experimenter=experimenter,
-                                                   path_to_json_config=session_config_json_path)
+
+    # # Behaviour metadata. #TODO: this could also be experimenter-dependent and a function of the json config file.
+    # # ###################
+
+    # behaviour_metadata = create_behaviour_metadata(experimenter=experimenter,
+    #                                                path_to_json_config=session_config_json_path)
+
 
     # Trial outcome mapping.
     # ######################
@@ -217,6 +278,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
         6: 'early_lick',
     }
 
+
     # 2P imaging metadata.
     # ####################
 
@@ -225,14 +287,19 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
         'emission_lambda': 510.0,
         'excitation_lambda': 940.0,
         'image_plane_location': 'S1_L2/3',
-        'indicator': 'GCaMP8m',
+        'indicator': 'GCaMP6f',
     }
 
-    # Extracell. ephys. metadata.
-    # ###########################
-
-    if experimenter == 'AB':
-        ephys_metadata = create_ephys_metadata(subject_id=subject_id)
+    
+    # Optogenetic metadata.
+    # #####################
+    
+    
+    
+    # Pharmacology metadata.
+    # ######################
+    
+    
 
     # Write to yaml file.
     # ###################
@@ -240,19 +307,14 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     main_dict = {
         'subject_metadata': subject_metadata,
         'session_metadata': session_metadata,
-        'log_continuous_metadata': log_continuous_metadata,
-        'behaviour_metadata': behaviour_metadata,
+        # 'log_continuous_metadata': log_continuous_metadata,
+        # 'behaviour_metadata': behaviour_metadata,
         'trial_map': trial_map,
     }
 
     # Depending on session type, add relevant dictionary
-    if json_config['twophoton_session']:
+    if 'twophoton' in session_type:
         main_dict.update({'two_photon_metadata': two_photon_metadata})
-
-    elif json_config['ephys_session']:
-        main_dict.update({'ephys_metadata': ephys_metadata})
-
-    main_dict.update({'behaviour_metadata': behaviour_metadata})
 
     analysis_session_folder = os.path.join(output_folder, session_id)
     if not os.path.exists(analysis_session_folder):
@@ -288,29 +350,23 @@ def create_behaviour_metadata(experimenter, path_to_json_config):
     if 'camera_exposure_time' in json_config.keys():
         behaviour_metadata.update({'camera_exposure_time': json_config['camera_exposure_time']})
 
-    # Experimenter specific behaviour metadata
-    if experimenter == 'AB':
-        behaviour_metadata.update({'trial_table': 'standard'})
-
     return behaviour_metadata
 
 
 def read_excel_database(folder, file_name):
     excel_path = os.path.join(folder, file_name)
-    db = pd.read_excel(excel_path, converters={'session_day': str})
+    database = pd.read_excel(excel_path, converters={'session_day': str})
+
     # Remove empty lines.
-    db = db.loc[~db.isna().all(axis=1)]
+    database = database.loc[~database.isna().all(axis=1)]
 
-    return db
+    # Change yes/no columns to booleans.
+    database = database.replace('yes', True)
+    database = database.replace('no', False)
+    database = database.astype({'2P_calcium_imaging': bool, 'optogenetic': bool,
+                     'pharmacology': bool})
 
-
-def get_subject_analysis_folder_GF(subject_id):
-    analysis_folder = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis',
-                                   'Anthony_Renard', 'data', subject_id)
-    if not os.path.exists(analysis_folder):
-        os.makedirs(analysis_folder)
-
-    return analysis_folder
+    return database
 
 
 def format_session_day_GF(mouse_id, session_days):
@@ -320,7 +376,7 @@ def format_session_day_GF(mouse_id, session_days):
             formated_days.append(f'auditory_{iday}')
         elif iday[0] in ['0', '+']:
             formated_days.append(f'whisker_{iday}')
-        elif iday[0] in ['whisker_on_1', 'whisker_off', 'whisker_on_2']:
+        elif iday in ['whisker_on_1', 'whisker_off', 'whisker_on_2']:
             formated_days.append(iday)
         else:
             raise ValueError(f'Unrecognized session day {iday} for mouse {mouse_id}.')
@@ -329,8 +385,6 @@ def format_session_day_GF(mouse_id, session_days):
 
 
 if __name__ == '__main__':
-    # Select mouse IDs.
-    mouse_ids = ['GF173']
 
     # last_done_day = "20231102"
     last_done_day = None
@@ -340,6 +394,9 @@ if __name__ == '__main__':
     db_folder = 'C:\\Users\\aprenard\\recherches\\fast-learning\\docs'
     db_name = 'sessions_GF.xlsx'
     db = read_excel_database(db_folder, db_name)
+    
+    # Select mouse IDs.
+    mouse_ids = db.subject_id.unique()
 
     for mouse_id in mouse_ids:
         # Data folder in GF analysis.
@@ -355,8 +412,8 @@ if __name__ == '__main__':
         for session_id, day in list(zip(sessions, training_days)):
             session_date = session_id.split('_')[1]
             # Some of GF sessions for particle test have a suffix letter.
-            if len(session_date) > 6:
-                session_date = session_date[:6]
+            if len(session_date) > 8:
+                session_date = session_date[:8]
             # Reorder date as YYYYMMDD.
             session_date = datetime.datetime.strptime(session_date, "%d%m%Y")
 
@@ -365,5 +422,4 @@ if __name__ == '__main__':
                     continue
 
             make_yaml_config(mouse_id, session_id, day, data_folder, analysis_folder,
-                             mouse_line='C57BL/6', gmo=gmo)
-
+                             mouse_line='C57BL/6', gmo=gmo, database=db)
