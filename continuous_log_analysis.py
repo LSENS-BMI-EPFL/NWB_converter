@@ -1,8 +1,8 @@
-import pathlib
-
-import matplotlib.pyplot as plt
 import yaml
 import os
+import ast
+import pathlib
+import matplotlib.pyplot as plt
 from utils.continuous_processing import read_binary_continuous_log, \
     plot_continuous_data_dict, extract_timestamps, read_behavior_avi_movie, \
     print_info_dict
@@ -22,12 +22,22 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
         camera_filtering:
 
     Returns:
+        timestamps_dict: Dictionary containing timestamps for each data type
+        n_frames_dict:   Dictionary containing number of timestamps for each data type
 
     """
 
     # Load NWB config file
     with open(config_file, 'r', encoding='utf8') as stream:
         config = yaml.safe_load(stream)
+
+
+    # Check if continuous processing is required
+    if config['session_metadata']['experimenter'] == 'AB':
+        exp_desc = ast.literal_eval(config.get('session_metadata').get('experiment_description'))
+        if exp_desc['session_type'] == 'behaviour_only_session':
+            return None, None
+
 
     if __name__ == "__main__":
         with open(config_file, 'r', encoding='utf8') as stream:
@@ -42,13 +52,7 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
 
     else:
         # Get paths to files
-        try:
-            bin_file = server_paths.get_log_continuous_file(config_file)
-        except FileNotFoundError:
-            print("No continuous log file found for this session. Skipping mouse for now.") # TODO: implement behavior only conversion with trial table for older mice
-            timestamps_dict = None
-            n_frames_dict = None
-            return timestamps_dict, n_frames_dict
+        bin_file = server_paths.get_log_continuous_file(config_file)
 
         if config['session_metadata']['experimenter'] == 'AB':
             movie_files = server_paths.get_session_movie_files(config_file)
@@ -56,6 +60,7 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
             movie_files = server_paths.get_movie_files(config_file)
         tiff_file = server_paths.get_imaging_file(config_file)
 
+    # Get relevant continuous processing information
     channels_dict = config['log_continuous_metadata']['channels_dict']
     threshold_dict = config['log_continuous_metadata']['threshold_dict']
 
@@ -65,11 +70,14 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
         scanimage_dict = None
 
     # Extract session timestamps
-
     continuous_data_dict = read_binary_continuous_log(bin_file=bin_file,
                                                       channels_dict=channels_dict,
                                                       ni_session_sr=5000,
                                                       t_stop=None)
+    if continuous_data_dict is None:
+        print("No continuous data found for this session. No timestamps available: using trial table information only")
+        return None, None
+
     if movie_files is None:
         camera_filtering = False
 
@@ -87,7 +95,7 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
                                   t_stop=plot_stop,
                                   black_background=False)
 
-    if 'ephys_metadata' in config:
+     if 'ephys_metadata' in config:
         ephys_nidq_meta, ephys_nidq_bin = server_paths.get_raw_ephys_nidq_files(config_file)
         ephys_cont_data_dict = read_sglx.read_ephys_binary_data(ephys_nidq_bin, ephys_nidq_meta)
         ephys_timestamps_dict, n_frames_dict = extract_ephys_timestamps(config_file=config_file,

@@ -9,6 +9,8 @@ EXPERIMENTER_MAP = {
     'PB': 'Pol_Bech',
     'MM': 'Meriam_Malekzadeh',
     'LS': 'Lana_Smith',
+    'GF': 'Anthony_Renard',
+    'MI': 'Anthony_Renard',
 }
 
 
@@ -22,8 +24,8 @@ def get_subject_analysis_folder(subject_id):
     if subject_id == 'PB124':
         experimenter = 'Robin_Dard'
     else:
+        # Map initials to experimenter to get analysis folder path.
         experimenter = EXPERIMENTER_MAP[subject_id[:2]]
-    # Map initials to experimenter to get analysis folder path.
     analysis_folder = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis',
                                    experimenter, 'data', subject_id)
     if not os.path.exists(analysis_folder):
@@ -32,8 +34,23 @@ def get_subject_analysis_folder(subject_id):
     return analysis_folder
 
 
+def get_subject_mouse_number(subject_id):
+    """Get mouse number for integer comparison"""
+    if len(subject_id) != 5:
+        raise ValueError('Subject mouse name must be 5 characters long. Check subject name.')
+    initials = subject_id[:2]
+    mouse_number = subject_id[2:] # a string
+
+    if int(mouse_number[0]) > 0:
+        mouse_number = int(float(mouse_number))
+    else:
+        mouse_number = int(float(mouse_number[1:]))
+
+    return mouse_number, initials
+
+
 def get_nwb_folder(subject_id):
-    if subject_id == 'PB124':
+    if subject_id in ['PB124', 'AR103', 'AR071']:
         experimenter = 'Robin_Dard'
     else:
         experimenter = EXPERIMENTER_MAP[subject_id[:2]]
@@ -43,6 +60,24 @@ def get_nwb_folder(subject_id):
         os.makedirs(nwb_folder)
 
     return nwb_folder
+
+
+def get_ref_weight_folder(experimenter):
+    """
+    Get the path to the folder where the reference weights are stored.
+    Args:
+        experimenter:
+
+    Returns:
+
+    """
+
+    ref_weight_folder = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis',
+                                     EXPERIMENTER_MAP[experimenter], 'mice_info')
+    if not os.path.exists(ref_weight_folder):
+        os.makedirs(ref_weight_folder)
+
+    return ref_weight_folder
 
 
 def get_behavior_results_file(config_file):
@@ -64,7 +99,7 @@ def get_session_config_file(config_file):
     mouse_name = config['subject_metadata']['subject_id']
     session_name = config['session_metadata']['session_id']
     data_folder = get_subject_data_folder(mouse_name)
-    session_config_file = os.path.join(data_folder, 'Recording', session_name, 'session_config.json')
+    session_config_file = os.path.join(data_folder, 'Training', session_name, 'session_config.json')
 
     return session_config_file
 
@@ -77,7 +112,7 @@ def get_calibration_file(config_file):
     session_date = session_name.split('_')[1]
     file_name = '{}_{}_stim_coil_calibration.mat'.format(mouse_name, session_date)
     data_folder = get_subject_data_folder(mouse_name)
-    calibration_file = os.path.join(data_folder, 'Recording', session_name, file_name)
+    calibration_file = os.path.join(data_folder, 'Training', session_name, file_name)
 
     return calibration_file
 
@@ -119,7 +154,9 @@ def get_session_movie_files(config_file):
     data_folder = get_subject_data_folder(mouse_name)
     movies_path = os.path.join(data_folder, 'Recording', session_name, 'Video')
     if not os.path.exists(movies_path):
-        os.makedirs(movies_path)
+        movies = None
+        return movies
+        #os.makedirs(movies_path)
     movies = [os.path.join(movies_path, m) for m in os.listdir(movies_path) if
               os.path.splitext(m)[1] in ['.avi', '.mp4']]
     if not movies:
@@ -278,7 +315,7 @@ def get_opto_config_file(config_file):
     mouse_name = config['subject_metadata']['subject_id']
     session_name = config['session_metadata']['session_id']
     data_folder = get_subject_analysis_folder(mouse_name)
-    opto_config_file = os.path.join(data_folder, 'Recording', session_name, 'session_config.json')
+    opto_config_file = os.path.join(data_folder, 'Training', session_name, 'opto_config.json')
 
     if not os.path.exists(opto_config_file):
         print(f"No opto config file found for {session_name} session from {mouse_name}")

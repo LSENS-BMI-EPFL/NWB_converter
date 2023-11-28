@@ -317,7 +317,7 @@ def create_unit_table(nwb_file):
     """
     # Create Units table
     dict_columns_to_add = {
-        'id': 'unique unit index (out of all probes)',
+        # 'id': 'unique unit index (out of all probes)',
         'cluster_id': 'cluster index, from KS(probe-wise)',
         'peak_channel': 'electrode with max waveform amplitude, from KS',
         'rel_x': 'peak channel x-coordinate in probe space (as above)',
@@ -372,7 +372,7 @@ def build_simplified_unit_table(imec_folder,
     unit_table['cluster_id'] = cluster_info_df['cluster_id']
     unit_table['peak_channel'] = cluster_info_df['ch']
     unit_table['depth'] = cluster_info_df['depth']
-    unit_table['ks_label'] = cluster_info_df['ks_label']
+    unit_table['ks_label'] = cluster_info_df['group'] # "group" is the curated label, "KSLabel" is the KS label
     unit_table['firing_rate'] = cluster_info_df['fr']
 
     # Load spikes times

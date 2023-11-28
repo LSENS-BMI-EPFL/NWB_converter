@@ -28,6 +28,8 @@ def find_training_days(subject_id, input_folder): #TODO: make this more general 
     # Find session type (auditory or whisker day) and label days with integer relative to first whisker training day
     behavior_type = []
     for isession in sessions_list:
+        if 'calibration' in isession:
+            continue
         json_path = os.path.join(input_folder, 'Training', isession, 'session_config.json')
         with open(json_path, 'r') as f:
             json_config = json.load(f)
@@ -51,13 +53,15 @@ def find_training_days(subject_id, input_folder): #TODO: make this more general 
 
     whisker_behaviours = ['whisker',
                            'whisker_psy',
-                           'context',
-                          'whisker_on_1',
-                          'whisker_off,'
-                          'whisker_on_2']
+                           'context']
     n_wh = len([s for s in behavior_type if s in whisker_behaviours])
 
+    #control_behaviours = ['whisker_on_1',
+    #                      'whisker_off,'
+    #                      'whisker_on_2']
+    #n_ctrl = len([s for s in behavior_type if s in control_behaviours])
     label = list(range(-n_aud, 0)) + list(range(0, n_wh))
+
     label = [f"+{d}" if d > 0 else str(d) for d in label]
     behavior_type = [f"{t}_{l}" for t, l in zip(behavior_type, label)]
 
@@ -97,7 +101,13 @@ def get_trial_timestamps_dict(timestamps_dict, behavior_results_file, config_fil
     # Get trial outcomes, number of trials and trial types
     trial_outcomes = behavior_results['perf'].values
     trial_types = np.unique(trial_outcomes)
-    trial_timestamps = np.array(timestamps_dict['trial_TTL'])
+
+    if timestamps_dict is None:
+        trial_timestamps = np.zeros((len(behavior_results), 2))
+        trial_timestamps[:,0] = behavior_results['trial_time'].values
+        trial_timestamps[:,1] = behavior_results['trial_time'].values + 1.0
+    else:
+        trial_timestamps = np.array(timestamps_dict['trial_TTL'])
     trial_timestamps_dict = dict()
     trial_indexes_dict = dict()
 
@@ -121,12 +131,17 @@ def get_trial_timestamps_dict(timestamps_dict, behavior_results_file, config_fil
 def get_context_timestamps_dict(timestamps_dict, nwb_trial_table):
     context_timestamps_dict = dict()
     context_sound_dict = dict()
+
+    # Handle case where no context timestamps are found
+    if timestamps_dict is None:
+        return None, None
     if 'context' not in list(timestamps_dict.keys()):
         return None, None
-    if len(np.unique(nwb_trial_table['context_block'].values[:])) == 1:
-        print(f"Found only 1 value in 'context_block' column from csv file : {nwb_trial_table['context_block'].values[0]}")
+    if len(np.unique(nwb_trial_table['context'].values[:])) == 1:
+        print(f"Found only 1 value in 'context' column from csv file : {nwb_trial_table['context'].values[0]}")
         return None, None
 
+    # Get context timestamps
     context_on_off = timestamps_dict.get('context')
     if len(context_on_off) == 1:
         return None, None
@@ -139,17 +154,17 @@ def get_context_timestamps_dict(timestamps_dict, nwb_trial_table):
     for context_bloc in range(n_context_blocks):
         on_time = context_on_off[context_bloc][0]
         off_time = context_on_off[context_bloc][1]
-        data_table = nwb_trial_table.loc[(nwb_trial_table['trial_start'] > on_time) &
-                                         (nwb_trial_table['trial_stop'] < off_time)]
+        data_table = nwb_trial_table.loc[(nwb_trial_table['start_time'] > on_time) &
+                                         (nwb_trial_table['stop_time'] < off_time)]
         # sanity check :
         if context_bloc == (len(context_on_off) - 1) and data_table.empty:
             print("Last context bloc has no trial skip it")
             n_context_blocks = n_context_blocks - 1
             continue
-        if len(np.unique(data_table.context_block.values[:])) > 1 or len(np.unique(data_table.wh_reward.values[:])) > 1:
+        if len(np.unique(data_table.context.values[:])) > 1:
             print(f"Seems like there is more than one context trial in this {context_bloc} block")
-        rewarded_context.append(data_table.wh_reward.values[0])
-        context_sound.append(data_table.context_block.values[0])
+        rewarded_context.append(data_table.context.values[0])
+        context_sound.append(data_table.context_background.values[0])
 
     rewarded_on_off = [context_on_off[i] for i in range(n_context_blocks) if rewarded_context[i] == 1]
     non_rewarded_on_off = [context_on_off[i] for i in range(n_context_blocks) if rewarded_context[i] == 0]
@@ -236,77 +251,93 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
 
     """
 
+    # Initialize table
+    standard_trial_table = pd.DataFrame()
+
     # Read session configuration file
     session_config_file = server_paths.get_session_config_file(config_file=config_file)
     with open(session_config_file) as json_file:
         session_config = json.load(json_file)
 
-    # Get behaviour results and logged timestamps
-    standard_trial_table = pd.DataFrame()
+    # Get behaviour results and formatted trial type formatted as a list
     trial_table = pd.read_csv(behavior_results_file)
-    trial_timestamps = np.array(timestamps_dict['trial_TTL'])
-
-    # Get trial type list from trial table
     trial_type_list = list_standard_trial_type(results_table=trial_table)
-
     n_trials = trial_table['perf'].size
     print(f"Read '.csv' file to build trial NWB trial table ({n_trials} trials)")
 
-    if len(trial_timestamps[:, 0]) > n_trials:
-        print(f"The .csv table has one less trial than TTL up/down signal session must have been stopped "
-              f"before saving the very last trial. Ignoring last trial TTL of session.")
-        trial_timestamps = trial_timestamps[0:-1, :]
+    # Get logged timestamps
+    if timestamps_dict is not None:
+        trial_timestamps = np.array(timestamps_dict['trial_TTL'])
 
-    # Get timestamps for specific events
+    # Case when sessions were acquired before continuous logging of behavioral data
+    else:
+        trial_timestamps = np.zeros((n_trials, 2))
+        trial_timestamps[:, 0] = trial_table['trial_time'] # use results table information instead
+        trial_timestamps[:, 1] = trial_table['trial_time'] + 1.0 # response window
+        if session_config['mouse_name'][0:2] == 'AB' and int(session_config['mouse_name'][2:-1]) < 68:
+            trial_table = check_trial_table_content(trial_table=trial_table)
+
+    # Compare number of trials in .csv table and TTL timestamps
+    if len(trial_timestamps[:, 0]) > n_trials:
+        print(f"The .csv table has less trial than TTL up/down signal session must have been stopped "
+              f"before saving the very last trial. Ignoring last trial TTLs of session.")
+        trial_timestamps = trial_timestamps[0:n_trials, :]
+
+    # Format timestamps for specific events
     whisker_stim_time = [t if trial_table.iloc[i].is_whisker==1 else np.nan for i,t in enumerate(trial_timestamps[:, 0])]
     auditory_stim_time = [t if trial_table.iloc[i].is_auditory==1 else np.nan for i,t in enumerate(trial_timestamps[:, 0])]
     no_stim_time = [t if trial_table.iloc[i].is_stim==0 else np.nan for i,t in enumerate(trial_timestamps[:, 0]) ]
 
-    # Calculate response window times, relative to start time
-    response_window_start_time = trial_timestamps[:, 0] + trial_table['artifact_window'] + trial_table['baseline_window']
-    response_window_stop_time = response_window_start_time + trial_table['response_window']
+    # Format response window times, relative to start time
+    response_window_start_time = trial_timestamps[:, 0] + trial_table['artifact_window'] / 1000 + trial_table['baseline_window'] / 1000
+    response_window_stop_time = response_window_start_time + trial_table['response_window'] / 1000
 
-    # Absence of licks: make reaction time as NaN
+    # Format absence of licks: make reaction time as NaN
     trial_table['reaction_time'].replace(0, np.nan, inplace=True)
 
+    # Define rewards availability
+    reward_available = [1 if(trial_table.iloc[i].is_auditory == 1 or
+                             (trial_table.iloc[i].is_whisker == 1 and trial_table.iloc[i].wh_reward == 1)) else 0
+                        for i in range(n_trials)]
 
     # Build trial table
-    standard_trial_table['id'] = trial_table['trial_number'] - 1 # zero-indexed
-    standard_trial_table['trial_start'] = trial_timestamps[:, 0]
-    standard_trial_table['trial_stop'] = trial_timestamps[:, 1]
+    standard_trial_table['id'] = trial_table['trial_number'] - 1  # zero-indexed
+    standard_trial_table['start_time'] = trial_timestamps[:, 0]
+    standard_trial_table['stop_time'] = trial_timestamps[:, 1]
     standard_trial_table['trial_type'] = trial_type_list
     standard_trial_table['perf'] = trial_table['perf']
 
     standard_trial_table['whisker_stim'] = trial_table['is_whisker']
-    standard_trial_table['whisker_stim_amplitude'] = trial_table['whisker_stim_amplitude'] #TODO: convert in mT from calibration data
+
+    standard_trial_table['whisker_stim_amplitude'] = trial_table['wh_stim_amp']  # TODO: convert from calibration data to mT
     standard_trial_table['whisker_stim_duration'] = trial_table['wh_stim_duration']
     standard_trial_table['whisker_stim_time'] = whisker_stim_time
 
     standard_trial_table['auditory_stim'] = trial_table['is_auditory']
-    standard_trial_table['auditory_stim_amplitude'] = trial_table['aud_stim_amplitude'] # convert in dB
-    standard_trial_table['auditory_stim_frequency'] = trial_table['aud_stim_frequency']
+    standard_trial_table['auditory_stim_amplitude'] = trial_table['aud_stim_amp']  # TODO: convert from calibration data
+    standard_trial_table['auditory_stim_frequency'] = trial_table['aud_stim_freq']
     standard_trial_table['auditory_stim_duration'] = trial_table['aud_stim_duration']
     standard_trial_table['auditory_stim_time'] = auditory_stim_time
 
-    standard_trial_table['no_stim'] = np.invert(trial_table['is_stim'])
+    standard_trial_table['no_stim'] = (~trial_table['is_stim'].astype(bool)).astype(int)
     standard_trial_table['no_stim_time'] = no_stim_time
 
-    standard_trial_table['reward_available'] = trial_table['is_reward']
+    standard_trial_table['reward_available'] = reward_available
     standard_trial_table['response_window_start_time'] = response_window_start_time
     standard_trial_table['response_window_stop_time'] = response_window_stop_time
 
     standard_trial_table['lick_flag'] = trial_table['lick_flag']
-    standard_trial_table['lick_time'] = response_window_start_time + trial_table['reaction_time']  #first lick time in response windows only
-    standard_trial_table['abort_window_start_time'] = trial_timestamps[:, 0] - trial_table['quiet_window'] # baseline is already at start, if not zero
-    standard_trial_table['abort_window_stop_time'] = response_window_start_time - trial_table['artifact_window']
+    standard_trial_table['lick_time'] = response_window_start_time + trial_table['reaction_time']  # first lick time in response windows only
+    standard_trial_table['abort_window_start_time'] = trial_timestamps[:, 0] - trial_table['quiet_window'] / 1000  # baseline is already at start, if not zero
+    standard_trial_table['abort_window_stop_time'] = response_window_start_time - trial_table['artifact_window'] / 1000
     standard_trial_table['early_lick'] = trial_table['early_lick']
 
     # Add contextual information if relevant, nan otherwise
     if session_config['context_flag']:
-        standard_trial_table['context_block'] = trial_table['context_block']
-        standard_trial_table['context_background'] = trial_table['context_background']
+        standard_trial_table['context'] = trial_table['wh_reward']
+        standard_trial_table['context_background'] = trial_table['context_block']
     else:
-        standard_trial_table['context_block'] = np.nan
+        standard_trial_table['context'] = np.nan
         standard_trial_table['context_background'] = np.nan
 
     # Add optogenetics information if relevant, nan otherwise
@@ -317,15 +348,14 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
         opto_results_file = server_paths.get_opto_results_file(config_file=config_file)
         opto_trial_table = pd.read_csv(opto_results_file)
 
-        #TODO: format this @Pol
         standard_trial_table['opto_stim'] = opto_trial_table['is_opto']
-        standard_trial_table['opto_grid_ap'] = opto_trial_table['opto_grid_ap']
-        standard_trial_table['opto_grid_ml'] = opto_trial_table['opto_grid_ml']
-        standard_trial_table['opto_grid_no'] = opto_trial_table['opto_grid_no']
-        standard_trial_table['opto_stim_start_time'] = opto_trial_table['opto_stim_start_time']
-        standard_trial_table['opto_stim_stop_time'] = opto_trial_table['opto_stim_stop_time']
-        standard_trial_table['opto_stim_amplitude'] = opto_trial_table['opto_stim_amplitude']
-        standard_trial_table['opto_stim_frequency'] = opto_trial_table['opto_stim_frequency']
+        standard_trial_table['opto_grid_ap'] = opto_trial_table['coord_AP']
+        standard_trial_table['opto_grid_ml'] = opto_trial_table['coord_ML']
+        standard_trial_table['opto_grid_no'] = opto_trial_table['grid_no']
+        standard_trial_table['opto_stim_start_time'] = standard_trial_table['start_time'] + opto_trial_table['baseline']
+        standard_trial_table['opto_stim_stop_time'] = standard_trial_table['start_time'] + opto_trial_table['baseline'] + opto_trial_table['opto_duration']
+        standard_trial_table['opto_stim_amplitude'] = opto_trial_table['opto_amp']
+        standard_trial_table['opto_stim_frequency'] = opto_trial_table['opto_freq']
     else:
         standard_trial_table['opto_stim'] = np.nan
         standard_trial_table['opto_grid_ap'] = np.nan
@@ -355,71 +385,18 @@ def build_simplified_trial_table(behavior_results_file, timestamps_dict):
     lick = trial_table['lick_flag'].values
     trial_outcome = ["Hit" if lick[trial] == 1 else "Miss" for trial in range(n_trials)]
     simplified_trial_table['trial_index'] = trial_table['trial_number']
-    simplified_trial_table['trial_start'] = trial_timestamps[:, 0]
-    simplified_trial_table['trial_stop'] = trial_timestamps[:, 1]
+    simplified_trial_table['start_time'] = trial_timestamps[:, 0]
+    simplified_trial_table['stop_time'] = trial_timestamps[:, 1]
     simplified_trial_table['reaction_time'] = trial_table['reaction_time']
     simplified_trial_table['trial_type'] = trial_type_list
     simplified_trial_table['wh_reward'] = trial_table['wh_reward']
     simplified_trial_table['aud_reward'] = trial_table['aud_reward']
     simplified_trial_table['trial_outcome'] = trial_outcome
     simplified_trial_table['early_lick'] = trial_table['early_lick']
-    simplified_trial_table['context_block'] = trial_table['context_block']
+    simplified_trial_table['context'] = trial_table['wh_reward']
+    simplified_trial_table['context_background'] = trial_table['context_block']
 
     return simplified_trial_table
-
-def build_full_trial_table(config_file, behavior_results_file, timestamps_dict):
-    """
-    Build a trial table from the results.csv file session timestamps.
-    Args:
-        config_file: path to the config file
-        behavior_results_file: path to the results.csv file
-        timestamps_dict: dictionary of session timestamps       
-
-    Returns:
-
-    """
-    full_trial_table = pd.DataFrame()
-    trial_table = pd.read_csv(behavior_results_file)
-    trial_timestamps = np.array(timestamps_dict['trial_TTL'])
-    trial_type_list = list_trial_type(results_table=trial_table)
-
-    n_trials = trial_table['perf'].size
-    print(f"Read '.csv' file to build trial NWB trial table ({n_trials} trials)")
-
-    if len(trial_timestamps[:, 0]) > n_trials:
-        print(f"csv table has one less trial than TTL up/down signal session must have been stop "
-              f"before saving very last trial in the results.csv file")
-        trial_timestamps = trial_timestamps[0:-1, :]
-
-
-    lick = trial_table['lick_flag'].values
-    trial_outcome = ["Hit" if lick[trial] == 1 else "Miss" for trial in range(n_trials)]
-
-    full_trial_table['trial_index'] = trial_table['trial_number']
-    full_trial_table['trial_start'] = trial_timestamps[:, 0]
-    full_trial_table['trial_stop'] = trial_timestamps[:, 1]
-
-    # Make reaction time Nan if zero
-    full_trial_table['reaction_time'] = trial_table['reaction_time']
-    full_trial_table['trial_type'] = trial_type_list
-    full_trial_table['wh_reward'] = trial_table['wh_reward']
-    full_trial_table['aud_reward'] = trial_table['aud_reward']
-    full_trial_table['trial_outcome'] = trial_outcome
-    full_trial_table['perf'] = trial_table['perf']
-
-    # Read yaml config file
-    with open(config_file, 'r') as stream:
-        config_file = yaml.safe_load(stream)
-    trial_map = config_file.get('trial_map')
-    full_trial_table['trial_type_perf'] = trial_table['perf'].map(trial_map)
-    full_trial_table['association_flag'] = trial_table['association_flag']
-    full_trial_table['quiet_window'] = trial_table['quiet_window']
-    full_trial_table['iti'] = trial_table['iti']
-    full_trial_table['response_window'] = trial_table['response_window']
-    full_trial_table['artifact_window'] = trial_table['artifact_window']
-    full_trial_table['is_reward'] = trial_table['is_reward']
-
-    return full_trial_table
 
 
 def add_trials_to_nwb(nwb_file, trial_table):
@@ -431,56 +408,18 @@ def add_trials_to_nwb(nwb_file, trial_table):
 
     n_trials = trial_table['trial_type'].size
     for trial in range(n_trials):
-        nwb_file.add_trial(start_time=trial_table['trial_start'].values[trial],
-                           stop_time=trial_table['trial_stop'].values[trial],
+        nwb_file.add_trial(start_time=trial_table['start_time'].values[trial],
+                           stop_time=trial_table['stop_time'].values[trial],
                            reaction_time=trial_table['reaction_time'].values[trial],
                            trial_type=trial_table['trial_type'].values[trial],
                            wh_reward=trial_table['wh_reward'].values[trial],
                            aud_reward=trial_table['aud_reward'].values[trial],
                            trial_outcome=trial_table['trial_outcome'].values[trial],
                            early_lick=trial_table['early_lick'].values[trial],
-                           context_block=trial_table['context_block'].values[trial])
+                           context=trial_table['context'].values[trial],
+                           context_background=trial_table['context_background'].values[trial])
 
     return
-
-
-def add_trials_full_to_nwb(nwb_file, trial_table):
-    """
-    Add trial table to NWB file.
-    Args:
-        nwb_file: NWB file object
-        trial_table: trial table pandas dataframe
-
-    Returns:
-
-    """
-
-    column_names = trial_table.columns
-    columns_to_add = [c for c in column_names if c not in ['trial_index', 'trial_start', 'trial_stop']]
-
-    for column in columns_to_add:
-        nwb_file.add_trial_column(name=column, description="None")
-
-    n_trials = trial_table['trial_type'].size
-    for trial in range(n_trials):
-        nwb_file.add_trial(start_time=trial_table['trial_start'].values[trial],
-                           stop_time=trial_table['trial_stop'].values[trial],
-                           reaction_time=trial_table['reaction_time'].values[trial],
-                           trial_type=trial_table['trial_type'].values[trial],
-                           wh_reward=trial_table['wh_reward'].values[trial],
-                           aud_reward=trial_table['aud_reward'].values[trial],
-                           trial_outcome=trial_table['trial_outcome'].values[trial],
-                           perf=trial_table['perf'].values[trial],
-                           trial_type_perf=trial_table['trial_type_perf'].values[trial],
-                        association_flag=trial_table['association_flag'].values[trial],
-                           quiet_window=trial_table['quiet_window'].values[trial],
-                           iti=trial_table['iti'].values[trial],
-                           response_window=trial_table['response_window'].values[trial],
-                           artifact_window=trial_table['artifact_window'].values[trial],
-                           is_reward=trial_table['is_reward'].values[trial]
-                           )
-    return
-
 
 def add_trials_standard_to_nwb(nwb_file, trial_table):
     """
@@ -494,7 +433,7 @@ def add_trials_standard_to_nwb(nwb_file, trial_table):
     """
 
     column_names = trial_table.columns
-    columns_to_add = [c for c in column_names if c not in ['id', 'trial_start', 'trial_stop']]
+    columns_to_add = [c for c in column_names if c not in ['id', 'start_time', 'stop_time']]
 
     for column in columns_to_add:
         nwb_file.add_trial_column(name=column, description="None")
@@ -502,8 +441,8 @@ def add_trials_standard_to_nwb(nwb_file, trial_table):
     n_trials = trial_table['trial_type'].size
     for trial in range(n_trials):
         nwb_file.add_trial(id=trial_table['id'].values[trial],
-                           start_time=trial_table['trial_start'].values[trial],
-                           stop_time=trial_table['trial_stop'].values[trial],
+                           start_time=trial_table['start_time'].values[trial],
+                           stop_time=trial_table['stop_time'].values[trial],
                            trial_type=trial_table['trial_type'].values[trial],
                            perf=trial_table['perf'].values[trial],
 
@@ -531,7 +470,7 @@ def add_trials_standard_to_nwb(nwb_file, trial_table):
                            abort_window_stop_time=trial_table['abort_window_stop_time'].values[trial],
                            early_lick=trial_table['early_lick'].values[trial],
 
-                           context_block=trial_table['context_block'].values[trial],
+                           context=trial_table['context'].values[trial],
                            context_background=trial_table['context_background'].values[trial],
 
                            opto_stim=trial_table['opto_stim'].values[trial],
@@ -539,12 +478,29 @@ def add_trials_standard_to_nwb(nwb_file, trial_table):
                            opto_stim_stop_time=trial_table['opto_stim_stop_time'].values[trial],
                            opto_stim_amplitude=trial_table['opto_stim_amplitude'].values[trial],
                            opto_stim_frequency=trial_table['opto_stim_frequency'].values[trial],
-                           opto_stim_ap=trial_table['opto_stim_ap'].values[trial],
-                           opto_stim_ml=trial_table['opto_stim_ml'].values[trial],
-                           opto_stim_no=trial_table['opto_stim_no'].values[trial]
+                           opto_grid_ap=trial_table['opto_grid_ap'].values[trial],
+                           opto_grid_ml=trial_table['opto_grid_ml'].values[trial],
+                           opto_grid_no=trial_table['opto_grid_no'].values[trial]
                            )
 
 
+def check_trial_table_content(trial_table):
+    """
+    Check if trial table contains all necessary columns.
+    Relevant for older trial tables acquired before continuous logging.
+    Somewhat arbitrary values but necessary to have them to add in NWB files.
+    Args:
+        trial_table:
 
+    Returns:
 
+    """
+    if 'artifact_window' not in trial_table.columns:
+        trial_table['artifact_window'] = 100
+    if 'baseline_window' not in trial_table.columns:
+        trial_table['baseline_window'] = 0
+    if 'response_window' not in trial_table.columns:
+        trial_table['response_window'] = 1000
+
+    return trial_table
 
