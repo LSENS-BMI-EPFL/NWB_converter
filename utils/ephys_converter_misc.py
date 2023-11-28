@@ -8,15 +8,15 @@
 
 import os
 import pathlib
-
 import yaml
 import numpy as np
 import pandas as pd
+import itertools
 from utils import server_paths
+from utils.continuous_processing import detect_piezo_lick_times
+from utils.read_sglx import readMeta
 
 # MAP of (AP,ML) coordinates relative to bregma
-from utils.server_paths import get_sync_event_times_folder
-
 AREA_COORDINATES_MAP = {
     'wS1': 'IOS',
     'wS2': 'IOS',
@@ -134,8 +134,9 @@ def load_ephys_sync_timestamps(config_file, log_timestamps_dict):
         # Make sure same number as from log_continuous.bin
         if len(timestamps) != len(log_timestamps_dict[event_map[event]]):
             print(
-                'Warning: {event} has {len(timestamps)} timestamps from nidq.bin (CatGT), while {event_map[event]} '
-                'has {len(log_timestamps_dict[event_map[event]])} timestamps from log_continuous.bin')
+                'Warning: {} has {} timestamps from nidq.bin (CatGT), while {} has {} timestamps from log_continuous.bin'.format(
+                    event, len(timestamps), event_map[event], len(log_timestamps_dict[event_map[event]]))
+            )
 
         # Add to dictionary
         timestamps_dict[event_map[event]] = timestamps
@@ -206,28 +207,45 @@ def format_ephys_timestamps(config_file, ephys_timestamps_dict):
         else:
             print('Warning: {} is not a recognized timestamp type'.format(event))
 
-    print('Done formatting ephys timestamps as tuples')
+    print('Done formatting ephys timestamps as tuples.')
     return timestamps_dict
 
 
-def get_ephys_timestamps(config_file, log_timestamps_dict):
+def extract_ephys_timestamps(config_file, continuous_data_dict, threshold_dict, log_timestamps_dict):
     """
     Load and format ephys timestamps for continuous_log_analysis.
     Args:
         config_file:
+        continuous_data_dict:
+        threshold_dict:
         log_timestamps_dict:
 
     Returns:
 
     """
+    print("Extracting ephys timestamps")
+
+    # Load and format existing timestamps extracted by CatGT and TPrime
     timestamps_dict = load_ephys_sync_timestamps(config_file, log_timestamps_dict)
     timestamps_dict = format_ephys_timestamps(config_file, timestamps_dict)
+
+    # Extract timestamps from binary files
+    ephys_nidq_meta, _ = server_paths.get_raw_ephys_nidq_files(config_file)
+    meta_dict = readMeta(pathlib.Path(ephys_nidq_meta))
+    lick_threshold = threshold_dict.get('lick_trace')
+    lick_timestamps = detect_piezo_lick_times(continuous_data_dict,
+                                              ni_session_sr=meta_dict['niSampRate'],
+                                              lick_threshold=lick_threshold,
+                                              sigma=500)
+    # Format as tuples of on/off times for NWB
+    lick_timestamps_on_off = list(zip(lick_timestamps, itertools.repeat(np.nan)))
+    timestamps_dict['lick_trace'] = lick_timestamps_on_off
 
     assert 'trial_TTL' in timestamps_dict.keys()
     assert 'cam1' in timestamps_dict.keys()
     assert 'cam2' in timestamps_dict.keys()
 
-    assert type(timestamps_dict['trial_TTL'][0]) == tuple
+    assert isinstance(timestamps_dict['trial_TTL'][0], tuple)
 
     n_frames_dict = {k: len(v) for k, v in timestamps_dict.items()}
 
@@ -271,17 +289,17 @@ def create_simplified_unit_table(nwb_file):
     """
     # Create Units table
     dict_columns_to_add = {
-        #'id': 'unique unit index (out of all probes)',
+        # 'id': 'unique unit index (out of all probes)',
         'cluster_id': 'cluster index, from KS(probe-wise)',
         'peak_channel': 'electrode with max waveform amplitude, from KS',
         'electrode_group': 'ElectrodeGroup object (i.e. probe) recording the unit',
         'depth': 'depth of peak electrode, in probe space, from KS',
         'ks_label': 'unit quality label, form Kilosort and curation (Phy): “good”, “mua”',
         'firing_rate': 'total firing rate in session, in Hz',
-        #'spike_times': 'spike times for that unit, from Kilosort',
+        # 'spike_times': 'spike times for that unit, from Kilosort',
         'waveform_mean': 'mean spike waveform (a vector), in uV',
         'sampling_rate': 'sampling rate used for that probe, in Hz',
-}
+    }
     for col_key, col_desc in dict_columns_to_add.items():
         nwb_file.add_unit_column(name=col_key, description=col_desc)
 
@@ -309,7 +327,7 @@ def create_unit_table(nwb_file):
         'ks_label': 'unit quality label, form Kilosort and curation (Phy): “good”, “mua”',
         'firing_rate': 'total firing rate in session, in Hz',
         'spike_times': 'spike times for that unit, from Kilosort',
-        #'spike_times_index': 'spike times index, from Kilosort',
+        # 'spike_times_index': 'spike times index, from Kilosort',
         'ccf_area': 'atlas label from anatomical estimation',
         'ccf_area_layer': 'same as ccf_area, with layer-specficity',
         'waveform_mean': 'mean spike waveform (a vector), in uV',
@@ -319,14 +337,13 @@ def create_unit_table(nwb_file):
         'sampling_rate': 'sampling rate used for that probe, in Hz',
         'isi_violation': '',
         'isolation_distance': '',
-}
+    }
     for col_key, col_desc in dict_columns_to_add.items():
         nwb_file.add_unit_column(name=col_key, description=col_desc)
 
 
 def build_simplified_unit_table(imec_folder,
                                 sync_spike_times_path):
-
     # Init. table
     unit_table = pd.DataFrame()
 
@@ -345,7 +362,6 @@ def build_simplified_unit_table(imec_folder,
     cluster_info_df.rename(columns={'KSLabel': 'ks_label',
                                     'Amplitude': 'amplitude',
                                     'ContamPct': 'contam_pct'}, inplace=True)
-
 
     # Find if cluster had a curated label
     cluster_info_df['curated'] = cluster_info_df.apply(lambda x: 0 if pd.isnull(x.group) else 1, axis=1)
@@ -386,6 +402,7 @@ def build_simplified_unit_table(imec_folder,
     unit_table['waveform_mean'] = pd.DataFrame(mean_wfs).to_numpy().tolist()
 
     return unit_table
+
 
 def build_unit_table(config_file):
     return

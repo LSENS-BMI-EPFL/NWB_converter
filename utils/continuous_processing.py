@@ -1,10 +1,14 @@
-import numpy as np
-import matplotlib.pyplot as plt
-import scipy.signal as sci_si
-import cv2
-from ScanImageTiffReader import ScanImageTiffReader
-import time
 import os
+import cv2
+import itertools
+import numpy as np
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+mpl.use('Qt5Agg')
+import scipy.signal as sci_si
+from scipy.ndimage import gaussian_filter1d
+from ScanImageTiffReader import ScanImageTiffReader
+
 
 
 def get_continuous_time_periods(binary_array):
@@ -62,6 +66,17 @@ def get_continuous_time_periods(binary_array):
 
 
 def read_binary_continuous_log(bin_file, channels_dict, ni_session_sr=5000, t_stop=None):
+    """
+        Read behaviour binary file containing continuous data and return a dictionary containing the data and log timestamps.
+    Args:
+        bin_file: Behaviour logging file.
+        channels_dict: Dictionary of channels to read from the binary file, defined in behaviour GUI logging session.
+        ni_session_sr: Logging session sampling rate.
+        t_stop: Optional parameter to stop reading the file at a certain time point.
+
+    Returns:
+
+    """
     channel_names = list(channels_dict.keys())
     n_channels = len(channel_names)
     continuous_data_dict = {}
@@ -87,66 +102,68 @@ def read_binary_continuous_log(bin_file, channels_dict, ni_session_sr=5000, t_st
     return continuous_data_dict
 
 
-def detect_piezo_lick_times(continuous_data_dict, ni_session_sr=5000, lick_threshold=None):
+def detect_piezo_lick_times(continuous_data_dict, ni_session_sr=5000, lick_threshold=None, sigma=100):
     """
         Detect lick times from the lick data envelope.
         The lick data is first filtered with a low pass filter to remove high frequency fluctuations.
     Args:
+        sigma:
         continuous_data_dict: Dictionary containing continuous data
         ni_session_sr: Sampling rate of session
         lick_threshold: Lick threshold of session
+        sigma: Standard deviation of gaussian filter used to smooth lick data
 
     Returns:
 
     """
 
-    def butter_lowpass(cutoff, fs, order=5):
-        return sci_si.butter(order, cutoff, fs=fs, btype='low', analog=False)
-
-    def butter_lowpass_filter(data, cutoff, fs, order=5):
-        b, a = butter_lowpass(cutoff, fs, order=order)
-        y = sci_si.lfilter(b, a, data)
-        return y
-
-    # Get lick data envelope using Hilbert transform
+    # Smooth lick data with a gaussian filter
     lick_data = continuous_data_dict.get("lick_trace")
-    lick_data_lowpass = butter_lowpass_filter(lick_data, cutoff=50, fs=5000, order=5)
-    from scipy.ndimage import gaussian_filter
+    lick_data_smooth = gaussian_filter1d(lick_data, sigma=sigma)
 
-    lick_data_lowpass = gaussian_filter(lick_data, sigma=10)
-    lick_analytic_signal = sci_si.hilbert(lick_data)
-    lick_envelope = np.abs(lick_analytic_signal)
-
+    # Detect piezo data crossings using behaviour lick threshold
     if lick_threshold is None:
-        print("No lick threshold provided, using 99.9 percentile of lick envelope")
-        lick_threshold = np.percentile(lick_envelope, 99.9) # a copilot suggestion...
+        lick_threshold = 0.1
 
-    # Detect piezo data crossings using a conservative threshold
-    lick_timestamps = np.where(lick_envelope > lick_threshold )[0] / ni_session_sr
+    lick_data_sub = lick_data_smooth - lick_threshold
+    cross_on_thr_indices = np.where(np.isclose(lick_data_sub, 0, atol=0.001))[0] # find crossings
+    cross_thr_indices = [i for i in cross_on_thr_indices if lick_data_sub[i+1]>0 and lick_data_sub[i-1]<0] #keep upward crossings
+    cross_thr_pairs = [(i1, i2) for i1, i2 in zip(cross_thr_indices, cross_thr_indices[1:])]
+    cross_thr_indices_valid = [i1 for i1, i2 in cross_thr_pairs if (i2-i1)>100] #keep only crossings with a minimum distance of 100 samples i.e. 20ms
+    lick_times = np.array(cross_thr_indices_valid) / float(ni_session_sr) # get lick times in seconds
 
     # Debugging: optional plotting
-    max_duration_secs = lick_data.shape[0] / ni_session_sr
-    t_start=100
-    t_stop=120
-    plt.figure()
-    plt.plot(lick_data, label="lick_data", lw=0.5)
-    plt.plot(lick_data_lowpass, label="lick_data_lowpass", lw=0.5)
-    #plt.plot(lick_envelope, label="lick_envelope")
-    for lick_time in lick_timestamps:
-        plt.axvline(x=lick_time, color="red", alpha=0.5)
+    t_start=0
+    t_stop=200
+    ni_session_sr = int(float(ni_session_sr))
+    plt.axhline(y=lick_threshold, color='red', lw=1, ls='--', alpha=0.9, zorder=0)
+    plt.plot(lick_data[ni_session_sr*t_start:ni_session_sr*t_stop], c='k', label="lick_data", lw=1)
+    plt.plot(lick_data_smooth[ni_session_sr*t_start:ni_session_sr*t_stop], c='green', label="lick_envelope", lw=3)
+    for lick_time in lick_times:
+        plt.axvline(x=ni_session_sr*lick_time, color='red', lw=3, alpha=0.8)
     plt.xlim(t_start * ni_session_sr,t_stop * ni_session_sr)
     plt.ylim(-0.05, 5*lick_threshold)
-    plt.legend()
+    plt.legend(loc='upper right', frameon=False)
     plt.show()
 
-    assert lick_timestamps.size > 0, "No lick detected, try to lower the threshold"
-    assert isinstance(lick_timestamps, np.ndarray), "lick_times should be a numpy array"
-
-    return lick_timestamps
+    return lick_times
 
 
 def plot_continuous_data_dict(continuous_data_dict, timestamps_dict, ni_session_sr=5000, t_start=None, t_stop=None,
                               black_background=False):
+    """
+    Plot continuous data from a dictionary containing the data and timestamps.
+    Args:
+        continuous_data_dict: Dictionary containing continuous data
+        timestamps_dict: Dictionary containing timestamps for each channel
+        ni_session_sr: Sampling rate of session
+        t_start: Optional parameter to start plotting the figure at a certain time point.
+        t_stop: Optional parameter to stop plotting the figure at a certain time point.
+        black_background: Optional parameter to plot the figure with a black background.
+
+    Returns:
+
+    """
     channel_names = list(continuous_data_dict.keys())
     n_channels = len(channel_names)
 
@@ -247,6 +264,18 @@ def detect_ci_pause(ci_frame_times):
 
 
 def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scanimage_dict=None, filter_cameras=False):
+    """
+    Extract timestamps from continuous logging data.
+    Args:
+        continuous_data_dict:  Dictionary with continuous data
+        threshold_dict: Dictionary with threshold values for each channel, in Volt
+        ni_session_sr: Sampling rate of session
+        scanimage_dict: Dictionary with ScanImage information
+        filter_cameras: Boolean, whether to filter camera timestamps
+
+    Returns:
+
+    """
     binary_data_dict = {}
     timestamps_dict = {}
     n_frames_dict = {}
@@ -261,14 +290,22 @@ def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scan
 
         if key == "lick_trace":
 
-            continue
-            # TODO: this takes time...
-            lick_threshold = float(threshold_dict.get(key))
-            lick_timestamps = detect_piezo_lick_times(continuous_data_dict,
-                                                      ni_session_sr=ni_session_sr,
-                                                      lick_threshold=lick_threshold)
-            lick_timestamps_on_off = zip(lick_timestamps, [np.nan])
-            timestamps_dict[key] = lick_timestamps_on_off
+            if threshold_dict.get(key) is not None:
+
+                # Detect lick times using behaviour GUI lick threshold
+                lick_threshold = float(threshold_dict.get(key))
+                lick_timestamps = detect_piezo_lick_times(continuous_data_dict,
+                                                          ni_session_sr=float(ni_session_sr),
+                                                          lick_threshold=lick_threshold,
+                                                          sigma=100)
+
+                # Format as tuples of on/off times for NWB
+                lick_timestamps_on_off = list(zip(lick_timestamps, itertools.repeat(np.nan)))
+                timestamps_dict[key] = lick_timestamps_on_off
+
+            else:
+                timestamps_dict[key] = None
+
 
         elif key == "galvo_position":
 
@@ -390,6 +427,14 @@ def plot_exposure_times(timestamps_dict):
 
 
 def read_behavior_avi_movie(movie_files):
+    """
+    Read behavior movie file and return frame rate and number of frames.
+    Args:
+        movie_files: list of behavior movie files
+
+    Returns:
+
+    """
 
     for movie_file in movie_files:
         movie_name = os.path.split(movie_file)[1]
