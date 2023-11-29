@@ -285,12 +285,15 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
         trial_timestamps = trial_timestamps[0:n_trials, :]
 
     # Format timestamps for specific events
-    whisker_stim_time = [t if trial_table.iloc[i].is_whisker==1 else np.nan for i,t in enumerate(trial_timestamps[:, 0])]
-    auditory_stim_time = [t if trial_table.iloc[i].is_auditory==1 else np.nan for i,t in enumerate(trial_timestamps[:, 0])]
-    no_stim_time = [t if trial_table.iloc[i].is_stim==0 else np.nan for i,t in enumerate(trial_timestamps[:, 0]) ]
+    whisker_stim_time = [t + trial_table['baseline_window'][i] / 1000 if trial_table.iloc[i].is_whisker == 1 else np.nan
+                         for i, t in enumerate(trial_timestamps[:, 0])]
+    auditory_stim_time = [t + trial_table['baseline_window'][i] / 1000 if trial_table.iloc[i].is_auditory == 1 else np.nan
+                          for i, t in enumerate(trial_timestamps[:, 0])]
+    no_stim_time = [t + trial_table['baseline_window'][i] / 1000 if trial_table.iloc[i].is_stim == 0 else np.nan
+                    for i, t in enumerate(trial_timestamps[:, 0])]
 
     # Format response window times, relative to start time
-    response_window_start_time = trial_timestamps[:, 0] + trial_table['artifact_window'] / 1000 + trial_table['baseline_window'] / 1000
+    response_window_start_time = trial_timestamps[:, 0] + (trial_table['artifact_window'] + trial_table['baseline_window']) / 1000
     response_window_stop_time = response_window_start_time + trial_table['response_window'] / 1000
 
     # Format absence of licks: make reaction time as NaN
