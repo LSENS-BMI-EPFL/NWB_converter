@@ -50,7 +50,7 @@ def get_subject_mouse_number(subject_id):
 
 
 def get_nwb_folder(subject_id):
-    if subject_id in ['PB124', 'AR103', 'AR071']:
+    if subject_id in ['PB124']:
         experimenter = 'Robin_Dard'
     else:
         experimenter = EXPERIMENTER_MAP[subject_id[:2]]
@@ -89,7 +89,9 @@ def get_behavior_results_file(config_file):
     behavior_results_file = os.path.join(data_folder, 'Training', session_name, 'results.csv')
     if not os.path.exists(behavior_results_file):
         behavior_results_file = os.path.join(data_folder, 'Training', session_name, 'results.txt')
-
+    if not os.path.exists(behavior_results_file):
+        behavior_results_file = os.path.join(data_folder, 'Recordings', 'BehaviourFiles', session_name, 'Results.txt') 
+    
     return behavior_results_file
 
 

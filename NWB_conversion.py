@@ -14,7 +14,7 @@ from converters.ephys_to_nwb import convert_ephys_recording
 from continuous_log_analysis import analyze_continuous_log
 from utils.behavior_converter_misc import find_training_days
 from utils.server_paths import get_subject_data_folder, get_subject_analysis_folder, get_nwb_folder
-
+import utils.gf_utils as utils_gf
 
 def convert_data_to_nwb(config_file, output_folder):
     """
@@ -32,11 +32,14 @@ def convert_data_to_nwb(config_file, output_folder):
 
     print(" ")
     print("Extract timestamps")
-
-    timestamps_dict, n_frames_dict = analyze_continuous_log(config_file=config_file,
-                                                            do_plot=False, plot_start=None,
-                                                            plot_stop=None, camera_filtering=False)
-
+    
+    if config_dict['session_metadata']['experimenter'] != 'GF':
+        timestamps_dict, n_frames_dict = analyze_continuous_log(config_file=config_file,
+                                                                do_plot=False, plot_start=None,
+                                                                plot_stop=None, camera_filtering=False)
+    else:
+        timestamps_dict, n_frames_dict = utils_gf.infer_timestamps_dict(config_file=config_file)
+        
     print(" ")
     print("Open NWB file and add metadata")
     nwb_file = create_nwb_file(config_file=config_file)
@@ -79,12 +82,18 @@ def convert_data_to_nwb(config_file, output_folder):
 if __name__ == '__main__':
 
     # Run the conversion
-    mouse_ids = [50,51,52,54,56,58,59,68,72,73,75,76,77,78,79,80,81,82,83,85,86,87]
-    mouse_ids = ['AB0{}'.format(i) for i in mouse_ids]
-
-    last_done_day = "20231102"
+    mouse_ids = ['GF334']
+    experimenter = 'GF'
+    
     last_done_day = None
-
+    last_done_day = None
+    
+        
+    if experimenter == 'GF':
+        # Read excel database.
+        db_folder = 'C:\\Users\\aprenard\\recherches\\fast-learning\\docs'
+        db_name = 'sessions_GF.xlsx'
+        db = utils_gf.read_excel_database(db_folder, db_name)
 
     for mouse_id in mouse_ids:
         data_folder = get_subject_data_folder(mouse_id)
@@ -92,11 +101,16 @@ if __name__ == '__main__':
         nwb_folder = get_nwb_folder(mouse_id)
 
         # Find session list and session description.
-        training_days = find_training_days(mouse_id, data_folder)
+        if experimenter == 'GF':
+            training_days = db.loc[db.subject_id==mouse_id, 'session_day'].to_list()
+            training_days = utils_gf.format_session_day_GF(mouse_id, training_days)
+            sessions = db.loc[db.subject_id==mouse_id, 'session_id'].to_list()
+            training_days =  list(zip(sessions, training_days))
+        else:
+            training_days = find_training_days(mouse_id, data_folder)
 
         # Create NWB by looping over sessions.
         for isession, iday in training_days:
-
 
             # Filter sessions to do :
             # session_to_do = ["RD001_20230624_123913", "RD003_20230624_134719", "RD005_20230624_145511"]
@@ -109,12 +123,12 @@ if __name__ == '__main__':
             # if date_to_do not in isession:
             #     continue
 
-            session_date = isession.split('_')[1]
-            session_date = datetime.datetime.strptime(session_date, "%Y%m%d")
+            # session_date = isession.split('_')[1]
+            # session_date = datetime.datetime.strptime(session_date, "%Y%m%d")
 
-            if last_done_day is not None:
-                if session_date <= datetime.datetime.strptime(last_done_day, "%Y%m%d"):
-                    continue
+            # if last_done_day is not None:
+            #     if session_date <= datetime.datetime.strptime(last_done_day, "%Y%m%d"):
+            #         continue
             # Find yaml config file and behavior results for this session.
             config_yaml = os.path.join(analysis_folder, isession, f"config_{isession}.yaml")
 
