@@ -8,15 +8,15 @@
 
 import os
 import pathlib
-
 import yaml
 import numpy as np
 import pandas as pd
+import itertools
 from utils import server_paths
+from utils.continuous_processing import detect_piezo_lick_times
+from utils.read_sglx import readMeta
 
 # MAP of (AP,ML) coordinates relative to bregma
-from utils.server_paths import get_sync_event_times_folder
-
 AREA_COORDINATES_MAP = {
     'wS1': 'IOS',
     'wS2': 'IOS',
@@ -134,8 +134,9 @@ def load_ephys_sync_timestamps(config_file, log_timestamps_dict):
         # Make sure same number as from log_continuous.bin
         if len(timestamps) != len(log_timestamps_dict[event_map[event]]):
             print(
-                'Warning: {event} has {len(timestamps)} timestamps from nidq.bin (CatGT), while {event_map[event]} '
-                'has {len(log_timestamps_dict[event_map[event]])} timestamps from log_continuous.bin')
+                'Warning: {} has {} timestamps from nidq.bin (CatGT), while {} has {} timestamps from log_continuous.bin'.format(
+                    event, len(timestamps), event_map[event], len(log_timestamps_dict[event_map[event]]))
+            )
 
         # Add to dictionary
         timestamps_dict[event_map[event]] = timestamps
@@ -206,28 +207,45 @@ def format_ephys_timestamps(config_file, ephys_timestamps_dict):
         else:
             print('Warning: {} is not a recognized timestamp type'.format(event))
 
-    print('Done formatting ephys timestamps as tuples')
+    print('Done formatting ephys timestamps as tuples.')
     return timestamps_dict
 
 
-def get_ephys_timestamps(config_file, log_timestamps_dict):
+def extract_ephys_timestamps(config_file, continuous_data_dict, threshold_dict, log_timestamps_dict):
     """
     Load and format ephys timestamps for continuous_log_analysis.
     Args:
         config_file:
+        continuous_data_dict:
+        threshold_dict:
         log_timestamps_dict:
 
     Returns:
 
     """
+    print("Extracting ephys timestamps")
+
+    # Load and format existing timestamps extracted by CatGT and TPrime
     timestamps_dict = load_ephys_sync_timestamps(config_file, log_timestamps_dict)
     timestamps_dict = format_ephys_timestamps(config_file, timestamps_dict)
+
+    # Extract timestamps from binary files
+    ephys_nidq_meta, _ = server_paths.get_raw_ephys_nidq_files(config_file)
+    meta_dict = readMeta(pathlib.Path(ephys_nidq_meta))
+    lick_threshold = threshold_dict.get('lick_trace')
+    lick_timestamps = detect_piezo_lick_times(continuous_data_dict,
+                                              ni_session_sr=meta_dict['niSampRate'],
+                                              lick_threshold=lick_threshold,
+                                              sigma=500)
+    # Format as tuples of on/off times for NWB
+    lick_timestamps_on_off = list(zip(lick_timestamps, itertools.repeat(np.nan)))
+    timestamps_dict['lick_trace'] = lick_timestamps_on_off
 
     assert 'trial_TTL' in timestamps_dict.keys()
     assert 'cam1' in timestamps_dict.keys()
     assert 'cam2' in timestamps_dict.keys()
 
-    assert type(timestamps_dict['trial_TTL'][0]) == tuple
+    assert isinstance(timestamps_dict['trial_TTL'][0], tuple)
 
     n_frames_dict = {k: len(v) for k, v in timestamps_dict.items()}
 

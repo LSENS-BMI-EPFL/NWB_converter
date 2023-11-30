@@ -17,7 +17,7 @@ def find_training_days(subject_id, input_folder): #TODO: make this more general 
     Returns:
 
     """
-    print('Finding training days for subject {}'.format(subject_id))
+    print('Finding training days for subject {}:'.format(subject_id))
 
     sessions_list = os.listdir(os.path.join(input_folder, 'Training'))
     sessions_list = [s for s in sessions_list if os.path.isdir(os.path.join(input_folder, 'Training', s))]
@@ -60,7 +60,6 @@ def find_training_days(subject_id, input_folder): #TODO: make this more general 
     #                      'whisker_off,'
     #                      'whisker_on_2']
     #n_ctrl = len([s for s in behavior_type if s in control_behaviours])
-
     label = list(range(-n_aud, 0)) + list(range(0, n_wh))
 
     label = [f"+{d}" if d > 0 else str(d) for d in label]
@@ -285,12 +284,15 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
         trial_timestamps = trial_timestamps[0:n_trials, :]
 
     # Format timestamps for specific events
-    whisker_stim_time = [t if trial_table.iloc[i].is_whisker==1 else np.nan for i,t in enumerate(trial_timestamps[:, 0])]
-    auditory_stim_time = [t if trial_table.iloc[i].is_auditory==1 else np.nan for i,t in enumerate(trial_timestamps[:, 0])]
-    no_stim_time = [t if trial_table.iloc[i].is_stim==0 else np.nan for i,t in enumerate(trial_timestamps[:, 0]) ]
+    whisker_stim_time = [t + trial_table['baseline_window'][i] / 1000 if trial_table.iloc[i].is_whisker == 1 else np.nan
+                         for i, t in enumerate(trial_timestamps[:, 0])]
+    auditory_stim_time = [t + trial_table['baseline_window'][i] / 1000 if trial_table.iloc[i].is_auditory == 1 else np.nan
+                          for i, t in enumerate(trial_timestamps[:, 0])]
+    no_stim_time = [t + trial_table['baseline_window'][i] / 1000 if trial_table.iloc[i].is_stim == 0 else np.nan
+                    for i, t in enumerate(trial_timestamps[:, 0])]
 
     # Format response window times, relative to start time
-    response_window_start_time = trial_timestamps[:, 0] + trial_table['artifact_window'] / 1000 + trial_table['baseline_window'] / 1000
+    response_window_start_time = trial_timestamps[:, 0] + (trial_table['artifact_window'] + trial_table['baseline_window']) / 1000
     response_window_stop_time = response_window_start_time + trial_table['response_window'] / 1000
 
     # Format absence of licks: make reaction time as NaN
@@ -349,7 +351,6 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
         opto_results_file = server_paths.get_opto_results_file(config_file=config_file)
         opto_trial_table = pd.read_csv(opto_results_file)
 
-        #TODO: to be formated @Pol
         standard_trial_table['opto_stim'] = opto_trial_table['is_opto']
         standard_trial_table['opto_grid_ap'] = opto_trial_table['coord_AP']
         standard_trial_table['opto_grid_ml'] = opto_trial_table['coord_ML']
