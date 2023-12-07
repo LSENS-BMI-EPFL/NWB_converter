@@ -6,7 +6,6 @@ import json
 import yaml
 import numpy as np
 import pandas as pd
-from utils.behavior_converter_misc import find_training_days
 from utils.server_paths import get_subject_data_folder, get_subject_analysis_folder, get_ref_weight_folder
 from utils.server_paths import get_subject_mouse_number
 import utils.gf_utils as utils_gf
@@ -40,14 +39,14 @@ def make_yaml_config_GF(subject_id, session_id, session_description, input_folde
     """
 
     print(f'Creating yaml config file for session {session_id}.')
-    
+
     # Subject metadata.
     # #################
 
     # Get mouse number and experimenter initials from subject ID.
     _, experimenter = get_subject_mouse_number(subject_id)
 
-    if experimenter in ['GF', 'MI']:
+    if experimenter in ['GF']:
         slims_csv_path = '\\\\sv-nas1.rcp.epfl.ch\\Petersen-Lab\\analysis\\Georgios_Foustoukos\\FoustoukosData\\MetaData\\MiceMetaData.csv'
         slims = pd.read_csv(slims_csv_path, sep=';', engine='python')
     else:
@@ -206,7 +205,7 @@ def make_yaml_config_GF(subject_id, session_id, session_description, input_folde
     start_date = session_id.split('_')[1]
     start_date = datetime.datetime.strptime(start_date, '%d%m%Y').strftime('%Y%m%d')
     start_time = session_id.split('_')[2]
-    
+
     # Find is there is pharmacolyg, optogentic or chemogenetic.
     if database.loc[database.session_id==session_id, 'pharmacology'].values[0]:
         pharma_day = database.loc[database.session_id==session_id, 'pharma_day'].values[0]
@@ -228,7 +227,7 @@ def make_yaml_config_GF(subject_id, session_id, session_description, input_folde
         opto = 'na'
 
     # session data
-       
+
     session_metadata = {
         'identifier': session_id,  # key to name the NWB file
         'session_id': session_id,
@@ -279,7 +278,12 @@ def make_yaml_config_GF(subject_id, session_id, session_description, input_folde
 
     # behaviour_metadata = create_behaviour_metadata(experimenter=experimenter,
     #                                                path_to_json_config=session_config_json_path)
-
+    behaviour_metadata = {
+        'path_to_config_file': 'na',
+        'behaviour_type': 'na',
+        'trial_table': 'standard',  # for raw NWB trial data, 'standard', 'simple'
+        'camera_flag': 'na',
+    }
 
     # Trial outcome mapping.
     # ######################
@@ -306,16 +310,16 @@ def make_yaml_config_GF(subject_id, session_id, session_description, input_folde
         'indicator': 'GCaMP6f',
     }
 
-    
+
     # Optogenetic metadata.
     # #####################
-    
-    
-    
+
+
+
     # Pharmacology metadata.
     # ######################
-    
-    
+
+
 
     # Write to yaml file.
     # ###################
@@ -324,7 +328,7 @@ def make_yaml_config_GF(subject_id, session_id, session_description, input_folde
         'subject_metadata': subject_metadata,
         'session_metadata': session_metadata,
         # 'log_continuous_metadata': log_continuous_metadata,
-        # 'behaviour_metadata': behaviour_metadata,
+        'behaviour_metadata': behaviour_metadata,
         'trial_map': trial_map,
     }
 
@@ -341,34 +345,6 @@ def make_yaml_config_GF(subject_id, session_id, session_description, input_folde
     return
 
 
-def create_behaviour_metadata(experimenter, path_to_json_config):
-    """
-    Make behaviour metadata dictionary.
-    Args:
-        experimenter: experimenter initials
-        path_to_json_config:
-
-    Returns:
-
-    """
-
-    with open(path_to_json_config, 'r') as f:
-        json_config = json.load(f)
-
-    # Default behaviour metadata
-    behaviour_metadata = {
-        'path_to_config_file': path_to_json_config,
-        'behaviour_type': json_config['behaviour_type'],
-        'trial_table': 'standard',  # for raw NWB trial data, 'standard', 'simple'
-        'camera_flag': json_config['camera_flag'],
-    }
-    # Add camera exposure time if present in json config (was not logged before a certain date)
-    if 'camera_exposure_time' in json_config.keys():
-        behaviour_metadata.update({'camera_exposure_time': json_config['camera_exposure_time']})
-
-    return behaviour_metadata
-
-
 if __name__ == '__main__':
 
     # last_done_day = "20231102"
@@ -379,7 +355,7 @@ if __name__ == '__main__':
     db_folder = 'C:\\Users\\aprenard\\recherches\\fast-learning\\docs'
     db_name = 'sessions_GF.xlsx'
     db = utils_gf.read_excel_database(db_folder, db_name)
-    
+
     # Select mouse IDs.
     mouse_ids = db.subject_id.unique()
 

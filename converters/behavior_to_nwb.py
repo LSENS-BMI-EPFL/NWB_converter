@@ -1,14 +1,14 @@
 import os
+import re
 import numpy as np
 import yaml
-import re
+from pynwb.behavior import BehavioralEvents, BehavioralEpochs
+from pynwb.base import TimeSeries
+from pynwb.image import ImageSeries
 
 from utils.behavior_converter_misc import get_trial_timestamps_dict, build_simplified_trial_table, add_trials_to_nwb,\
     build_standard_trial_table, add_trials_standard_to_nwb, \
     get_context_timestamps_dict
-from pynwb.behavior import BehavioralEvents, BehavioralEpochs
-from pynwb.base import TimeSeries
-from pynwb.image import ImageSeries
 from utils import server_paths
 from utils import continuous_processing
 

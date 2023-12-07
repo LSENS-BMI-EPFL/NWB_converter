@@ -4,6 +4,7 @@ import pandas as pd
 import yaml
 import json
 from utils import server_paths
+import utils.gf_utils as utils_gf
 
 
 def find_training_days(subject_id, input_folder): #TODO: make this more general OR customable?
@@ -92,17 +93,25 @@ def get_trial_timestamps_dict(timestamps_dict, behavior_results_file, config_fil
     """
 
     # Read results files
-    if os.path.splitext(behavior_results_file)[1] == '.txt':
-        sep = r'\s+'
+    if os.path.splitext(behavior_results_file)[1] == '.json':
+        with open(behavior_results_file, 'r') as f:
+            perf_json = json.load(f)
+        behavior_results = pd.DataFrame(perf_json['results'], columns=perf_json['headers'])
+        # Remap GF columns.
+        behavior_results = utils_gf.map_result_columns(behavior_results)
     else:
-        sep = ','
-    behavior_results = pd.read_csv(behavior_results_file, sep=sep, engine='python')
-
+        if os.path.splitext(behavior_results_file)[1] == '.txt':
+            sep = r'\s+'
+        else:
+            sep = ','
+        behavior_results = pd.read_csv(behavior_results_file, sep=sep, engine='python')
+    
+    
     # Get trial outcomes, number of trials and trial types
     trial_outcomes = behavior_results['perf'].values
     trial_types = np.unique(trial_outcomes)
 
-    if timestamps_dict is None:
+    if (timestamps_dict is None) or (timestamps_dict['trial_TTL'] == []):
         trial_timestamps = np.zeros((len(behavior_results), 2))
         trial_timestamps[:,0] = behavior_results['trial_time'].values
         trial_timestamps[:,1] = behavior_results['trial_time'].values + 1.0
@@ -133,7 +142,7 @@ def get_context_timestamps_dict(timestamps_dict, nwb_trial_table):
     context_sound_dict = dict()
 
     # Handle case where no context timestamps are found
-    if timestamps_dict is None:
+    if (timestamps_dict is None) or (timestamps_dict['trial_TTL'] == []):
         return None, None
     if 'context' not in list(timestamps_dict.keys()):
         return None, None
@@ -254,19 +263,45 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
     # Initialize table
     standard_trial_table = pd.DataFrame()
 
-    # Read session configuration file
-    session_config_file = server_paths.get_session_config_file(config_file=config_file)
-    with open(session_config_file) as json_file:
-        session_config = json.load(json_file)
+    with open(config_file, 'r', encoding='utf8') as stream:
+        config = yaml.safe_load(stream)
+    experimenter = config['session_metadata']['experimenter']
+
+    if experimenter == 'GF':  # GF has no config files.
+        if config['session_metadata']['optogenetic'] == 'na':
+            opto = 0
+        else:
+            opto = 1
+        session_config = {
+            'mouse_name': config['subject_metadata']['subject_id'],
+            'context_flag': 0,
+            'opto_session': opto,
+        }
+    else:
+        # Read session configuration file
+        session_config_file = server_paths.get_session_config_file(config_file=config_file)
+        with open(session_config_file) as json_file:
+            session_config = json.load(json_file)
 
     # Get behaviour results and formatted trial type formatted as a list
-    trial_table = pd.read_csv(behavior_results_file)
+    if os.path.splitext(behavior_results_file)[1] == '.json':
+        with open(behavior_results_file, 'r') as f:
+            perf_json = json.load(f)
+        trial_table = pd.DataFrame(perf_json['results'], columns=perf_json['headers'])
+    else:
+        if os.path.splitext(behavior_results_file)[1] == '.txt':
+            sep = r'\s+'
+        else:
+            sep = ','
+        trial_table = pd.read_csv(behavior_results_file, sep=sep, engine='python')
+    trial_table = utils_gf.map_result_columns(trial_table)
+
     trial_type_list = list_standard_trial_type(results_table=trial_table)
     n_trials = trial_table['perf'].size
     print(f"Read '.csv' file to build trial NWB trial table ({n_trials} trials)")
 
     # Get logged timestamps
-    if timestamps_dict is not None:
+    if (timestamps_dict is not None) and (timestamps_dict['trial_TTL'] != []):
         trial_timestamps = np.array(timestamps_dict['trial_TTL'])
 
     # Case when sessions were acquired before continuous logging of behavioral data
@@ -345,20 +380,31 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
 
     # Add optogenetics information if relevant, nan otherwise
     if session_config['opto_session']:
-        opto_config_file = server_paths.get_opto_config_file(config_file=config_file)
-        with open(opto_config_file) as json_file:
-            opto_config = json.load(json_file)
-        opto_results_file = server_paths.get_opto_results_file(config_file=config_file)
-        opto_trial_table = pd.read_csv(opto_results_file)
+        
+        if experimenter == 'GF':
+            standard_trial_table['opto_stim'] = trial_table['is_light']
+            standard_trial_table['opto_grid_ap'] = np.nan
+            standard_trial_table['opto_grid_ml'] = np.nan
+            standard_trial_table['opto_grid_no'] = np.nan
+            standard_trial_table['opto_stim_start_time'] = 1900
+            standard_trial_table['opto_stim_stop_time'] = 3100
+            standard_trial_table['opto_stim_amplitude'] = 10
+            standard_trial_table['opto_stim_frequency'] = 100
+        else:
+            opto_config_file = server_paths.get_opto_config_file(config_file=config_file)
+            with open(opto_config_file) as json_file:
+                opto_config = json.load(json_file)
+            opto_results_file = server_paths.get_opto_results_file(config_file=config_file)
+            opto_trial_table = pd.read_csv(opto_results_file)
 
-        standard_trial_table['opto_stim'] = opto_trial_table['is_opto']
-        standard_trial_table['opto_grid_ap'] = opto_trial_table['coord_AP']
-        standard_trial_table['opto_grid_ml'] = opto_trial_table['coord_ML']
-        standard_trial_table['opto_grid_no'] = opto_trial_table['grid_no']
-        standard_trial_table['opto_stim_start_time'] = standard_trial_table['start_time'] + opto_trial_table['baseline']
-        standard_trial_table['opto_stim_stop_time'] = standard_trial_table['start_time'] + opto_trial_table['baseline'] + opto_trial_table['opto_duration']
-        standard_trial_table['opto_stim_amplitude'] = opto_trial_table['opto_amp']
-        standard_trial_table['opto_stim_frequency'] = opto_trial_table['opto_freq']
+            standard_trial_table['opto_stim'] = opto_trial_table['is_opto']
+            standard_trial_table['opto_grid_ap'] = opto_trial_table['coord_AP']
+            standard_trial_table['opto_grid_ml'] = opto_trial_table['coord_ML']
+            standard_trial_table['opto_grid_no'] = opto_trial_table['grid_no']
+            standard_trial_table['opto_stim_start_time'] = standard_trial_table['start_time'] + opto_trial_table['baseline']
+            standard_trial_table['opto_stim_stop_time'] = standard_trial_table['start_time'] + opto_trial_table['baseline'] + opto_trial_table['opto_duration']
+            standard_trial_table['opto_stim_amplitude'] = opto_trial_table['opto_amp']
+            standard_trial_table['opto_stim_frequency'] = opto_trial_table['opto_freq']
     else:
         standard_trial_table['opto_stim'] = np.nan
         standard_trial_table['opto_grid_ap'] = np.nan
@@ -506,4 +552,3 @@ def check_trial_table_content(trial_table):
         trial_table['response_window'] = 1000
 
     return trial_table
-

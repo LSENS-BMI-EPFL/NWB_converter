@@ -90,7 +90,7 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
                                   t_stop=plot_stop,
                                   black_background=False)
 
-     if 'ephys_metadata' in config:
+    if 'ephys_metadata' in config:
         ephys_nidq_meta, ephys_nidq_bin = server_paths.get_raw_ephys_nidq_files(config_file)
         ephys_cont_data_dict = read_sglx.read_ephys_binary_data(ephys_nidq_bin, ephys_nidq_meta)
         ephys_timestamps_dict, n_frames_dict = extract_ephys_timestamps(config_file=config_file,

@@ -41,7 +41,7 @@ def create_nwb_file(config_file):
         date_of_birth = date_of_birth.replace(tzinfo=tzlocal())
         kwargs_subject['date_of_birth'] = date_of_birth
     print('Subject')
-    print_info_dict(kwargs_subject)
+    # print_info_dict(kwargs_subject)
     subject = Subject(**kwargs_subject)
 
     # Session info
@@ -82,7 +82,7 @@ def create_nwb_file(config_file):
     #####################################
 
     print('Session')
-    print_info_dict(kwargs_nwb_file)
+    # print_info_dict(kwargs_nwb_file)
 
     kwargs_nwb_file['subject'] = subject
     kwargs_nwb_file['file_create_date'] = datetime.now(tzlocal())
