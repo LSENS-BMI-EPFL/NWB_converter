@@ -314,8 +314,6 @@ def make_yaml_config_GF(subject_id, session_id, session_description, input_folde
     # Optogenetic metadata.
     # #####################
 
-
-
     # Pharmacology metadata.
     # ######################
 
