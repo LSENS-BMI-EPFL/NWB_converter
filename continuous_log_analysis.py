@@ -11,6 +11,7 @@ from utils import tiff_loading
 from utils.ephys_converter_misc import extract_ephys_timestamps
 from utils import read_sglx
 
+
 def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_stop=None, camera_filtering=False):
     """
     Extract timestamps from continuous logging data and plot the data if do_plot is True.
