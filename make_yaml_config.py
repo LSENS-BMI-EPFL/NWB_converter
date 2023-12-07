@@ -198,7 +198,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     log_continuous_metadata.update({'channels_dict': channels_dict})
     log_continuous_metadata.update({'threshold_dict': threshold_dict})
 
-    # Behaviour metadata. #TODO: this could also be experimenter-dependent and a function of the json config file.
+    # Behaviour metadata. # TODO: this could also be experimenter-dependent and a function of the json config file.
     # ###################
 
     behaviour_metadata = create_behaviour_metadata(experimenter=experimenter,

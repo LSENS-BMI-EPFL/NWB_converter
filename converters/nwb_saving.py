@@ -14,11 +14,12 @@ def save_nwb_file(nwb_file, output_folder, suffix=None):
     Returns:
 
     """
-    time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
-    if suffix:
-        nwb_name = nwb_file.identifier + "_" + time_str + "_" + suffix + ".nwb"
-    else:
-        nwb_name = nwb_file.identifier + "_" + time_str + ".nwb"
+    # time_str = datetime.now().strftime("%Y_%m_%d.%H-%M-%S")
+    # if suffix:
+    #     nwb_name = nwb_file.identifier + "_" + time_str + "_" + suffix + ".nwb"
+    # else:
+    #     nwb_name = nwb_file.identifier + "_" + time_str + ".nwb"
+    nwb_name = nwb_file.identifier + ".nwb"
 
     with NWBHDF5IO(os.path.join(output_folder, nwb_name), 'w') as io:
         io.write(nwb_file)

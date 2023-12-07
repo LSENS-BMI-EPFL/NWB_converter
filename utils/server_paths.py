@@ -45,6 +45,9 @@ def get_subject_mouse_number(subject_id):
         mouse_number = int(float(mouse_number))
     else:
         mouse_number = int(float(mouse_number[1:]))
+    
+    if initials == 'MI':
+        initials = 'GF'
 
     return mouse_number, initials
 
@@ -89,9 +92,16 @@ def get_behavior_results_file(config_file):
     behavior_results_file = os.path.join(data_folder, 'Training', session_name, 'results.csv')
     if not os.path.exists(behavior_results_file):
         behavior_results_file = os.path.join(data_folder, 'Training', session_name, 'results.txt')
-    if not os.path.exists(behavior_results_file):
-        behavior_results_file = os.path.join(data_folder, 'Recordings', 'BehaviourFiles', session_name, 'Results.txt') 
     
+    if mouse_name[:2] in ['GF', 'MI']:
+        if not os.path.exists(behavior_results_file):
+            behavior_results_file = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis',
+                                                 'Anthony_Renard', 'data', mouse_name, 'Recordings', 'BehaviourData',
+                                                 session_name, 'performanceResults.json') 
+        # if not os.path.exists(behavior_results_file):
+        #     behavior_results_file = os.path.join(data_folder, 'Recordings', 'BehaviourFiles',
+        #                                          session_name, 'BehavResults.mat') 
+        
     return behavior_results_file
 
 
