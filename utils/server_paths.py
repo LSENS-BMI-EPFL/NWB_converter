@@ -50,7 +50,7 @@ def get_subject_mouse_number(subject_id):
 
 
 def get_nwb_folder(subject_id):
-    if subject_id in ['PB124', 'AR103', 'AR071']:
+    if subject_id in ['PB124']:
         experimenter = 'Robin_Dard'
     else:
         experimenter = EXPERIMENTER_MAP[subject_id[:2]]
@@ -89,7 +89,9 @@ def get_behavior_results_file(config_file):
     behavior_results_file = os.path.join(data_folder, 'Training', session_name, 'results.csv')
     if not os.path.exists(behavior_results_file):
         behavior_results_file = os.path.join(data_folder, 'Training', session_name, 'results.txt')
-
+    if not os.path.exists(behavior_results_file):
+        behavior_results_file = os.path.join(data_folder, 'Recordings', 'BehaviourFiles', session_name, 'Results.txt') 
+    
     return behavior_results_file
 
 
@@ -196,6 +198,27 @@ def get_suite2p_folder(config_file):
         return None
     else:
         return suite2p_path
+
+
+def get_raw_ephys_folder(config_file):
+    with open(config_file, 'r', encoding='utf8') as stream:
+        config = yaml.safe_load(stream)
+    mouse_name = config['subject_metadata']['subject_id']
+    session_name = config['session_metadata']['session_id']
+    data_folder = get_subject_data_folder(mouse_name)
+    raw_ephys_path = os.path.join(data_folder, 'Recording', session_name, 'Ephys')
+    run_name = [f for f in os.listdir(raw_ephys_path)][0]
+    raw_ephys_run_folder = os.path.join(raw_ephys_path, run_name)
+
+    return raw_ephys_run_folder
+
+def get_raw_ephys_nidq_files(config_file):
+    raw_ephys_folder = get_raw_ephys_folder(config_file)
+    raw_nidq_meta = [f for f in os.listdir(raw_ephys_folder) if 'nidq.meta' in f][0]
+    raw_nidq_meta = os.path.join(raw_ephys_folder, raw_nidq_meta)
+    raw_nidq_bin = [f for f in os.listdir(raw_ephys_folder) if 'nidq.bin' in f][0]
+    raw_nidq_bin = os.path.join(raw_ephys_folder, raw_nidq_bin)
+    return raw_nidq_meta, raw_nidq_bin
 
 
 def get_ephys_folder(config_file):

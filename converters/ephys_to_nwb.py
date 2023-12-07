@@ -111,20 +111,22 @@ def convert_ephys_recording(nwb_file, config_file):
             # Increment total number of electrode
             electrode_counter += 1
 
-        # Add units to UnitsTable
+
+        # Get path to preprocessed sync spike times
+        sync_path = get_sync_event_times_folder(config_file)
+        spike_times_sync_file = [f for f in os.listdir(sync_path) if str(imec_id) in f][0]
+        sync_spike_times_path = pathlib.Path(sync_path, spike_times_sync_file)
+
+        # Different table types
         if config.get('ephys_metadata').get('unit_table') == 'simple':
 
-            # Build unit table with preprocessed ephys/spike data
-            sync_path = get_sync_event_times_folder(config_file)
-            spike_times_sync_file = [f for f in os.listdir(sync_path) if str(imec_id) in f][0]
-            sync_spike_times_path = pathlib.Path(sync_path, spike_times_sync_file)
-            unit_table = build_simplified_unit_table(
-                imec_folder=imec_folder,
-                sync_spike_times_path=sync_spike_times_path,
 
+            # Build unit table
+            unit_table = build_simplified_unit_table(imec_folder=imec_folder,
+                                                     sync_spike_times_path=sync_spike_times_path
+                                                     )
 
-            )
-
+            # Add units to unit table
             n_neurons = len(unit_table)
             for neuron_id in range(n_neurons):
 
@@ -138,7 +140,7 @@ def convert_ephys_recording(nwb_file, config_file):
                     spike_times=unit_table['spike_times'].values[neuron_id],
                     waveform_mean=unit_table['waveform_mean'].values[neuron_id],
                     sampling_rate=ap_meta_data['imSampRate'],
-                    #id=neuron_counter,
+                    id=neuron_counter,
 
                 )
 
@@ -147,5 +149,26 @@ def convert_ephys_recording(nwb_file, config_file):
 
         elif config.get('ephys_metadata').get('unit_table') == 'standard':
             print('Standard unit table not yet implemented')
+
+            # Build standard unit table
+            # TODO: implement this
+            unit_table = build_standard_unit_table(imec_folder=imec_folder,
+                                                    sync_spike_times_path=sync_spike_times_path
+                                                    )
+
+            # Add units to unit table
+            n_neurons = len(unit_table)
+            for neuron_id in range(n_neurons):
+
+                nwb_file.add_unit()
+
+
+                # Increment total number of neuron
+                neuron_counter += 1
+
+        print('Done adding data for IMEC{}'.format(imec_id))
+
+    print('Done. ')
+
 
     return

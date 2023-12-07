@@ -76,9 +76,11 @@ def create_nwb_file(config_file):
     if 'session_id' not in kwargs_nwb_file:
         kwargs_nwb_file['session_id'] = kwargs_nwb_file['identifier']
 
+
     #####################################
     # ###    Creating the NWB file    ###
     #####################################
+
     print('Session')
     print_info_dict(kwargs_nwb_file)
 

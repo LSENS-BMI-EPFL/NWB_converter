@@ -1,14 +1,15 @@
-import matplotlib.pyplot as plt
 import yaml
 import os
 import ast
+import pathlib
+import matplotlib.pyplot as plt
 from utils.continuous_processing import read_binary_continuous_log, \
     plot_continuous_data_dict, extract_timestamps, read_behavior_avi_movie, \
     print_info_dict
 from utils import server_paths
 from utils import tiff_loading
-from utils.ephys_converter_misc import get_ephys_timestamps
-
+from utils.ephys_converter_misc import extract_ephys_timestamps
+from utils import read_sglx
 
 def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_stop=None, camera_filtering=False):
     """
@@ -89,9 +90,13 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
                                   t_stop=plot_stop,
                                   black_background=False)
 
-    if 'ephys_metadata' in config and config['ephys_metadata']['processed']==1:
-        ephys_timestamps_dict, n_frames_dict = get_ephys_timestamps(config_file=config_file,
-                                                                    log_timestamps_dict=timestamps_dict)
+     if 'ephys_metadata' in config:
+        ephys_nidq_meta, ephys_nidq_bin = server_paths.get_raw_ephys_nidq_files(config_file)
+        ephys_cont_data_dict = read_sglx.read_ephys_binary_data(ephys_nidq_bin, ephys_nidq_meta)
+        ephys_timestamps_dict, n_frames_dict = extract_ephys_timestamps(config_file=config_file,
+                                                                        continuous_data_dict=ephys_cont_data_dict,
+                                                                        threshold_dict=threshold_dict,
+                                                                        log_timestamps_dict=timestamps_dict)
         timestamps_dict = ephys_timestamps_dict
 
     print("Number of timestamps per acquisition:")
