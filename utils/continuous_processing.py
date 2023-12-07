@@ -344,23 +344,23 @@ def plot_exposure_times(timestamps_dict):
     plt.show()
 
 
-def read_behavior_avi_movie(movie_files):
+def read_behavior_avi_movie(movie_file):
 
-    for movie_file in movie_files:
-        movie_name = os.path.split(movie_file)[1]
-        video_capture = cv2.VideoCapture(movie_file)
+    movie_name = os.path.split(movie_file)[1]
+    print(f"AVI name : {movie_name}")
+    video_capture = cv2.VideoCapture(movie_file)
 
-        # Check if camera opened successfully
-        if not video_capture.isOpened():
-            print("Error opening video stream or file")
+    # Check if camera opened successfully
+    if not video_capture.isOpened():
+        print("Error opening video stream or file")
+    else:
+        print("Video stream is opened")
 
-        video_length = int(video_capture.get(cv2.CAP_PROP_FRAME_COUNT))
-        video_frame_rate = np.round(video_capture.get(cv2.CAP_PROP_FPS), 2)
+    video_length = int(video_capture.get(cv2.CAP_PROP_FRAME_COUNT))
+    video_frame_rate = np.round(video_capture.get(cv2.CAP_PROP_FPS), 2)
+    print(f"AVI video frames: {video_length}, @ {video_frame_rate} Hz")
 
-        print(f"AVI name : {movie_name}")
-        print(f"AVI video frames: {video_length}, @ {video_frame_rate} Hz")
-
-        return video_length, video_frame_rate
+    return video_length, video_frame_rate
 
 
 def print_info_dict(my_dict):

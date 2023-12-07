@@ -26,18 +26,6 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
 
     """
 
-    # Load NWB config file
-    with open(config_file, 'r', encoding='utf8') as stream:
-        config = yaml.safe_load(stream)
-
-
-    # Check if continuous processing is required
-    if config['session_metadata']['experimenter'] == 'AB':
-        exp_desc = ast.literal_eval(config.get('session_metadata').get('experiment_description'))
-        if exp_desc['session_type'] == 'behaviour_only_session':
-            return None, None
-
-
     if __name__ == "__main__":
         with open(config_file, 'r', encoding='utf8') as stream:
             config = yaml.safe_load(stream)
@@ -50,10 +38,17 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
         tiff_file = config['ci_tiff_path']
 
     else:
-        # Get paths to files
+        # Load NWB config file
+        with open(config_file, 'r', encoding='utf8') as stream:
+            config = yaml.safe_load(stream)
+
         bin_file = server_paths.get_log_continuous_file(config_file)
 
         if config['session_metadata']['experimenter'] == 'AB':
+            # Check if continuous processing is required
+            exp_desc = ast.literal_eval(config.get('session_metadata').get('experiment_description'))
+            if exp_desc['session_type'] == 'behaviour_only_session':
+                return None, None
             movie_files = server_paths.get_session_movie_files(config_file)
         else:
             movie_files = server_paths.get_movie_files(config_file)
@@ -104,8 +99,9 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
 
     if __name__ == "__main__":
         if movie_files is not None:
-            print(f"Check numer video filming frames")
-            read_behavior_avi_movie(movie_files=movie_files)
+            print(f"Check number video filming frames")
+            for movie in movie_files:
+                read_behavior_avi_movie(movie_file=movie)
 
         if tiff_file is not None:
             print(f"Tiff file found, reading number of CI frames")
