@@ -220,13 +220,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     # 2P imaging metadata.
     # ####################
 
-    two_photon_metadata = {
-        'device': '2P microscope setup 1',
-        'emission_lambda': 510.0,
-        'excitation_lambda': 940.0,
-        'image_plane_location': 'S1_L2/3',
-        'indicator': 'GCaMP8m',
-    }
+    two_photon_metadata = crate_two_photon_metadata(experimenter)
 
     # Extracell. ephys. metadata.
     # ####################
@@ -303,7 +297,6 @@ def create_channels_threshold_dict(experimenter, json_config):
             'galvo_position': 1,
             'cam1': 3,
             'cam2': 4,
-            # 'context': 5,
         }
         threshold_dict = {
             'trial_TTL': 4,
@@ -324,7 +317,6 @@ def create_channels_threshold_dict(experimenter, json_config):
             'widefield': 1,
             'cam1': 3,
             'cam2': 4,
-            #'context': 5,
         }
         threshold_dict = {
             'trial_TTL': 4,
@@ -402,6 +394,22 @@ def create_ephys_metadata(subject_id):
     return ephys_metadata
 
 
+def crate_two_photon_metadata(experimenter):
+    # TODO make it dependant on excel file for imaging params
+    if experimenter == 'AR':
+        setup_id = 1
+    else:
+        setup_id = 3
+    two_photon_metadata = {
+        'device': f'2P microscope setup {setup_id}',
+        'emission_lambda': 510.0,
+        'excitation_lambda': 940.0,
+        'image_plane_location': 'S1_L2/3',
+        'indicator': 'GCaMP8m',
+    }
+    return two_photon_metadata
+
+
 if __name__ == '__main__':
     # Select mouse IDs.
     # mouse_ids = ['RD001', 'RD002', 'RD003', 'RD004', 'RD005', 'RD006']
@@ -411,7 +419,6 @@ if __name__ == '__main__':
     mouse_ids = ['AB0{}'.format(i) for i in mouse_ids]
 
     last_done_day = "20231102"
-    last_done_day = None
 
     for mouse_id in mouse_ids:
 
