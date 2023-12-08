@@ -1,8 +1,10 @@
-from pynwb.ophys import ImageSegmentation, Fluorescence
 import os
+
 import numpy as np
-from PIL import ImageSequence
 import PIL
+from PIL import ImageSequence
+from pynwb.ophys import Fluorescence, ImageSegmentation
+
 from utils.server_paths import get_suite2p_folder
 
 

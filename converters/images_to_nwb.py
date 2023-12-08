@@ -1,6 +1,8 @@
 import os
+
 from pynwb.base import Images
 from pynwb.image import GrayscaleImage
+
 from utils import server_paths, tiff_loading
 
 

@@ -1,8 +1,9 @@
+import time
+
 import numpy as np
+import PIL.Image as pil_image
 from PIL import ImageSequence
 from ScanImageTiffReader import ScanImageTiffReader
-import PIL.Image as pil_image
-import time
 
 
 def load_tiff_movie_in_memory_using_pil(tif_movie_file_name, frames_to_add=None):

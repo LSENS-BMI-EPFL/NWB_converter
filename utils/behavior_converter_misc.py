@@ -1,10 +1,12 @@
+import json
 import os
+
 import numpy as np
 import pandas as pd
 import yaml
-import json
-from utils import server_paths
+
 import utils.gf_utils as utils_gf
+from utils import server_paths
 
 
 def find_training_days(subject_id, input_folder): #TODO: make this more general OR customable?

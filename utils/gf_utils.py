@@ -1,11 +1,11 @@
-import os
 import ast
 import json
+import os
 
 import numpy as np
 import pandas as pd
-import yaml
 import scipy.io
+import yaml
 
 
 def read_excel_database(folder, file_name):

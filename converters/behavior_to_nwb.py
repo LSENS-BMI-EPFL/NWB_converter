@@ -1,16 +1,19 @@
 import os
 import re
+
 import numpy as np
 import yaml
-from pynwb.behavior import BehavioralEvents, BehavioralEpochs
 from pynwb.base import TimeSeries
+from pynwb.behavior import BehavioralEpochs, BehavioralEvents
 from pynwb.image import ImageSeries
 
-from utils.behavior_converter_misc import get_trial_timestamps_dict, build_simplified_trial_table, add_trials_to_nwb,\
-    build_standard_trial_table, add_trials_standard_to_nwb, \
-    get_context_timestamps_dict
-from utils import server_paths
-from utils import continuous_processing
+from utils import continuous_processing, server_paths
+from utils.behavior_converter_misc import (add_trials_standard_to_nwb,
+                                           add_trials_to_nwb,
+                                           build_simplified_trial_table,
+                                           build_standard_trial_table,
+                                           get_context_timestamps_dict,
+                                           get_trial_timestamps_dict)
 
 
 def convert_behavior_data(nwb_file, timestamps_dict, config_file):

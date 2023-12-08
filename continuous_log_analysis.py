@@ -1,15 +1,17 @@
-import yaml
-import os
 import ast
+import os
 import pathlib
+
 import matplotlib.pyplot as plt
-from utils.continuous_processing import read_binary_continuous_log, \
-    plot_continuous_data_dict, extract_timestamps, read_behavior_avi_movie, \
-    print_info_dict
-from utils import server_paths
-from utils import tiff_loading
+import yaml
+
+from utils import read_sglx, server_paths, tiff_loading
+from utils.continuous_processing import (extract_timestamps,
+                                         plot_continuous_data_dict,
+                                         print_info_dict,
+                                         read_behavior_avi_movie,
+                                         read_binary_continuous_log)
 from utils.ephys_converter_misc import extract_ephys_timestamps
-from utils import read_sglx
 
 
 def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_stop=None, camera_filtering=False):

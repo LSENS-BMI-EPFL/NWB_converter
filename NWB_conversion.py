@@ -1,20 +1,23 @@
 """_summary_
 """
 # Imports
-import os
-import yaml
 import datetime
-from converters.subject_to_nwb import create_nwb_file
-from converters.ci_movie_to_nwb import convert_ci_movie
-from converters.suite2p_to_nwb import convert_suite2p_data
-from converters.nwb_saving import save_nwb_file
-from converters.behavior_to_nwb import convert_behavior_data
-from converters.images_to_nwb import convert_images_data
-from converters.ephys_to_nwb import convert_ephys_recording
-from continuous_log_analysis import analyze_continuous_log
-from utils.behavior_converter_misc import find_training_days
-from utils.server_paths import get_subject_data_folder, get_subject_analysis_folder, get_nwb_folder
+import os
+
+import yaml
+
 import utils.gf_utils as utils_gf
+from continuous_log_analysis import analyze_continuous_log
+from converters.behavior_to_nwb import convert_behavior_data
+from converters.ci_movie_to_nwb import convert_ci_movie
+from converters.ephys_to_nwb import convert_ephys_recording
+from converters.images_to_nwb import convert_images_data
+from converters.nwb_saving import save_nwb_file
+from converters.subject_to_nwb import create_nwb_file
+from converters.suite2p_to_nwb import convert_suite2p_data
+from utils.behavior_converter_misc import find_training_days
+from utils.server_paths import (get_nwb_folder, get_subject_analysis_folder,
+                                get_subject_data_folder)
 
 
 def convert_data_to_nwb(config_file, output_folder):
