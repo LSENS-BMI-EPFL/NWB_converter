@@ -417,10 +417,12 @@ def crate_two_photon_metadata(experimenter):
 if __name__ == '__main__':
     # Select mouse IDs.
     # mouse_ids = ['RD001', 'RD002', 'RD003', 'RD004', 'RD005', 'RD006']
-    mouse_ids = [50, 51, 52, 54, 56, 58, 59, 68, 72, 73, 75, 76, 77, 78, 79, 80, 81, 82, 83, 85, 87, 88, 89, 90, 91]
-    mouse_ids = [68, 72, 73, 75, 76, 77, 78, 79, 80, 81, 82, 83, 85, 87, 88, 89, 90, 91]
-    mouse_ids = [86]
-    mouse_ids = ['AB0{}'.format(i) for i in mouse_ids]
+    # mouse_ids = ['RD001', 'RD002', 'RD003', 'RD004', 'RD005', 'RD006']
+    # mouse_ids = ['RD013', 'RD014', 'RD015', 'RD016', 'RD017']
+    # mouse_ids = ['RD025', 'RD026']
+    mouse_ids = ['RD027', 'RD029', 'RD030', 'RD031', 'RD032']
+    # mouse_ids = ['RD030']
+    # mouse_ids = ['RD033', 'RD034', 'RD035', 'RD036']
 
     last_done_day = "20231102"
 

@@ -81,11 +81,13 @@ def convert_data_to_nwb(config_file, output_folder):
 if __name__ == '__main__':
 
     # Run the conversion
-    mouse_ids = ['GF307']
-    experimenter = 'GF'
-
-    last_done_day = None
-
+    # mouse_ids = ['RD001', 'RD002', 'RD003', 'RD004', 'RD005', 'RD006']
+    # mouse_ids = ['RD013', 'RD014', 'RD015', 'RD016', 'RD017']
+    # mouse_ids = ['RD025', 'RD026']
+    mouse_ids = ['RD027', 'RD029', 'RD030', 'RD031', 'RD032']
+    # mouse_ids = ['RD030']
+    # mouse_ids = ['RD033', 'RD034', 'RD035', 'RD036']
+    experimenter = 'RD'
 
     if experimenter == 'GF':
         # Read excel database.
@@ -93,20 +95,18 @@ if __name__ == '__main__':
         db_name = 'sessions_GF.xlsx'
         db = utils_gf.read_excel_database(db_folder, db_name)
 
-    # mouse_ids = list(db.subject_id.unique())
-    # mouse_ids = [imouse for imouse in mouse_ids if mouse_ids.index(imouse)>=mouse_ids.index('GF306')]
-
     for mouse_id in mouse_ids:
         data_folder = get_subject_data_folder(mouse_id)
         analysis_folder = get_subject_analysis_folder(mouse_id)
-        nwb_folder = get_nwb_folder(mouse_id)
+        # nwb_folder = get_nwb_folder(mouse_id)
+        nwb_folder = "C:/Users/rdard/Documents/NWB_files"
 
         # Find session list and session description.
         if experimenter == 'GF':
-            training_days = db.loc[db.subject_id==mouse_id, 'session_day'].to_list()
+            training_days = db.loc[db.subject_id == mouse_id, 'session_day'].to_list()
             training_days = utils_gf.format_session_day_GF(mouse_id, training_days)
-            sessions = db.loc[db.subject_id==mouse_id, 'session_id'].to_list()
-            training_days =  list(zip(sessions, training_days))
+            sessions = db.loc[db.subject_id == mouse_id, 'session_id'].to_list()
+            training_days = list(zip(sessions, training_days))
         else:
             training_days = find_training_days(mouse_id, data_folder)
 
@@ -118,9 +118,9 @@ if __name__ == '__main__':
             # if isession not in session_to_do:
             #    continue
 
-            # # date_to_do = "20230629"
-            # if date_to_do not in isession:
-            #     continue
+            date_to_do = "20231129"
+            if date_to_do not in isession:
+                continue
 
             # session_date = isession.split('_')[1]
             # session_date = datetime.datetime.strptime(session_date, "%Y%m%d")
