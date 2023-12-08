@@ -1,9 +1,9 @@
+from datetime import datetime
+
 import numpy as np
 import yaml
-from datetime import datetime
 from dateutil.tz import tzlocal
-from pynwb import NWBHDF5IO
-from pynwb import NWBFile
+from pynwb import NWBHDF5IO, NWBFile
 from pynwb.file import Subject
 
 from utils.continuous_processing import print_info_dict

@@ -1,8 +1,9 @@
 import numpy as np
 import yaml
-from pynwb.ophys import TwoPhotonSeries, OpticalChannel, Device
-from utils.tiff_loading import load_tiff_movie_in_memory, get_tiff_movie_shape
+from pynwb.ophys import Device, OpticalChannel, TwoPhotonSeries
+
 from utils.server_paths import get_imaging_file
+from utils.tiff_loading import get_tiff_movie_shape, load_tiff_movie_in_memory
 
 
 def convert_ci_movie(nwb_file, config_file, movie_format, ci_frame_timestamps):

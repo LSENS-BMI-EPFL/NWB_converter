@@ -21,13 +21,13 @@ The output is set by the outType parameter:
 
 """
 
+import shutil
+from pathlib import Path
+from tkinter import Tk, filedialog
+
+import matplotlib.pyplot as plt
 import numpy as np
 import scipy.io
-import matplotlib.pyplot as plt
-from pathlib import Path
-from tkinter import Tk
-from tkinter import filedialog
-import shutil
 
 
 # =========================================================

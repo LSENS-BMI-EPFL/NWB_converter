@@ -6,12 +6,14 @@
 @time: 8/24/2023 9:25 AM
 """
 
+import itertools
 import os
 import pathlib
-import yaml
+
 import numpy as np
 import pandas as pd
-import itertools
+import yaml
+
 from utils import server_paths
 from utils.continuous_processing import detect_piezo_lick_times
 from utils.read_sglx import readMeta

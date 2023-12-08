@@ -8,14 +8,19 @@
 
 # Imports
 import os
+import pathlib
+
+import numpy as np
 import pandas as pd
 import yaml
-import pathlib
-import numpy as np
-from utils.sglx_meta_to_coords import readMeta, MetaToCoords
-from utils.ephys_converter_misc import get_target_location, create_electrode_table, create_unit_table, \
-    create_simplified_unit_table, build_simplified_unit_table
-from utils.server_paths import get_imec_probe_folder_list, get_sync_event_times_folder
+
+from utils.ephys_converter_misc import (build_simplified_unit_table,
+                                        create_electrode_table,
+                                        create_simplified_unit_table,
+                                        create_unit_table, get_target_location)
+from utils.server_paths import (get_imec_probe_folder_list,
+                                get_sync_event_times_folder)
+from utils.sglx_meta_to_coords import MetaToCoords, readMeta
 
 
 def convert_ephys_recording(nwb_file, config_file):

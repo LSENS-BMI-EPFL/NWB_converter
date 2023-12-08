@@ -1,14 +1,18 @@
 """_summary_
 """
-import os
 import datetime
 import json
-import yaml
+import os
+
 import numpy as np
 import pandas as pd
+import yaml
+
 from utils.behavior_converter_misc import find_training_days
-from utils.server_paths import get_subject_data_folder, get_subject_analysis_folder, get_ref_weight_folder
-from utils.server_paths import get_subject_mouse_number
+from utils.server_paths import (get_ref_weight_folder,
+                                get_subject_analysis_folder,
+                                get_subject_data_folder,
+                                get_subject_mouse_number)
 
 # Update your keywords
 GENERAL_KEYWORDS = ['neurophysiology', 'behaviour', 'mouse']
