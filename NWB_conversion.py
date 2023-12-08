@@ -1,6 +1,5 @@
 """_summary_
 """
-# Imports
 import datetime
 import os
 
@@ -11,7 +10,6 @@ from continuous_log_analysis import analyze_continuous_log
 from converters.behavior_to_nwb import convert_behavior_data
 from converters.ci_movie_to_nwb import convert_ci_movie
 from converters.ephys_to_nwb import convert_ephys_recording
-from converters.images_to_nwb import convert_images_data
 from converters.nwb_saving import save_nwb_file
 from converters.subject_to_nwb import create_nwb_file
 from converters.suite2p_to_nwb import convert_suite2p_data
@@ -20,7 +18,7 @@ from utils.server_paths import (get_nwb_folder, get_subject_analysis_folder,
                                 get_subject_data_folder)
 
 
-def convert_data_to_nwb(config_file, output_folder):
+def convert_data_to_nwb(config_file, output_folder, with_time_string=True):
     """
     :param config_file: Path to the yaml config file containing mouse ID and metadata for the session to convert
     :param output_folder: Path to the folder to save NWB files
@@ -38,11 +36,12 @@ def convert_data_to_nwb(config_file, output_folder):
     print("Extract timestamps")
 
     if config_dict['session_metadata']['experimenter'] != 'GF':
-        timestamps_dict, n_frames_dict = analyze_continuous_log(config_file=config_file,
-                                                                do_plot=False, plot_start=None,
-                                                                plot_stop=None, camera_filtering=False)
+        timestamps_dict, _ = analyze_continuous_log(config_file=config_file,
+                                                    do_plot=False, plot_start=None,
+                                                    plot_stop=None, camera_filtering=False)
     else:
-        timestamps_dict, n_frames_dict = utils_gf.infer_timestamps_dict(config_file=config_file)
+        timestamps_dict, _ = utils_gf.infer_timestamps_dict(
+            config_file=config_file)
 
     print(" ")
     print("Open NWB file and add metadata")
@@ -50,7 +49,8 @@ def convert_data_to_nwb(config_file, output_folder):
 
     print(" ")
     print("Convert behavior data")
-    convert_behavior_data(nwb_file=nwb_file, timestamps_dict=timestamps_dict, config_file=config_file)
+    convert_behavior_data(
+        nwb_file=nwb_file, timestamps_dict=timestamps_dict, config_file=config_file)
 
     if config_dict.get("two_photon_metadata") is not None:
         print(" ")
@@ -73,7 +73,8 @@ def convert_data_to_nwb(config_file, output_folder):
 
     print(" ")
     print("Saving NWB file")
-    save_nwb_file(nwb_file=nwb_file, output_folder=output_folder, with_time_string=True)
+    save_nwb_file(nwb_file=nwb_file, output_folder=output_folder,
+                  with_time_string=with_time_string)
 
     return
 
@@ -128,10 +129,12 @@ if __name__ == '__main__':
             #     if session_date <= datetime.datetime.strptime(last_done_day, "%Y%m%d"):
             #         continue
             # Find yaml config file and behavior results for this session.
-            config_yaml = os.path.join(analysis_folder, isession, f"config_{isession}.yaml")
+            config_yaml = os.path.join(
+                analysis_folder, isession, f"config_{isession}.yaml")
 
             # Make conversion.
-            print(f" ------------------ ")
+            print(" ------------------ ")
             print(f"Session: {isession}")
-            convert_data_to_nwb(config_file=config_yaml, output_folder=nwb_folder)
-
+            convert_data_to_nwb(config_file=config_yaml,
+                                output_folder=nwb_folder,
+                                with_time_string=False)

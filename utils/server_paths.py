@@ -2,6 +2,7 @@ import os
 
 import yaml
 
+
 EXPERIMENTER_MAP = {
     'AR': 'Anthony_Renard',
     'RD': 'Robin_Dard',
@@ -202,8 +203,10 @@ def get_suite2p_folder(config_file):
         config = yaml.safe_load(stream)
     mouse_name = config['subject_metadata']['subject_id']
     session_name = config['session_metadata']['session_id']
+    
     data_folder = get_subject_analysis_folder(mouse_name)
     suite2p_path = os.path.join(data_folder, session_name, 'suite2p')
+
     if not os.path.exists(suite2p_path):
         print(f"No suite2p folder found for {session_name} session from {mouse_name}")
         return None

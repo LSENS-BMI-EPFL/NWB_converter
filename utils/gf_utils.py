@@ -4,9 +4,9 @@ import os
 
 import numpy as np
 import pandas as pd
-import scipy.io
 import yaml
 
+from utils.server_paths import get_suite2p_folder
 
 def read_excel_database(folder, file_name):
     excel_path = os.path.join(folder, file_name)
@@ -121,28 +121,31 @@ def infer_timestamps_dict(config_file):
     # Galvo position.
     # ---------------
 
-    # Cam 1.
     tot_nframes = np.sum(nframes_per_trial)
     galvo_position = np.arange(1, tot_nframes+1) * 1/30
 
-    if os.path.exists(f'\\\\sv-nas1.rcp.epfl.ch\\Petersen-Lab\\analysis\\Anthony_Renard\\data\\{imouse}\\Recordings\\FilmingData'):
-        # Read frame counts.
-        bad_frames = f'\\\\sv-nas1.rcp.epfl.ch\\Petersen-Lab\\analysis\\Anthony_Renard\\data\\{imouse}\\Recordings\\FilmingData\\{isession[:-7]}\\badFrames.npy'
-        frame_count = f'\\\\sv-nas1.rcp.epfl.ch\\Petersen-Lab\\analysis\\Anthony_Renard\\data\\{imouse}\\Recordings\\FilmingData\\{isession[:-7]}\\framesNumber.npy'
-        trial_index = f'\\\\sv-nas1.rcp.epfl.ch\\Petersen-Lab\\analysis\\Anthony_Renard\\data\\{imouse}\\Recordings\\FilmingData\\{isession[:-7]}\\trialsNumber.npy'
-        bad_frames = np.load(bad_frames, allow_pickle=True)
-        frame_count = np.load(frame_count, allow_pickle=True)
-        trial_index = np.load(trial_index, allow_pickle=True)
 
-        cam1 = []
+    # Filming.
+    # --------
 
-        # Use original trial numbers to map trials with imaging with trials with filming.
-        for i, (istart, _) in enumerate(trial_TTL):
-            itrial_or = performance.trial_number_or.iloc[i]
-            idx = np.where(trial_index==itrial_or)[0][0]
-            cam1.append(np.arange(1, frame_count[idx]+1) * 1/100 + istart)
-    else:
-        cam1 = []
+    # if os.path.exists(f'\\\\sv-nas1.rcp.epfl.ch\\Petersen-Lab\\analysis\\Anthony_Renard\\data\\{imouse}\\Recordings\\FilmingData'):
+    #     # Read frame counts.
+    #     bad_frames = f'\\\\sv-nas1.rcp.epfl.ch\\Petersen-Lab\\analysis\\Anthony_Renard\\data\\{imouse}\\Recordings\\FilmingData\\{isession[:-7]}\\badFrames.npy'
+    #     frame_count = f'\\\\sv-nas1.rcp.epfl.ch\\Petersen-Lab\\analysis\\Anthony_Renard\\data\\{imouse}\\Recordings\\FilmingData\\{isession[:-7]}\\framesNumber.npy'
+    #     trial_index = f'\\\\sv-nas1.rcp.epfl.ch\\Petersen-Lab\\analysis\\Anthony_Renard\\data\\{imouse}\\Recordings\\FilmingData\\{isession[:-7]}\\trialsNumber.npy'
+    #     bad_frames = np.load(bad_frames, allow_pickle=True)
+    #     frame_count = np.load(frame_count, allow_pickle=True)
+    #     trial_index = np.load(trial_index, allow_pickle=True)
+
+    #     cam1 = []
+
+    #     # Use original trial numbers to map trials with imaging with trials with filming.
+    #     for i, (istart, _) in enumerate(trial_TTL):
+    #         itrial_or = performance.trial_number_or.iloc[i]
+    #         idx = np.where(trial_index==itrial_or)[0][0]
+    #         cam1.append(np.arange(1, frame_count[idx]+1) * 1/100 + istart)
+    # else:
+    #     cam1 = []
 
 
     # Return timestamps and nframe dicts.
@@ -151,14 +154,16 @@ def infer_timestamps_dict(config_file):
     timestamps_dict = {
         'trial_TTL': trial_TTL,
         'galvo_position': galvo_position,
-        'cam1': cam1,
+        # 'cam1': cam1,
+        'cam1': [],
         'cam2': [],
     }
 
     n_frames_dict = {
         'trial_TTL': len(trial_TTL),
         'galvo_position': len(galvo_position),
-        'cam1': len(cam1),
+        # 'cam1': len(cam1),
+        'cam1': len([]),
         'cam2': len([]),
     }
 
@@ -243,51 +248,47 @@ def map_result_columns(behavior_results):
     return behavior_results
 
 
-# def load_mat_results(behavior_file):
-#     mat = scipy.io.loadmat(behavior_file)
-#     mat = mat['BehavResults']
-#     mat = mat[0][0][0]
+def check_gf_suite2p_folder(config_file):
+    with open(config_file, 'r', encoding='utf8') as stream:
+        config = yaml.safe_load(stream)
+    mouse_name = config['subject_metadata']['subject_id']
+    folder = f'\\\\sv-nas1.rcp.epfl.ch\\Petersen-Lab\\analysis\\Georgios_Foustoukos\\Suite2PRois\\{mouse_name}'
 
-#     columns = [
-#         'trial_number',
-#         'trial_number_original',
-#         'wh_stim_duration',
-#         'quiet_window',
-#         'iti',
-#         'is_stim',
-#         'is_whisker' ,
-#         'is_auditory',
-#         'lick_flag',
-#         'perf',
-#         'is_light',
-#         'reaction_time',
-#         'wh_stim_amp',
-#         'trial_time',
-#         'is_reward',
-#         'aud_reward',
-#         'wh_reward',
-#         'aud_stim_duration',
-#         'aud_stim_amp',
-#         'aud_stim_freq',
-#         'early_lick',
-#         'light_amp',
-#         'light_duration',
-#         'light_freq',
-#         'light_prestim',
-#     ]
+    if os.path.exists(folder):
+        return folder
+    else:
+        return None
 
-#     behavior_results = pd.DataFrame(mat, columns=columns)
-#     behavior_results.drop('trial_number_original', axis=1)
-#     behavior_results = behavior_results.astype({'trial_number': int, 'perf': int})
 
-#     # Add what is missing.
-#     if 'association_flag' not in behavior_results.columns:
-#         behavior_results['association_flag'] = 0
-#     if 'baseline_window' not in behavior_results.columns:
-#         behavior_results['baseline_window'] = 2000
-#     if 'artifact_window' not in behavior_results.columns:
-#         behavior_results['artifact_window'] = 50
-#     if 'response_window' not in behavior_results.columns:
-#         behavior_results['response_window'] = 1000
+def get_gf_processed_ci(config_file):
 
-#     return behavior_results
+    with open(config_file, 'r', encoding='utf8') as stream:
+        config = yaml.safe_load(stream)
+    mouse_name = config['subject_metadata']['subject_id']
+    session_name = config['session_metadata']['session_id']
+
+    folder = check_gf_suite2p_folder(config_file)
+    if folder:
+        suite2p_folder = ('\\\\sv-nas1.rcp.epfl.ch\\Petersen-Lab\\analysis\\'
+                        f'Georgios_Foustoukos\\Suite2PSessionData\\{mouse_name}\\{session_name[:-7]}')
+        baseline_folder = ('\\\\sv-nas1.rcp.epfl.ch\\Petersen-Lab\\analysis\\'
+                        f'Georgios_Foustoukos\\Baselines\\{mouse_name}\\{session_name[:-7]}')
+        fissa_folder = ('\\\\sv-nas1.rcp.epfl.ch\\Petersen-Lab\\analysis\\'
+                        f'Georgios_Foustoukos\\FISSASessionData\\{mouse_name}\\{session_name[:-7]}')
+        stat = np.load(os.path.join(folder, 'stat.npy'), allow_pickle=True)
+        is_cell = np.load(os.path.join(folder, "iscell.npy"), allow_pickle=True)
+        F = np.load(os.path.join(suite2p_folder, "F.npy"), allow_pickle=True)
+        Fneu = np.load(os.path.join(suite2p_folder, "Fneu.npy"), allow_pickle=True)
+        spks = np.load(os.path.join(suite2p_folder, "spks.npy"), allow_pickle=True)
+        baseline = np.load(os.path.join(baseline_folder, "baselines.npy"), allow_pickle=True)
+        F_fissa = np.load(os.path.join(fissa_folder, "F_fissa.npy"), allow_pickle=True)
+
+        # Compute DFF0.
+        F = F - 0.7 * Fneu
+        dff = (F - baseline[:,0,:]) / baseline[:,0,:]
+        dff_fissa = (F_fissa - baseline[:,0,:]) / baseline[:,0,:]
+
+        return stat, is_cell, F, Fneu, spks, baseline, F_fissa, dff, dff_fissa
+    else:
+        return None
+

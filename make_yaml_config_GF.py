@@ -30,7 +30,7 @@ KEYWORD_MAP = {
 
 
 def make_yaml_config_GF(subject_id, session_id, session_description, input_folder, output_folder,
-                     database, mouse_line='C57BL/6', gmo=True):
+                        database, mouse_line='C57BL/6', gmo=True):
     """_summary_
 
     Args:
@@ -55,11 +55,14 @@ def make_yaml_config_GF(subject_id, session_id, session_description, input_folde
     else:
         # Select most recent metadata export from SLIMS folder.
         try:
-            slims_csv = sorted(os.listdir(os.path.join(input_folder, 'SLIMS')))[-1]  # post-euthanasia SLIMS file has more information
+            # post-euthanasia SLIMS file has more information
+            slims_csv = sorted(os.listdir(
+                os.path.join(input_folder, 'SLIMS')))[-1]
             slims_csv_path = os.path.join(input_folder, 'SLIMS', slims_csv)
             slims = pd.read_csv(slims_csv_path, sep=';', engine='python')
         except IndexError:
-            print('Error: SLIMS folder may be empty. Export SLIMS info .csv file.', end='\r')
+            print(
+                'Error: SLIMS folder may be empty. Export SLIMS info .csv file.', end='\r')
             return
         except UnicodeDecodeError:
             print('Error: SLIMS file may not be in a .csv file. Please export it again from SLIMS as .csv.', end='\r')
@@ -88,7 +91,8 @@ def make_yaml_config_GF(subject_id, session_id, session_description, input_folde
     birth_date = datetime.datetime.strptime(birth_date, "%d/%m/%Y")
     days = (session_date - birth_date).days
     subject_metadata['age'] = f"P{days}D"
-    subject_metadata['date_of_birth'] = datetime.datetime.strftime(birth_date, '%m/%d/%Y')
+    subject_metadata['date_of_birth'] = datetime.datetime.strftime(
+        birth_date, '%m/%d/%Y')
 
     # Add strain from Slims if not WT mouse.
     # Whether mouse is WT in not in the default Slims metadata, so use 'gmo' parameter.
@@ -113,24 +117,29 @@ def make_yaml_config_GF(subject_id, session_id, session_description, input_folde
 
     # Get mouse reference weight
     ref_weight_path = get_ref_weight_folder(experimenter=experimenter)
-    ref_weight_csv_path = os.path.join(ref_weight_path, 'mouse_reference_weight.xlsx')
+    ref_weight_csv_path = os.path.join(
+        ref_weight_path, 'mouse_reference_weight.xlsx')
     if not os.path.exists(ref_weight_csv_path):
-        print(f'Error: reference weight file not found for {experimenter}. Please create it.')
+        print(
+            f'Error: reference weight file not found for {experimenter}. Please create it.')
         ref_weight = np.nan
     else:
         ref_weight_df = pd.read_excel(ref_weight_csv_path)
         # Make sure subject is in the reference weight file
         if subject_id not in ref_weight_df.mouse_name.values:
-            print(f'Error: subject {subject_id} not found in reference weight file for {subject_id}. Please add it.')
+            print(
+                f'Error: subject {subject_id} not found in reference weight file for {subject_id}. Please add it.')
             ref_weight = np.nan
         else:
-            ref_weight_cols = [col for col in ref_weight_df.columns if 'weight' in col]
+            ref_weight_cols = [
+                col for col in ref_weight_df.columns if 'weight' in col]
             if len(ref_weight_cols) > 1:
                 print(
                     f'NotImplementedError: more than one reference weight column found for {experimenter}. Please check.')
                 ref_weight = np.nan
             else:
-                ref_weight = ref_weight_df.loc[ref_weight_df.mouse_name == subject_id, ref_weight_cols[0]].values[0]
+                ref_weight = ref_weight_df.loc[ref_weight_df.mouse_name ==
+                                               subject_id, ref_weight_cols[0]].values[0]
                 assert isinstance(ref_weight,
                                   float), f'Error: reference weight for {subject_id} is not a float. Please check.'
 
@@ -147,11 +156,11 @@ def make_yaml_config_GF(subject_id, session_id, session_description, input_folde
     #     session_type = 'behaviour_only_session'
 
     # Get session_type from database.
-    if database.loc[database.session_id==session_id, '2P_calcium_imaging'].values[0]:
+    if database.loc[database.session_id == session_id, '2P_calcium_imaging'].values[0]:
         session_type = 'twophoton_session'
-    elif database.loc[database.session_id==session_id, 'optogenetic'].values[0]:
+    elif database.loc[database.session_id == session_id, 'optogenetic'].values[0]:
         session_type = 'opto_session'
-    elif database.loc[database.session_id==session_id, 'pharmacology'].values[0]:
+    elif database.loc[database.session_id == session_id, 'pharmacology'].values[0]:
         session_type = 'pharma_session'
     else:
         session_type = 'behaviour_only_session'
@@ -164,14 +173,16 @@ def make_yaml_config_GF(subject_id, session_id, session_description, input_folde
     perf_df = pd.DataFrame(perf_json['results'], columns=perf_json['headers'])
 
     # Check if R+ or R- mouse.
-    if (perf_df.whrew==1).sum() > 0:
+    if (perf_df.whrew == 1).sum() > 0:
         wh_reward = 1
     else:
         wh_reward = 0
 
     # Infer stimuli proportions from session day.
-    session_day = database.loc[database.session_id==session_id, 'session_day'].values[0]
-    if '-' in session_day:  # Audiotry session, otherwise there are whisker trials.
+    session_day = database.loc[database.session_id ==
+                               session_id, 'session_day'].values[0]
+    # Audiotry session, otherwise there are whisker trials.
+    if '-' in session_day:
         wh_stim_weight = 0
         aud_stim_weight = 10
     else:
@@ -206,26 +217,33 @@ def make_yaml_config_GF(subject_id, session_id, session_description, input_folde
     # #################
 
     start_date = session_id.split('_')[1]
-    start_date = datetime.datetime.strptime(start_date, '%d%m%Y').strftime('%Y%m%d')
+    start_date = datetime.datetime.strptime(
+        start_date, '%d%m%Y').strftime('%Y%m%d')
     start_time = session_id.split('_')[2]
 
     # Find is there is pharmacolyg, optogentic or chemogenetic.
-    if database.loc[database.session_id==session_id, 'pharmacology'].values[0]:
-        pharma_day = database.loc[database.session_id==session_id, 'pharma_day'].values[0]
-        pharma_inactivation = database.loc[database.session_id==session_id, 'pharma_inactivation_type'].values[0]
-        pharma_area = database.loc[database.session_id==session_id, 'pharma_area'].values[0]
+    if database.loc[database.session_id == session_id, 'pharmacology'].values[0]:
+        pharma_day = database.loc[database.session_id ==
+                                  session_id, 'pharma_day'].values[0]
+        pharma_inactivation = database.loc[database.session_id ==
+                                           session_id, 'pharma_inactivation_type'].values[0]
+        pharma_area = database.loc[database.session_id ==
+                                   session_id, 'pharma_area'].values[0]
         pharma = {'pharma_day': pharma_day,
                   'pharma_inactivation': pharma_inactivation,
                   'pharma_area': pharma_area}
     else:
         pharma = 'na'
-    if database.loc[database.session_id==session_id, 'optogenetic'].values[0]:
-        opto_day = database.loc[database.session_id==session_id, 'opto_day'].values[0]
-        opto_inactivation = database.loc[database.session_id==session_id, 'opto_inactivation_type'].values[0]
-        opto_area = database.loc[database.session_id==session_id, 'opto_area'].values[0]
+    if database.loc[database.session_id == session_id, 'optogenetic'].values[0]:
+        opto_day = database.loc[database.session_id ==
+                                session_id, 'opto_day'].values[0]
+        opto_inactivation = database.loc[database.session_id ==
+                                         session_id, 'opto_inactivation_type'].values[0]
+        opto_area = database.loc[database.session_id ==
+                                 session_id, 'opto_area'].values[0]
         opto = {'opto_day': opto_day,
-                  'opto_inactivation': opto_inactivation,
-                  'opto_area': opto_area}
+                'opto_inactivation': opto_inactivation,
+                'opto_area': opto_area}
     else:
         opto = 'na'
 
@@ -255,29 +273,27 @@ def make_yaml_config_GF(subject_id, session_id, session_description, input_folde
         'slices': 'na',
     }
 
+    # Log continuous metadata.
+    # ########################
 
-    # # Log continuous metadata.
-    # # ########################
+    log_continuous_metadata = {}
 
-    # log_continuous_metadata = {}
-
-    # # Add logged channels and thresholds (Volt) for edge detections.
+    # Add logged channels and thresholds (Volt) for edge detections.
     # channels_dict, threshold_dict = create_channels_threshold_dict(experimenter=experimenter,
     #                                                                json_config=json_config)
-    # if json_config['twophoton_session'] == 1:
-    #     scanimage_dict = {
-    #         'theoretical_ci_sampling_rate': 30,
-    #         'zoom': 3
-    #     }
-    #     log_continuous_metadata.update({'scanimage_dict': scanimage_dict})
+    if 'twophoton' in session_type:
+        scanimage_dict = {
+            'theoretical_ci_sampling_rate': 30,
+            'zoom': 3
+        }
+        log_continuous_metadata.update({'scanimage_dict': scanimage_dict})
 
-    # # Add to general dictionary.
+    # Add to general dictionary.
     # log_continuous_metadata.update({'channels_dict': channels_dict})
     # log_continuous_metadata.update({'threshold_dict': threshold_dict})
 
-
-    # # Behaviour metadata. #TODO: this could also be experimenter-dependent and a function of the json config file.
-    # # ###################
+    # Behaviour metadata. #TODO: this could also be experimenter-dependent and a function of the json config file.
+    # ###################
 
     # behaviour_metadata = create_behaviour_metadata(experimenter=experimenter,
     #                                                path_to_json_config=session_config_json_path)
@@ -301,7 +317,6 @@ def make_yaml_config_GF(subject_id, session_id, session_description, input_folde
         6: 'early_lick',
     }
 
-
     # 2P imaging metadata.
     # ####################
 
@@ -313,14 +328,11 @@ def make_yaml_config_GF(subject_id, session_id, session_description, input_folde
         'indicator': 'GCaMP6f',
     }
 
-
     # Optogenetic metadata.
     # #####################
 
     # Pharmacology metadata.
     # ######################
-
-
 
     # Write to yaml file.
     # ###################
@@ -328,7 +340,7 @@ def make_yaml_config_GF(subject_id, session_id, session_description, input_folde
     main_dict = {
         'subject_metadata': subject_metadata,
         'session_metadata': session_metadata,
-        # 'log_continuous_metadata': log_continuous_metadata,
+        'log_continuous_metadata': log_continuous_metadata,
         'behaviour_metadata': behaviour_metadata,
         'trial_map': trial_map,
     }
@@ -341,7 +353,8 @@ def make_yaml_config_GF(subject_id, session_id, session_description, input_folde
     if not os.path.exists(analysis_session_folder):
         os.makedirs(analysis_session_folder)
     with open(os.path.join(analysis_session_folder, f"config_{session_id}.yaml"), 'w') as stream:
-        yaml.dump(main_dict, stream, default_flow_style=False, explicit_start=True)
+        yaml.dump(main_dict, stream, default_flow_style=False,
+                  explicit_start=True)
 
     return
 
@@ -367,9 +380,10 @@ if __name__ == '__main__':
         analysis_folder = get_subject_analysis_folder(mouse_id)
 
         # Find training day for that mouse.
-        training_days = db.loc[db.subject_id==mouse_id, 'session_day'].to_list()
+        training_days = db.loc[db.subject_id ==
+                               mouse_id, 'session_day'].to_list()
         training_days = utils_gf.format_session_day_GF(mouse_id, training_days)
-        sessions = db.loc[db.subject_id==mouse_id, 'session_id'].to_list()
+        sessions = db.loc[db.subject_id == mouse_id, 'session_id'].to_list()
 
         for session_id, day in list(zip(sessions, training_days)):
             session_date = session_id.split('_')[1]
@@ -384,4 +398,4 @@ if __name__ == '__main__':
                     continue
 
             make_yaml_config_GF(mouse_id, session_id, day, data_folder, analysis_folder,
-                             mouse_line='C57BL/6', gmo=gmo, database=db)
+                                mouse_line='C57BL/6', gmo=gmo, database=db)
