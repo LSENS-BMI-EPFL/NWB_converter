@@ -54,6 +54,7 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
             movie_files = server_paths.get_session_movie_files(config_file)
         else:
             movie_files = server_paths.get_movie_files(config_file)
+
         tiff_file = server_paths.get_imaging_file(config_file)
 
     # Get relevant continuous processing information

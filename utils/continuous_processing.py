@@ -4,7 +4,6 @@ import itertools
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-mpl.use('Qt5Agg')
 import scipy.signal as sci_si
 from scipy.ndimage import gaussian_filter1d
 from ScanImageTiffReader import ScanImageTiffReader
@@ -114,7 +113,7 @@ def read_binary_continuous_log(bin_file, channels_dict, ni_session_sr=5000, t_st
     return continuous_data_dict
 
 
-def detect_piezo_lick_times(continuous_data_dict, ni_session_sr=5000, lick_threshold=None, sigma=100):
+def detect_piezo_lick_times(continuous_data_dict, ni_session_sr=5000, lick_threshold=None, sigma=100, do_plot=False):
     """
         Detect lick times from the lick data envelope.
         The lick data is first filtered with a low pass filter to remove high frequency fluctuations.
@@ -138,25 +137,26 @@ def detect_piezo_lick_times(continuous_data_dict, ni_session_sr=5000, lick_thres
         lick_threshold = 0.1
 
     lick_data_sub = lick_data_smooth - lick_threshold
-    cross_on_thr_indices = np.where(np.isclose(lick_data_sub, 0, atol=0.001))[0] # find crossings
-    cross_thr_indices = [i for i in cross_on_thr_indices if lick_data_sub[i+1]>0 and lick_data_sub[i-1]<0] #keep upward crossings
+    cross_on_thr_indices = np.where(np.isclose(lick_data_sub, 0, atol=0.001))[0]  # find crossings
+    cross_thr_indices = [i for i in cross_on_thr_indices if lick_data_sub[i+1]>0 and lick_data_sub[i-1]<0] # keep upward crossings
     cross_thr_pairs = [(i1, i2) for i1, i2 in zip(cross_thr_indices, cross_thr_indices[1:])]
-    cross_thr_indices_valid = [i1 for i1, i2 in cross_thr_pairs if (i2-i1)>100] #keep only crossings with a minimum distance of 100 samples i.e. 20ms
-    lick_times = np.array(cross_thr_indices_valid) / float(ni_session_sr) # get lick times in seconds
+    cross_thr_indices_valid = [i1 for i1, i2 in cross_thr_pairs if (i2-i1) > 100]  # keep only crossings with a minimum distance of 100 samples i.e. 20ms
+    lick_times = np.array(cross_thr_indices_valid) / float(ni_session_sr)  # get lick times in seconds
 
     # Debugging: optional plotting
-    t_start=0
-    t_stop=200
-    ni_session_sr = int(float(ni_session_sr))
-    plt.axhline(y=lick_threshold, color='red', lw=1, ls='--', alpha=0.9, zorder=0)
-    plt.plot(lick_data[ni_session_sr*t_start:ni_session_sr*t_stop], c='k', label="lick_data", lw=1)
-    plt.plot(lick_data_smooth[ni_session_sr*t_start:ni_session_sr*t_stop], c='green', label="lick_envelope", lw=3)
-    for lick_time in lick_times:
-        plt.axvline(x=ni_session_sr*lick_time, color='red', lw=3, alpha=0.8)
-    plt.xlim(t_start * ni_session_sr,t_stop * ni_session_sr)
-    plt.ylim(-0.05, 5*lick_threshold)
-    plt.legend(loc='upper right', frameon=False)
-    plt.show()
+    if do_plot:
+        t_start = 0
+        t_stop = 200
+        ni_session_sr = int(float(ni_session_sr))
+        plt.axhline(y=lick_threshold, color='red', lw=1, ls='--', alpha=0.9, zorder=0)
+        plt.plot(lick_data[ni_session_sr*t_start:ni_session_sr*t_stop], c='k', label="lick_data", lw=1)
+        plt.plot(lick_data_smooth[ni_session_sr*t_start:ni_session_sr*t_stop], c='green', label="lick_envelope", lw=3)
+        for lick_time in lick_times:
+            plt.axvline(x=ni_session_sr*lick_time, color='red', lw=3, alpha=0.8)
+        plt.xlim(t_start * ni_session_sr, t_stop * ni_session_sr)
+        plt.ylim(-0.05, 5*lick_threshold)
+        plt.legend(loc='upper right', frameon=False)
+        plt.show()
 
     return lick_times
 
@@ -308,9 +308,9 @@ def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scan
                 # Detect lick times using behaviour GUI lick threshold
                 lick_threshold = float(threshold_dict.get(key))
                 lick_timestamps = detect_piezo_lick_times(continuous_data_dict,
-                                                          ni_session_sr=float(ni_session_sr),
+                                                          ni_session_sr=ni_session_sr,
                                                           lick_threshold=lick_threshold,
-                                                          sigma=100)
+                                                          sigma=100, do_plot=False)
 
                 # Format as tuples of on/off times for NWB
                 lick_timestamps_on_off = list(zip(lick_timestamps, itertools.repeat(np.nan)))
@@ -318,7 +318,6 @@ def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scan
 
             else:
                 timestamps_dict[key] = None
-
 
         elif key == "galvo_position":
 

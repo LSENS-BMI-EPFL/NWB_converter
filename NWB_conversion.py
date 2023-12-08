@@ -45,20 +45,16 @@ def convert_data_to_nwb(config_file, output_folder):
     print("Open NWB file and add metadata")
     nwb_file = create_nwb_file(config_file=config_file)
 
-
     print(" ")
     print("Convert behavior data")
     convert_behavior_data(nwb_file=nwb_file, timestamps_dict=timestamps_dict, config_file=config_file)
 
-
-    # # TODO: update/remove the link to motion corrected ci tiff.
     if config_dict.get("two_photon_metadata") is not None:
         print(" ")
         print("Convert CI movie")
         convert_ci_movie(nwb_file=nwb_file, config_file=config_file,
                          movie_format='link', ci_frame_timestamps=timestamps_dict['galvo_position'])
 
-        # # TODO: find suite2P folder with config file.
         print(" ")
         print("Convert Suite2p data")
         convert_suite2p_data(nwb_file=nwb_file,
@@ -70,11 +66,11 @@ def convert_data_to_nwb(config_file, output_folder):
         print("Convert extracellular electrophysiology data")
 
         convert_ephys_recording(nwb_file=nwb_file,
-                             config_file=config_file)
+                                config_file=config_file)
 
     print(" ")
     print("Saving NWB file")
-    save_nwb_file(nwb_file=nwb_file, output_folder=output_folder)
+    save_nwb_file(nwb_file=nwb_file, output_folder=output_folder, with_time_string=True)
 
     return
 
@@ -136,3 +132,4 @@ if __name__ == '__main__':
             print(f" ------------------ ")
             print(f"Session: {isession}")
             convert_data_to_nwb(config_file=config_yaml, output_folder=nwb_folder)
+
