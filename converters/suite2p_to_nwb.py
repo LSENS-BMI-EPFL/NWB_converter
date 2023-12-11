@@ -71,7 +71,7 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
         stat, is_cell, F, Fneu, dcnv, F_fissa = utils_gf.get_gf_processed_ci(config_file)
 
     # Compute F0 and dff.
-    fs = float(config['log_continuous_metadata']['scanimage_dict']['theoretical_ci_sampling_rate'])
+    fs = config['log_continuous_metadata']['scanimage_dict']['theoretical_ci_sampling_rate']
     F0, dff = utils_ci.compute_dff(F, Fneu, fs=fs, window=60)
     # Fissa is substracted but not normalized.
     dff_fissa = F_fissa / F0
