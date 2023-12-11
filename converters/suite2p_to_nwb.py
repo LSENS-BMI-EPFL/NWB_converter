@@ -67,7 +67,7 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
         if os.path.isfile(os.path.join(suite2p_folder, "F.npy")):
             F = np.load(os.path.join(suite2p_folder, "F.npy"), allow_pickle=True)
     else:
-        stat, is_cell, F, Fneu, dcnv, baseline, F_fissa, dff, dff_fissa = utils_gf.get_gf_processed_ci(config_file)
+        stat, is_cell, F, Fneu, dcnv, F0, F_fissa, dff, dff_fissa = utils_gf.get_gf_processed_ci(config_file)
 
     # Extract image dimensions
     if image_series is not None:
@@ -79,9 +79,8 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
     pixel_masks = []
     n_cells = 0
     for cell in np.arange(len(stat)):
-        if is_cell is not None:
-            if is_cell[cell][0] == 0:
-                continue
+        if is_cell[cell][0] == 0:
+            continue
         n_cells += 1
         pix_mask = [(y, x, 1) for x, y in zip(stat[cell]["xpix"], stat[cell]["ypix"])]
         image_mask = np.zeros((dim_y, dim_x))  # recently inverted (12th of may 2020)
@@ -96,15 +95,15 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
     rt_region = ps.create_roi_table_region('all cells', region=list(np.arange(n_cells)))
 
     if experimenter in ['GF', 'MI']:
-        data = [F, Fneu, dcnv, baseline, F_fissa, dff, dff_fissa]
+        data = [F, Fneu, dcnv, F0, F_fissa, dff, dff_fissa]
         data_labels = ['F', 'Fneu', 'dcnv', 'baseline', 'F_fissa', 'dff', 'dff_fissa']
-        descriptions = ['Suite 2P raw fluoresence.',
-                        'Suite 2P neuropil.',
-                        'Suite 2P deconvolved fluorescence.',
-                        'Suite 2P 5% percentile baseline rolling with 2 min rolling window.',
-                        'Fissa processed fluorescence.',
-                        'Normalized neuropil corrected suite2p fluorescence.',
-                        'Normalized fissa processed fluorescence.']
+        descriptions = ['F: Suite 2P raw fluoresence.',
+                        'Fneu: Suite 2P neuropil.',
+                        'spks: Suite 2P deconvolved fluorescence.',
+                        'F0: 5% percentile baseline computed over a 2 min rolling window.',
+                        'Fissa output.',
+                        'dF/F0: Normalized neuropil corrected suite2p fluorescence.',
+                        'dF_fissa/F0: Normalized fissa output, with F0 of original data.',]
     else:
         data = [F, Fneu, dcnv]
         data_labels = ['F', 'Fneu', 'dcnv']
@@ -114,7 +113,11 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
 
     for d, l, desc in zip(data, data_labels, descriptions):
         if d is not None:
-            d_filt = d[is_cell[:,0].astype(bool)]
+            # Filtering is already done for GF data.
+            if experimenter in ['GF', 'MI']:
+                d_filt = d
+            else:
+                d_filt = d[is_cell[:,0].astype(bool)]
 
             fl.create_roi_response_series(name=l,
                                         data=np.transpose(d_filt),
@@ -123,4 +126,5 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
                                         description=desc)
 
             print(f"- Creating Roi Response Series with: {desc}"
-                f"shape: {(np.transpose(d_filt)).shape}")
+                  f"shape: {(np.transpose(d_filt)).shape}")
+        

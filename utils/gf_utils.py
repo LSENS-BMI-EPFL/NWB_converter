@@ -256,8 +256,6 @@ def check_gf_suite2p_folder(config_file):
 
     if os.path.exists(folder):
         return folder
-    else:
-        return None
 
 
 def get_gf_processed_ci(config_file):
@@ -283,12 +281,21 @@ def get_gf_processed_ci(config_file):
         baseline = np.load(os.path.join(baseline_folder, "baselines.npy"), allow_pickle=True)
         F_fissa = np.load(os.path.join(fissa_folder, "F_fissa.npy"), allow_pickle=True)
 
+        # Set merged cells to 0 in is_cell.
+        if 'inmerge' in stat[0].keys():
+            for i, st in enumerate(stat):
+                # 0: no merge; -1: output of a merge; index > 0: merged cell.
+                if st['inmerge'] not in [0, -1]:
+                    is_cell[i] = 0.0
+
+        # Trash the baseline of fissa output, it doesn't make sense since
+        # it is already substracted with F0.
+        baseline = baseline[:,1]
+
         # Compute DFF0.
-        F = F - 0.7 * Fneu
-        dff = (F - baseline[:,0,:]) / baseline[:,0,:]
-        dff_fissa = (F_fissa - baseline[:,0,:]) / baseline[:,0,:]
+        Fcor = F - 0.7 * Fneu
+        dff = (Fcor - baseline) / baseline
+        dff_fissa = (F_fissa - baseline) / baseline
 
         return stat, is_cell, F, Fneu, spks, baseline, F_fissa, dff, dff_fissa
-    else:
-        return None
 
