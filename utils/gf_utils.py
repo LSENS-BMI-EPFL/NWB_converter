@@ -278,7 +278,6 @@ def get_gf_processed_ci(config_file):
         F = np.load(os.path.join(suite2p_folder, "F.npy"), allow_pickle=True)
         Fneu = np.load(os.path.join(suite2p_folder, "Fneu.npy"), allow_pickle=True)
         spks = np.load(os.path.join(suite2p_folder, "spks.npy"), allow_pickle=True)
-        baseline = np.load(os.path.join(baseline_folder, "baselines.npy"), allow_pickle=True)
         F_fissa = np.load(os.path.join(fissa_folder, "F_fissa.npy"), allow_pickle=True)
 
         # Set merged cells to 0 in is_cell.
@@ -288,14 +287,5 @@ def get_gf_processed_ci(config_file):
                 if st['inmerge'] not in [0, -1]:
                     is_cell[i] = 0.0
 
-        # Trash the baseline of fissa output, it doesn't make sense since
-        # it is already substracted with F0.
-        baseline = baseline[:,1]
-
-        # Compute DFF0.
-        Fcor = F - 0.7 * Fneu
-        dff = (Fcor - baseline) / baseline
-        dff_fissa = (F_fissa - baseline) / baseline
-
-        return stat, is_cell, F, Fneu, spks, baseline, F_fissa, dff, dff_fissa
+        return stat, is_cell, F, Fneu, spks, F_fissa,
 

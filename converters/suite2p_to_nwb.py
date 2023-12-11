@@ -7,6 +7,7 @@ from pynwb.ophys import Fluorescence, ImageSegmentation
 
 from utils.server_paths import get_suite2p_folder
 import utils.gf_utils as utils_gf
+import utils.ci_processing as utils_ci
 
 
 def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
@@ -67,8 +68,14 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
         if os.path.isfile(os.path.join(suite2p_folder, "F.npy")):
             F = np.load(os.path.join(suite2p_folder, "F.npy"), allow_pickle=True)
     else:
-        stat, is_cell, F, Fneu, dcnv, F0, F_fissa, dff, dff_fissa = utils_gf.get_gf_processed_ci(config_file)
+        stat, is_cell, F, Fneu, dcnv, F_fissa = utils_gf.get_gf_processed_ci(config_file)
 
+    # Compute F0 and dff.
+    fs = float(config['log_continuous_metadata']['scanimage_dict']['theoretical_ci_sampling_rate'])
+    F0, dff = utils_ci.compute_dff(F, Fneu, fs=fs, window=60)
+    # Fissa is substracted but not normalized.
+    dff_fissa = F_fissa / F0
+        
     # Extract image dimensions
     if image_series is not None:
         dim_y, dim_x = image_series.dimension[1:]
