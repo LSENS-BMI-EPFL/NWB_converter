@@ -220,6 +220,8 @@ def make_yaml_config_GF(subject_id, session_id, session_description, input_folde
     start_date = datetime.datetime.strptime(
         start_date, '%d%m%Y').strftime('%Y%m%d')
     start_time = session_id.split('_')[2]
+    if int(start_time[-2:]) > 59:
+        start_time = start_time[:-2] + '59'
 
     # Find is there is pharmacolyg, optogentic or chemogenetic.
     if database.loc[database.session_id == session_id, 'pharmacology'].values[0]:
