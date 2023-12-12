@@ -1,5 +1,6 @@
 import numpy as np
 import scipy
+import os
 import matplotlib.pyplot as plt
 
 
@@ -62,3 +63,34 @@ def compute_dff(F, Fneu, fs, window=60):
     dff = (F - F0) / F0
     
     return F0, dff
+
+
+def add_suite2p_roi(ps, stat, is_cell, dim_x, dim_y):
+    pixel_masks = []
+    for cell in np.arange(len(stat)):
+        if is_cell[cell][0] == 0:
+            continue
+        pix_mask = [(y, x, 1) for x, y in zip(stat[cell]["xpix"], stat[cell]["ypix"])]
+        image_mask = np.zeros((dim_y, dim_x))  # recently inverted (12th of may 2020)
+        for pix in pix_mask:
+            image_mask[int(pix[0]), int(pix[1])] = pix[2]  # pix[0] pix[1] recently inverted (12th of may 2020)
+        # we can id to identify the cell (int) otherwise it will be incremented at each step
+        pixel_masks.append(pix_mask)
+        ps.add_roi(pixel_mask=pix_mask, image_mask=image_mask)
+
+
+def get_processed_ci(suite2p_folder):
+    suite2p_folder = os.path.join(suite2p_folder, "plane0")
+    if not os.path.isfile(os.path.join(suite2p_folder, "stat.npy")):
+        print(f"Stat file missing in {suite2p_folder}")
+        return
+    else:
+        stat = np.load(os.path.join(suite2p_folder, "stat.npy"), allow_pickle=True)
+        is_cell = np.load(os.path.join(suite2p_folder, "iscell.npy"), allow_pickle=True)
+        F = np.load(os.path.join(suite2p_folder, "F.npy"), allow_pickle=True)
+        Fneu = np.load(os.path.join(suite2p_folder, "Fneu.npy"), allow_pickle=True)
+        dcnv = np.load(os.path.join(suite2p_folder, "spks.npy"), allow_pickle=True)
+
+    return stat, is_cell, F, Fneu, dcnv
+
+
