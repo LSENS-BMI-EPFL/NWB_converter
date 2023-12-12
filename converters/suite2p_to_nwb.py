@@ -1,7 +1,6 @@
 import os
 
 import numpy as np
-import PIL
 import yaml
 from pynwb.ophys import Fluorescence, ImageSegmentation
 
@@ -59,18 +58,15 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
             return
         else:
             stat = np.load(os.path.join(suite2p_folder, "stat.npy"), allow_pickle=True)
-        if os.path.isfile(os.path.join(suite2p_folder, "iscell.npy")):
             is_cell = np.load(os.path.join(suite2p_folder, "iscell.npy"), allow_pickle=True)
-        else:
-            is_cell = None
-        if os.path.isfile(os.path.join(suite2p_folder, "spks.npy")):
-            dcnv = np.load(os.path.join(suite2p_folder, "spks.npy"), allow_pickle=True)
-        if os.path.isfile(os.path.join(suite2p_folder, "F.npy")):
             F = np.load(os.path.join(suite2p_folder, "F.npy"), allow_pickle=True)
+            Fneu = np.load(os.path.join(suite2p_folder, "Fneu.npy"), allow_pickle=True)
+            dcnv = np.load(os.path.join(suite2p_folder, "spks.npy"), allow_pickle=True)
     else:
         stat, is_cell, F, Fneu, dcnv, F_fissa = utils_gf.get_gf_processed_ci(config_file)
 
     # Compute F0 and dff.
+    print('Computing F0 dff.')
     fs = config['log_continuous_metadata']['scanimage_dict']['theoretical_ci_sampling_rate']
     F0, dff = utils_ci.compute_dff(F, Fneu, fs=fs, window=60)
     # Fissa is substracted but not normalized.
@@ -103,7 +99,7 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
 
     if experimenter in ['GF', 'MI']:
         data = [F, Fneu, dcnv, F0, F_fissa, dff, dff_fissa]
-        data_labels = ['F', 'Fneu', 'dcnv', 'baseline', 'F_fissa', 'dff', 'dff_fissa']
+        data_labels = ['F', 'Fneu', 'dcnv', 'F0', 'F_fissa', 'dff', 'dff_fissa']
         descriptions = ['F: Suite 2P raw fluoresence.',
                         'Fneu: Suite 2P neuropil.',
                         'spks: Suite 2P deconvolved fluorescence.',
@@ -113,10 +109,12 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
                         'dF_fissa/F0: Normalized fissa output, with F0 of original data.',]
     else:
         data = [F, Fneu, dcnv]
-        data_labels = ['F', 'Fneu', 'dcnv']
-        descriptions = ['Suite 2P raw fluoresence.',
-                        'Suite 2P neuropil.',
-                        'Suite 2P deconvolved fluorescence.']
+        data_labels = ['F', 'Fneu', 'dcnv', 'F0', 'dff']
+        descriptions = ['F: Suite 2P raw fluoresence.',
+                        'Fneu: Suite 2P neuropil.',
+                        'spks: Suite 2P deconvolved fluorescence.',
+                        'F0: 5% percentile baseline computed over a 2 min rolling window.',
+                        'dF/F0: Normalized neuropil corrected suite2p fluorescence.',]
 
     for d, l, desc in zip(data, data_labels, descriptions):
         if d is not None:
