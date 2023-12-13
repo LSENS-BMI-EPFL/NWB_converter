@@ -224,7 +224,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     # 2P imaging metadata.
     # ####################
 
-    two_photon_metadata = crate_two_photon_metadata(experimenter)
+    two_photon_metadata = create_two_photon_metadata(experimenter)
 
     # Extracell. ephys. metadata.
     # ####################
@@ -398,7 +398,7 @@ def create_ephys_metadata(subject_id):
     return ephys_metadata
 
 
-def crate_two_photon_metadata(experimenter):
+def create_two_photon_metadata(experimenter):
     # TODO make it dependant on excel file for imaging params
     if experimenter == 'AR':
         setup_id = 1

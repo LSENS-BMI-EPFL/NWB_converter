@@ -195,7 +195,13 @@ def make_yaml_config_GF(subject_id, session_id, session_description, input_folde
         camera_flag = 1
     else:
         camera_flag = 0
-
+        
+    # Number of unmotivated played at the end of the session.
+    if database.loc[database.session_id==session_id, 'unmotivated_trials'].to_numpy()[0]:
+        unmotivated_trials = 50
+    else:
+        unmotivated_trials = 0
+    
     session_experiment_metadata = {
         'reference_weight': 'na',  # reference weight before water-restriction
         'session_type': session_type,
@@ -211,6 +217,7 @@ def make_yaml_config_GF(subject_id, session_id, session_description, input_folde
         'camera_exposure_time': 2,
         'camera_start_delay': 'na',
         'artifact_window': 100,
+        'unmotivated_trials': unmotivated_trials,
     }
 
     # Session metadata.

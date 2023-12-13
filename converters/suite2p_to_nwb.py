@@ -47,10 +47,6 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
                                         imaging_plane=imaging_plane, name='my_plane_segmentation',
                                         reference_images=image_series)
 
-    # Load Suite2p data
-    F = None
-    dcnv = None
-
     if experimenter not in ['GF', 'MI']:
         suite2p_folder = os.path.join(suite2p_folder, "plane0")
         if not os.path.isfile(os.path.join(suite2p_folder, "stat.npy")):
@@ -66,12 +62,12 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
         stat, is_cell, F, Fneu, dcnv, F_fissa = utils_gf.get_gf_processed_ci(config_file)
 
     # Compute F0 and dff.
-    print('Computing F0 dff.')
+    print('Compute F0 and dff.')
     fs = config['log_continuous_metadata']['scanimage_dict']['theoretical_ci_sampling_rate']
     F0, dff = utils_ci.compute_dff(F, Fneu, fs=fs, window=60)
     # Fissa is substracted but not normalized.
     dff_fissa = F_fissa / F0
-        
+
     # Extract image dimensions
     if image_series is not None:
         dim_y, dim_x = image_series.dimension[1:]
@@ -132,4 +128,4 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
 
             print(f"- Creating Roi Response Series with: {desc}"
                   f"shape: {(np.transpose(d_filt)).shape}")
-        
+

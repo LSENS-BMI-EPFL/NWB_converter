@@ -59,6 +59,6 @@ def compute_dff(F, Fneu, fs, window=60):
     
     Fcor = F - .7 * Fneu  # Neuropil correction.
     F0 = compute_F0(Fcor, fs, window)
-    dff = (F - F0) / F0
+    dff = (Fcor - F0) / F0
     
     return F0, dff
