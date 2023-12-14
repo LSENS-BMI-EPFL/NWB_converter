@@ -42,6 +42,8 @@ def find_training_days(subject_id, input_folder): #TODO: make this more general 
             continue
 
         # Add to list of behaviours
+        if json_config['behaviour_type'] == 'whisker_off':
+            json_config['behaviour_type'] = 'whisker_off_1' # ensures correct string parsing
         behavior_type.append(json_config['behaviour_type'])
 
     print('Found the following sessions behaviors from raw data: {}'.format(behavior_type))
@@ -59,12 +61,13 @@ def find_training_days(subject_id, input_folder): #TODO: make this more general 
                           'context']
     n_wh = len([s for s in behavior_type if s in whisker_behaviours])
 
-    #control_behaviours = ['whisker_on_1',
-    #                      'whisker_off,'
-    #                      'whisker_on_2']
-    #n_ctrl = len([s for s in behavior_type if s in control_behaviours])
-    label = list(range(-n_aud, 0)) + list(range(0, n_wh))
+    control_behaviours = ['whisker_on_1',
+                          'whisker_off_1',
+                          'whisker_on_2']
+    n_ctrl = len([s for s in behavior_type if s in control_behaviours])
 
+    # Create behaviour-day/session index labels  aligned to first whisker day
+    label = list(range(-n_aud, 0)) + list(range(0, n_wh + n_ctrl))
     label = [f"+{d}" if d > 0 else str(d) for d in label]
     behavior_type = [f"{t}_{l}" for t, l in zip(behavior_type, label)]
 

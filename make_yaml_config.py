@@ -102,7 +102,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     else:
         subject_metadata['weight'] = 'na'
 
-    # Get mouse reference weight
+    # Get mouse reference weight # TODO: modularize
     ref_weight_path = get_ref_weight_folder(experimenter=experimenter)
     ref_weight_csv_path = os.path.join(ref_weight_path, 'mouse_reference_weight.xlsx')
     if not os.path.exists(ref_weight_csv_path):
@@ -125,7 +125,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
                 assert isinstance(ref_weight,
                                   float), f'Error: reference weight for {subject_id} is not a float. Please check.'
 
-    # Generating session metadata dictionary as experimenter_description
+    # Generating session metadata dictionary as experimenter_description #TODO: modularize
     session_type_flags = [sess_key_flag for sess_key_flag in json_config.keys() if 'session' in sess_key_flag]
     session_type_flags.remove('session_time')
     session_type_flags.remove('dummy_session_flag')
@@ -358,6 +358,9 @@ def create_behaviour_metadata(experimenter, path_to_json_config):
         json_config = json.load(f)
 
     # Default behaviour metadata
+    if json_config['behaviour_type'] == 'whisker_off':
+        json_config['behaviour_type'] = 'whisker_off_1' # ensures correct parsing later on
+
     behaviour_metadata = {
         'path_to_config_file': path_to_json_config,
         'behaviour_type': json_config['behaviour_type'],
@@ -420,11 +423,11 @@ if __name__ == '__main__':
     # mouse_ids = ['RD001', 'RD002', 'RD003', 'RD004', 'RD005', 'RD006']
     # mouse_ids = ['RD013', 'RD014', 'RD015', 'RD016', 'RD017']
     # mouse_ids = ['RD025', 'RD026']
-    mouse_ids = ['RD027', 'RD029', 'RD030', 'RD031', 'RD032']
+    mouse_ids = ['AB082']
     # mouse_ids = ['RD030']
     # mouse_ids = ['RD033', 'RD034', 'RD035', 'RD036']
 
-    last_done_day = "20231102"
+    last_done_day = None
 
     for mouse_id in mouse_ids:
 
