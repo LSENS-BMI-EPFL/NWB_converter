@@ -47,7 +47,7 @@ def get_subject_mouse_number(subject_id):
         mouse_number = int(float(mouse_number))
     else:
         mouse_number = int(float(mouse_number[1:]))
-    
+
     if initials == 'MI':
         initials = 'GF'
 
@@ -94,16 +94,16 @@ def get_behavior_results_file(config_file):
     behavior_results_file = os.path.join(data_folder, 'Training', session_name, 'results.csv')
     if not os.path.exists(behavior_results_file):
         behavior_results_file = os.path.join(data_folder, 'Training', session_name, 'results.txt')
-    
+
     if mouse_name[:2] in ['GF', 'MI']:
         if not os.path.exists(behavior_results_file):
             behavior_results_file = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis',
                                                  'Anthony_Renard', 'data', mouse_name, 'Recordings', 'BehaviourData',
-                                                 session_name, 'performanceResults.json') 
+                                                 session_name, 'performanceResults.json')
         # if not os.path.exists(behavior_results_file):
         #     behavior_results_file = os.path.join(data_folder, 'Recordings', 'BehaviourFiles',
-        #                                          session_name, 'BehavResults.mat') 
-        
+        #                                          session_name, 'BehavResults.mat')
+
     return behavior_results_file
 
 
@@ -203,7 +203,7 @@ def get_suite2p_folder(config_file):
         config = yaml.safe_load(stream)
     mouse_name = config['subject_metadata']['subject_id']
     session_name = config['session_metadata']['session_id']
-    
+
     data_folder = get_subject_analysis_folder(mouse_name)
     suite2p_path = os.path.join(data_folder, session_name, 'suite2p')
 

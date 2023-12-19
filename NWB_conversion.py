@@ -92,7 +92,7 @@ if __name__ == '__main__':
 
     if experimenter == 'GF':
         # Read excel database.
-        db_folder = 'C:\\Users\\aprenard\\recherches\\fast-learning\\docs'
+        db_folder = '\\\\sv-nas1.rcp.epfl.ch\\Petersen-Lab\\analysis\\Anthony_Renard'
         db_name = 'sessions_GF.xlsx'
         db = utils_gf.read_excel_database(db_folder, db_name)
 
