@@ -1,8 +1,9 @@
 import ast
 import os
 import pathlib
-
 import matplotlib.pyplot as plt
+import matplotlib as mpl
+#mpl.use('QtAgg')
 import yaml
 
 from utils import read_sglx, server_paths, tiff_loading

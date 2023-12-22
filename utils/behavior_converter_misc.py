@@ -68,6 +68,7 @@ def find_training_days(subject_id, input_folder): #TODO: make this more general 
 
     # Create behaviour-day/session index labels  aligned to first whisker day
     label = list(range(-n_aud, 0)) + list(range(0, n_wh + n_ctrl))
+
     label = [f"+{d}" if d > 0 else str(d) for d in label]
     behavior_type = [f"{t}_{l}" for t, l in zip(behavior_type, label)]
 
@@ -141,6 +142,15 @@ def get_trial_timestamps_dict(timestamps_dict, behavior_results_file, config_fil
 
     return trial_timestamps_dict, trial_indexes_dict
 
+def get_piezo_licks_timestamps_dict(timestamps_dict):
+    if timestamps_dict is None:
+        return None
+    else:
+        if 'lick_trace' not in list(timestamps_dict.keys()):
+            return None
+        else:
+            piezo_licks_timestamps_dict = timestamps_dict['lick_trace']
+    return piezo_licks_timestamps_dict
 
 def get_context_timestamps_dict(timestamps_dict, nwb_trial_table):
     context_timestamps_dict = dict()

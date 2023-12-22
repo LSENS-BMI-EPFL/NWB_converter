@@ -423,7 +423,7 @@ def read_ephys_binary_data(bin_file, meta_file):
     # Read NI data
     else:
         MN, MA, XA, DW = ChannelCountsNI(meta_dict)
-        print("NI channel counts: %d, %d, %d, %d" % (MN, MA, XA, DW))
+        #print("NI channel counts: %d, %d, %d, %d" % (MN, MA, XA, DW))
         # Apply gain correction and convert to V
         conv_data = GainCorrectNI(select_data, channel_list, meta_dict)
 

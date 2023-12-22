@@ -152,28 +152,27 @@ def convert_ephys_recording(nwb_file, config_file):
                 # Increment total number of neuron
                 neuron_counter += 1
 
-        elif config.get('ephys_metadata').get('unit_table') == 'standard':
-            print('Standard unit table not yet implemented')
-
-            # Build standard unit table
-            # TODO: implement this
-            unit_table = build_standard_unit_table(imec_folder=imec_folder,
-                                                    sync_spike_times_path=sync_spike_times_path
-                                                    )
-
-            # Add units to unit table
-            n_neurons = len(unit_table)
-            for neuron_id in range(n_neurons):
-
-                nwb_file.add_unit()
-
-
-                # Increment total number of neuron
-                neuron_counter += 1
+        #elif config.get('ephys_metadata').get('unit_table') == 'standard':
+        #    print('Standard unit table not yet implemented')
+#
+        #    # Build standard unit table
+        #    # TODO: implement this
+        #    unit_table = build_standard_unit_table(imec_folder=imec_folder,
+        #                                            sync_spike_times_path=sync_spike_times_path
+        #                                            )
+#
+        #    # Add units to unit table
+        #    n_neurons = len(unit_table)
+        #    for neuron_id in range(n_neurons):
+#
+        #        nwb_file.add_unit()
+#
+#
+        #        # Increment total number of neuron
+        #        neuron_counter += 1
 
         print('Done adding data for IMEC{}'.format(imec_id))
 
-    print('Done. ')
-
+    print('Done ephys conversion to NWB. ')
 
     return

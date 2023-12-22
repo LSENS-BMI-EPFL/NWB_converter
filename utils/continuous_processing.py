@@ -3,9 +3,11 @@ import cv2
 import itertools
 import numpy as np
 import matplotlib as mpl
+mpl.use('TkAgg')
 import matplotlib.pyplot as plt
 import scipy.signal as sci_si
 from scipy.ndimage import gaussian_filter1d
+from scipy.signal import savgol_filter
 from ScanImageTiffReader import ScanImageTiffReader
 
 
@@ -146,7 +148,7 @@ def detect_piezo_lick_times(continuous_data_dict, ni_session_sr=5000, lick_thres
     # Debugging: optional plotting
     if do_plot:
         t_start = 0
-        t_stop = 200
+        t_stop = 800
         ni_session_sr = int(float(ni_session_sr))
         plt.axhline(y=lick_threshold, color='red', lw=1, ls='--', alpha=0.9, zorder=0)
         plt.plot(lick_data[ni_session_sr*t_start:ni_session_sr*t_stop], c='k', label="lick_data", lw=1)
@@ -154,7 +156,7 @@ def detect_piezo_lick_times(continuous_data_dict, ni_session_sr=5000, lick_thres
         for lick_time in lick_times:
             plt.axvline(x=ni_session_sr*lick_time, color='red', lw=3, alpha=0.8)
         plt.xlim(t_start * ni_session_sr, t_stop * ni_session_sr)
-        plt.ylim(-0.05, 5*lick_threshold)
+        #plt.ylim(-0.05, 5*lick_threshold)
         plt.legend(loc='upper right', frameon=False)
         plt.show()
 
@@ -310,7 +312,8 @@ def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scan
                 lick_timestamps = detect_piezo_lick_times(continuous_data_dict,
                                                           ni_session_sr=ni_session_sr,
                                                           lick_threshold=lick_threshold,
-                                                          sigma=100, do_plot=False)
+                                                          sigma=100,
+                                                          do_plot=False)
 
                 # Format as tuples of on/off times for NWB
                 lick_timestamps_on_off = list(zip(lick_timestamps, itertools.repeat(np.nan)))
@@ -439,7 +442,14 @@ def plot_exposure_times(timestamps_dict):
 
 
 def read_behavior_avi_movie(movie_file):
+    """
+    Open behaviour movie file with OpenCV and return the number of frames and the frame rate.
+    Args:
+        movie_file: path to movie file
 
+    Returns:
+
+    """
     movie_name = os.path.split(movie_file)[1]
     print(f"AVI name : {movie_name}")
     video_capture = cv2.VideoCapture(movie_file)
@@ -458,6 +468,7 @@ def read_behavior_avi_movie(movie_file):
 
 
 def print_info_dict(my_dict):
+    """ Print a dictionary in a nice way. """
     for key, data in my_dict.items():
         print(f"- {key}: {data}")
 

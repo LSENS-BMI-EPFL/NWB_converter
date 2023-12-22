@@ -37,8 +37,8 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True):
 
     if config_dict['session_metadata']['experimenter'] != 'GF':
         timestamps_dict, _ = analyze_continuous_log(config_file=config_file,
-                                                    do_plot=False, plot_start=None,
-                                                    plot_stop=None, camera_filtering=False)
+                                                    do_plot=False, plot_start=0,
+                                                    plot_stop=100, camera_filtering=False)
     else:
         timestamps_dict, _ = utils_gf.infer_timestamps_dict(
             config_file=config_file)
@@ -64,7 +64,7 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True):
                              config_file=config_file,
                              ci_frame_timestamps=timestamps_dict['galvo_position'])
 
-    if config_dict.get("ephys_metadata") is not None and config_dict.get("ephys_metadata").get("processed") == "true":
+    if config_dict.get("ephys_metadata") is not None and config_dict.get("ephys_metadata").get("processed") == 1:
         print(" ")
         print("Convert extracellular electrophysiology data")
 
@@ -85,10 +85,10 @@ if __name__ == '__main__':
     # mouse_ids = ['RD001', 'RD002', 'RD003', 'RD004', 'RD005', 'RD006']
     # mouse_ids = ['RD013', 'RD014', 'RD015', 'RD016', 'RD017']
     # mouse_ids = ['RD025', 'RD026']
-    mouse_ids = ['RD027', 'RD029', 'RD030', 'RD031', 'RD032']
+    mouse_ids = ['AB082']
     # mouse_ids = ['RD030']
     # mouse_ids = ['RD033', 'RD034', 'RD035', 'RD036']
-    experimenter = 'RD'
+    experimenter = 'AB'
 
     if experimenter == 'GF':
         # Read excel database.
@@ -118,9 +118,9 @@ if __name__ == '__main__':
             # if isession not in session_to_do:
             #    continue
 
-            date_to_do = "20231129"
-            if date_to_do not in isession:
-                continue
+            #date_to_do = 'None'
+            #if date_to_do not in isession:
+            #    continue
 
             # session_date = isession.split('_')[1]
             # session_date = datetime.datetime.strptime(session_date, "%Y%m%d")

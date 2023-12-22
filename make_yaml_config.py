@@ -337,6 +337,12 @@ def create_channels_threshold_dict(experimenter, json_config):
         channels_dict.update({'context': 5})
         threshold_dict.update({'context': 4})
 
+    if json_config['mouse_name'] == 'AB082': # to be removed when NWB file done
+        channels_dict.pop('context')
+        threshold_dict.pop('context')
+        #channels_dict.pop('empty_2')
+        #threshold_dict.pop('empty_2')
+
     # elif experimenter in ['PB'] and json_config['mouse_name']!='PB124':
     # ...
 
