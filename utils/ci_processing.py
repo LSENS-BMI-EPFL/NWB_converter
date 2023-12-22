@@ -1,7 +1,7 @@
+import os
+
 import numpy as np
 import scipy
-import os
-import matplotlib.pyplot as plt
 
 
 def compute_F0(F, fs, window):

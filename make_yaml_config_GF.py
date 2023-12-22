@@ -164,19 +164,30 @@ def make_yaml_config_GF(subject_id, session_id, session_description, input_folde
         session_type = 'pharma_session'
     else:
         session_type = 'behaviour_only_session'
-
-    # Read json performance file.
-    perf_path = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis', 'Anthony_Renard',
-                             'data', subject_id, 'Recordings', 'BehaviourData', session_id, 'performanceResults.json')
-    with open(perf_path, 'r') as f:
-        perf_json = json.load(f)
-    perf_df = pd.DataFrame(perf_json['results'], columns=perf_json['headers'])
-
-    # Check if R+ or R- mouse.
-    if (perf_df.whrew == 1).sum() > 0:
-        wh_reward = 1
-    else:
+        
+    non_rewarded = [
+        'GF208',
+        'GF319',
+        'GF320',
+        'GF340',
+        'GF348',
+        'GF350',
+        'MI059',
+        'MI061',
+        'MI062',
+        'MI069',
+        'MI070',
+        'MI071',
+        'MI072',
+        'MI073',
+        'MI075',
+        'MI076',
+        'MI077']
+    
+    if subject_id in non_rewarded:
         wh_reward = 0
+    else:
+        wh_reward = 1
 
     # Infer stimuli proportions from session day.
     session_day = database.loc[database.session_id ==
