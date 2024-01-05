@@ -101,6 +101,7 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
 
     # Add fluorescence data to roi response series
     print('Add Roi Response Series.')
+    # todo : add control (list of int code for cell type) and control_description (list of str for name of cell type)
     for d, l, desc in zip(data, data_labels, descriptions):
         if d is not None:
             # Filtering is already done for GF data.
