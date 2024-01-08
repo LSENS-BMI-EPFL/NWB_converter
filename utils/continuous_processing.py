@@ -108,6 +108,7 @@ def read_binary_continuous_log(bin_file, channels_dict, ni_session_sr=5000, t_st
     continuous_data_dict["timestamps"] = timestamps
     print(f"start : {timestamps[0]}s, end at {np.round(timestamps[-1], 2)}s")
 
+
     return continuous_data_dict
 
 
@@ -193,6 +194,17 @@ def filter_cameras_live_timestamps(on_off_timestamps):
     long_exposure_idx = np.where(exposure_time > 2 * np.median(exposure_time))[0]
     if len(long_exposure_idx) > 0:
         filtered_on_off_timestamps = on_off_timestamps[long_exposure_idx[0] + 1: long_exposure_idx[1]]
+    else:
+        filtered_on_off_timestamps = on_off_timestamps
+
+    return filtered_on_off_timestamps
+
+
+def filter_wf_camera_live_timestamps(on_off_timestamps):
+    inter_frame_interval = np.diff(on_off_timestamps)
+    long_pause_idx = np.where(inter_frame_interval > 2 * np.median(inter_frame_interval))[0]
+    if len(long_pause_idx) > 0:
+        filtered_on_off_timestamps = on_off_timestamps[:long_pause_idx[0]]
     else:
         filtered_on_off_timestamps = on_off_timestamps
 
@@ -315,6 +327,11 @@ def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scan
             if key in ["trial_TTL"] and binary_data[-1] == 1:
                 print(f"Session likely stopped before end of last {key}")
                 filtered_on_off_timestamps = on_off_timestamps[0: -1]  # remove last timestamp that signals session end
+                on_off_timestamps = filtered_on_off_timestamps
+
+            if key in ["widefield"]:
+                print(f"Cutting extra frames after stop signal")
+                filtered_on_off_timestamps = filter_wf_camera_live_timestamps(on_off_timestamps)
                 on_off_timestamps = filtered_on_off_timestamps
 
             timestamps_dict[key] = on_off_timestamps

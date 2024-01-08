@@ -11,6 +11,7 @@ from converters.nwb_saving import save_nwb_file
 from converters.behavior_to_nwb import convert_behavior_data
 from converters.images_to_nwb import convert_images_data
 from converters.ephys_to_nwb import convert_ephys_recording
+from converters.widefield_to_nwb import convert_widefield_recording
 from continuous_log_analysis import analyze_continuous_log
 from utils.behavior_converter_misc import find_training_days
 from utils.server_paths import get_subject_data_folder, get_subject_analysis_folder, get_nwb_folder
@@ -68,6 +69,14 @@ def convert_data_to_nwb(config_file, output_folder):
         convert_ephys_recording(nwb_file=nwb_file,
                              config_file=config_file)
 
+    if config_dict.get("widefield_metadata") is not None:
+        print(" ")
+        print("Convert widefield data")
+
+        convert_widefield_recording(nwb_file=nwb_file,
+                                    config_file=config_file,
+                                    wf_frame_timestamps=timestamps_dict["widefield"])
+
 
     print(" ")
     print("Saving NWB file")
@@ -79,11 +88,12 @@ def convert_data_to_nwb(config_file, output_folder):
 if __name__ == '__main__':
 
     # Run the conversion
-    mouse_ids = [50,51,52,54,56,58,59,68,72,73,75,76,77,78,79,80,81,82,83,85,86,87]
-    mouse_ids = ['AB0{}'.format(i) for i in mouse_ids]
-
-    last_done_day = "20231102"
-    last_done_day = None
+    # mouse_ids = [164, 165, 166, 168] #
+    mouse_ids = ['157']
+    mouse_ids = ['PB{}'.format(i) for i in mouse_ids]
+    # mouse_ids = ['PB165']
+    last_done_day = "20231201"
+    # last_done_day = None
 
 
     for mouse_id in mouse_ids:
@@ -105,16 +115,27 @@ if __name__ == '__main__':
             #if isession not in session_to_do:
             #    continue
 
-            # date_to_do = "20230629"
+            # date_to_do = "20231202"
             # if date_to_do not in isession:
             #     continue
 
             session_date = isession.split('_')[1]
             session_date = datetime.datetime.strptime(session_date, "%Y%m%d")
 
-            if last_done_day is not None:
-                if session_date <= datetime.datetime.strptime(last_done_day, "%Y%m%d"):
-                    continue
+            # if last_done_day is not None:
+            #     if session_date <= datetime.datetime.strptime(last_done_day, "%Y%m%d"):
+            #         continue
+            sessions_to_do = ["20231219"]
+            if isession.split('_')[1] not in sessions_to_do:
+               continue
+
+            if isession in ['PB165_20231122_092222', 'PB165_20231122_092243', 'PB165_20231209_135529', 'PB165_20231209_135752', 'PB164_20231114_131221', 'PB168_20231201_134856']:
+                continue
+            if '20231114' in isession:
+                continue
+            if 'calibration' in isession:
+                continue
+
             # Find yaml config file and behavior results for this session.
             config_yaml = os.path.join(analysis_folder, isession, f"config_{isession}.yaml")
 

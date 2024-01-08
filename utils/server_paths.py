@@ -293,7 +293,7 @@ def get_opto_config_file(config_file):
         config = yaml.safe_load(stream)
     mouse_name = config['subject_metadata']['subject_id']
     session_name = config['session_metadata']['session_id']
-    data_folder = get_subject_analysis_folder(mouse_name)
+    data_folder = get_subject_data_folder(mouse_name)
     opto_config_file = os.path.join(data_folder, 'Training', session_name, 'opto_config.json')
 
     if not os.path.exists(opto_config_file):
@@ -301,3 +301,21 @@ def get_opto_config_file(config_file):
         return None
 
     return opto_config_file
+
+
+
+def get_widefield_file(mat_path):
+
+    if not os.path.exists(mat_path):
+        mat_file = None
+        return mat_file
+
+    data_file = [os.path.join(mat_path, m) for m in os.listdir(mat_path)
+                 if 'timestamps' not in m]
+    timestamps_file = [os.path.join(mat_path, m) for m in os.listdir(mat_path)
+                 if 'timestamps' in m]
+
+    if not data_file:
+        data_file = None
+
+    return sorted(data_file), sorted(timestamps_file)

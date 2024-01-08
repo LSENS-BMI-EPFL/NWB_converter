@@ -251,6 +251,10 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     elif json_config['ephys_session']:
         main_dict.update({'ephys_metadata': ephys_metadata})
 
+    elif json_config['wf_session']:
+        widefield_metadata = create_wf_metadata(config_path=os.path.join(input_folder, 'Training', session_id))
+        main_dict.update({'widefield_metadata': widefield_metadata})
+
     main_dict.update({'behaviour_metadata': behaviour_metadata})
 
     analysis_session_folder = os.path.join(output_folder, session_id)
@@ -402,15 +406,33 @@ def create_ephys_metadata(subject_id):
     return ephys_metadata
 
 
+def create_wf_metadata(config_path):
+    """Create metadata structure specific for widefield imaging
+    Args:
+        subject_id
+
+    Returns:
+        """
+
+    wf_config_json_path = os.path.join(config_path, 'wf_config.json')
+
+    with open(wf_config_json_path, 'r') as f:
+        widefield_metadata = json.load(f)
+
+    for item in ['CameraRoot', 'CameraPathConfig', 'CameraPathTemplateConfig', 'n_frames_to_grab', 'savedir']:
+        del(widefield_metadata[item])
+
+    return widefield_metadata
+
+
 if __name__ == '__main__':
     # Select mouse IDs.
     # mouse_ids = ['RD001', 'RD002', 'RD003', 'RD004', 'RD005', 'RD006']
-    mouse_ids = [50, 51, 52, 54, 56, 58, 59, 68, 72, 73, 75, 76, 77, 78, 79, 80, 81, 82, 83, 85, 87, 88, 89, 90, 91]
-    mouse_ids = [68, 72, 73, 75, 76, 77, 78, 79, 80, 81, 82, 83, 85, 87, 88, 89, 90, 91]
-    mouse_ids = [86]
-    mouse_ids = ['AB0{}'.format(i) for i in mouse_ids]
-
-    last_done_day = "20231102"
+    # mouse_ids = [164, 165, 166, 168]
+    mouse_ids = ['157']
+    mouse_ids = ['PB{}'.format(i) for i in mouse_ids]
+    # mouse_ids = ['PB168']
+    last_done_day = "20231202"
     last_done_day = None
 
     for mouse_id in mouse_ids:
@@ -426,13 +448,17 @@ if __name__ == '__main__':
             session_date = session_id.split('_')[1]
             session_date = datetime.datetime.strptime(session_date, "%Y%m%d")
 
-            if last_done_day is not None:
-                if session_date <= datetime.datetime.strptime(last_done_day, "%Y%m%d"):
-                    continue
+            # if last_done_day is not None:
+            #     if session_date <= datetime.datetime.strptime(last_done_day, "%Y%m%d"):
+            #         continue
 
-            # sessions_to_do = ["PB124_20230404_141456"]
-            # if session_id not in sessions_to_do:
-            #    continue
+            if session_id in ['PB168_20231201_134856']:
+                continue
 
+            sessions_to_do = ["20231219"]
+            # print(session_id.split('_')[1])
+            if session_id.split('_')[1] not in sessions_to_do:
+               continue
+            print(session_id.split('_')[1])
             make_yaml_config(mouse_id, session_id, day, data_folder, analysis_folder,
                              mouse_line='C57BL/6', gmo=False)

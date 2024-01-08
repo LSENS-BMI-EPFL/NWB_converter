@@ -53,7 +53,8 @@ def find_training_days(subject_id, input_folder): #TODO: make this more general 
 
     whisker_behaviours = ['whisker',
                            'whisker_psy',
-                           'context']
+                          'context',
+                           'whisker_context']
     n_wh = len([s for s in behavior_type if s in whisker_behaviours])
 
     #control_behaviours = ['whisker_on_1',
@@ -98,7 +99,7 @@ def get_trial_timestamps_dict(timestamps_dict, behavior_results_file, config_fil
     else:
         sep = ','
     behavior_results = pd.read_csv(behavior_results_file, sep=sep, engine='python')
-
+    behavior_results = behavior_results.drop_duplicates(subset='trial_time')
     # Get trial outcomes, number of trials and trial types
     trial_outcomes = behavior_results['perf'].values
     trial_types = np.unique(trial_outcomes)
@@ -115,6 +116,7 @@ def get_trial_timestamps_dict(timestamps_dict, behavior_results_file, config_fil
     # Get trial timestamps for each trial type
     for trial_type in trial_types:
         trial_idx = np.where(trial_outcomes == trial_type)[0]
+
         trial_timestamps_dict[trial_type] = np.transpose(np.array(trial_timestamps[trial_idx]))
         trial_indexes_dict[trial_type] = trial_idx
 
@@ -164,6 +166,10 @@ def get_context_timestamps_dict(timestamps_dict, nwb_trial_table):
             continue
         if len(np.unique(data_table.context.values[:])) > 1:
             print(f"Seems like there is more than one context trial in this {context_bloc} block")
+        if context_bloc != (len(context_on_off) - 1) and data_table.empty:
+            print("Seems there are no trials in this block")
+            n_context_blocks = n_context_blocks - 1
+            continue
         rewarded_context.append(data_table.context.values[0])
         context_sound.append(data_table.context_background.values[0])
 
@@ -261,7 +267,7 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
         session_config = json.load(json_file)
 
     # Get behaviour results and formatted trial type formatted as a list
-    trial_table = pd.read_csv(behavior_results_file)
+    trial_table = pd.read_csv(behavior_results_file).drop_duplicates(subset='trial_time')
     trial_type_list = list_standard_trial_type(results_table=trial_table)
     n_trials = trial_table['perf'].size
     print(f"Read '.csv' file to build trial NWB trial table ({n_trials} trials)")
@@ -350,7 +356,10 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
         opto_trial_table = pd.read_csv(opto_results_file)
 
         #TODO: to be formated @Pol
-        standard_trial_table['opto_stim'] = opto_trial_table['is_opto']
+        if 'is_opto' not in opto_trial_table.keys():
+            standard_trial_table['opto_stim'] = opto_trial_table['opto_amp']>0
+        else:
+            standard_trial_table['opto_stim'] = opto_trial_table['is_opto']
         standard_trial_table['opto_grid_ap'] = opto_trial_table['coord_AP']
         standard_trial_table['opto_grid_ml'] = opto_trial_table['coord_ML']
         standard_trial_table['opto_grid_no'] = opto_trial_table['grid_no']
@@ -359,7 +368,7 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
         standard_trial_table['opto_stim_amplitude'] = opto_trial_table['opto_amp']
         standard_trial_table['opto_stim_frequency'] = opto_trial_table['opto_freq']
     else:
-        standard_trial_table['opto_stim'] = np.nan
+        standard_trial_table['opto_stim'] = 0
         standard_trial_table['opto_grid_ap'] = np.nan
         standard_trial_table['opto_grid_ml'] = np.nan
         standard_trial_table['opto_grid_no'] = np.nan
