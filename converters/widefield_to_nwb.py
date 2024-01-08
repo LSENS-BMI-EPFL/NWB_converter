@@ -8,7 +8,6 @@ from utils.server_paths import get_widefield_file, get_subject_analysis_folder, 
 from npy_append_array import NpyAppendArray
 
 
-
 def concat_widefield_data(files, timestamps, output_folder, overwrite=False):
 
     if not overwrite:
@@ -30,6 +29,7 @@ def concat_widefield_data(files, timestamps, output_folder, overwrite=False):
             data = loadmat(file)['timestamps']
             npaa.append(data)
     npaa.close()
+
 
 def convert_widefield_recording(nwb_file, config_file, wf_frame_timestamps):
     """
