@@ -1,13 +1,18 @@
-import matplotlib.pyplot as plt
-import yaml
-import os
 import ast
-from utils.continuous_processing import read_binary_continuous_log, \
-    plot_continuous_data_dict, extract_timestamps, read_behavior_avi_movie, \
-    print_info_dict
-from utils import server_paths
-from utils import tiff_loading
-from utils.ephys_converter_misc import get_ephys_timestamps
+import os
+import pathlib
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+#mpl.use('QtAgg')
+import yaml
+
+from utils import read_sglx, server_paths, tiff_loading
+from utils.continuous_processing import (extract_timestamps,
+                                         plot_continuous_data_dict,
+                                         print_info_dict,
+                                         read_behavior_avi_movie,
+                                         read_binary_continuous_log)
+from utils.ephys_converter_misc import extract_ephys_timestamps
 
 
 def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_stop=None, camera_filtering=False):
@@ -26,18 +31,6 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
 
     """
 
-    # Load NWB config file
-    with open(config_file, 'r', encoding='utf8') as stream:
-        config = yaml.safe_load(stream)
-
-
-    # Check if continuous processing is required
-    if config['session_metadata']['experimenter'] == 'AB':
-        exp_desc = ast.literal_eval(config.get('session_metadata').get('experiment_description'))
-        if exp_desc['session_type'] == 'behaviour_only_session':
-            return None, None
-
-
     if __name__ == "__main__":
         with open(config_file, 'r', encoding='utf8') as stream:
             config = yaml.safe_load(stream)
@@ -50,13 +43,21 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
         tiff_file = config['ci_tiff_path']
 
     else:
-        # Get paths to files
+        # Load NWB config file
+        with open(config_file, 'r', encoding='utf8') as stream:
+            config = yaml.safe_load(stream)
+
         bin_file = server_paths.get_log_continuous_file(config_file)
 
         if config['session_metadata']['experimenter'] == 'AB':
+            # Check if continuous processing is required
+            exp_desc = ast.literal_eval(config.get('session_metadata').get('experiment_description'))
+            if exp_desc['session_type'] == 'behaviour_only_session':
+                return None, None
             movie_files = server_paths.get_session_movie_files(config_file)
         else:
             movie_files = server_paths.get_movie_files(config_file)
+
         tiff_file = server_paths.get_imaging_file(config_file)
 
     # Get relevant continuous processing information
@@ -94,9 +95,13 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
                                   t_stop=plot_stop,
                                   black_background=False)
 
-    if 'ephys_metadata' in config and config['ephys_metadata']['processed']==1:
-        ephys_timestamps_dict, n_frames_dict = get_ephys_timestamps(config_file=config_file,
-                                                                    log_timestamps_dict=timestamps_dict)
+    if 'ephys_metadata' in config:
+        ephys_nidq_meta, ephys_nidq_bin = server_paths.get_raw_ephys_nidq_files(config_file)
+        ephys_cont_data_dict = read_sglx.read_ephys_binary_data(ephys_nidq_bin, ephys_nidq_meta)
+        ephys_timestamps_dict, n_frames_dict = extract_ephys_timestamps(config_file=config_file,
+                                                                        continuous_data_dict=ephys_cont_data_dict,
+                                                                        threshold_dict=threshold_dict,
+                                                                        log_timestamps_dict=timestamps_dict)
         timestamps_dict = ephys_timestamps_dict
 
     print("Number of timestamps per acquisition:")
@@ -104,8 +109,9 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
 
     if __name__ == "__main__":
         if movie_files is not None:
-            print(f"Check numer video filming frames")
-            read_behavior_avi_movie(movie_files=movie_files)
+            print(f"Check number video filming frames")
+            for movie in movie_files:
+                read_behavior_avi_movie(movie_file=movie)
 
         if tiff_file is not None:
             print(f"Tiff file found, reading number of CI frames")

@@ -1,15 +1,18 @@
 """_summary_
 """
-import os
 import datetime
 import json
-import yaml
+import os
+
 import numpy as np
 import pandas as pd
-from utils.behavior_converter_misc import find_training_days
-from utils.server_paths import get_subject_data_folder, get_subject_analysis_folder, get_ref_weight_folder
-from utils.server_paths import get_subject_mouse_number
+import yaml
 
+import utils.gf_utils as utils_gf
+from utils.server_paths import (get_ref_weight_folder,
+                                get_subject_analysis_folder,
+                                get_subject_data_folder,
+                                get_subject_mouse_number)
 
 # Update your keywords
 GENERAL_KEYWORDS = ['neurophysiology', 'behaviour', 'mouse']
@@ -26,8 +29,8 @@ KEYWORD_MAP = {
 }
 
 
-def make_yaml_config(subject_id, session_id, session_description, input_folder, output_folder,
-                     database, mouse_line='C57BL/6', gmo=True):
+def make_yaml_config_GF(subject_id, session_id, session_description, input_folder, output_folder,
+                        database, mouse_line='C57BL/6', gmo=True):
     """_summary_
 
     Args:
@@ -38,25 +41,28 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
         gmo (bool, optional): _description_. Defaults to True.
     """
 
-    print(f'Creating yaml config file for session {session_id}.', end='\r')
-    
+    print(f'Creating yaml config file for session {session_id}.')
+
     # Subject metadata.
     # #################
 
     # Get mouse number and experimenter initials from subject ID.
     _, experimenter = get_subject_mouse_number(subject_id)
 
-    if experimenter in ['GF', 'MI']:
+    if experimenter in ['GF']:
         slims_csv_path = '\\\\sv-nas1.rcp.epfl.ch\\Petersen-Lab\\analysis\\Georgios_Foustoukos\\FoustoukosData\\MetaData\\MiceMetaData.csv'
         slims = pd.read_csv(slims_csv_path, sep=';', engine='python')
     else:
         # Select most recent metadata export from SLIMS folder.
         try:
-            slims_csv = sorted(os.listdir(os.path.join(input_folder, 'SLIMS')))[-1]  # post-euthanasia SLIMS file has more information
+            # post-euthanasia SLIMS file has more information
+            slims_csv = sorted(os.listdir(
+                os.path.join(input_folder, 'SLIMS')))[-1]
             slims_csv_path = os.path.join(input_folder, 'SLIMS', slims_csv)
             slims = pd.read_csv(slims_csv_path, sep=';', engine='python')
         except IndexError:
-            print('Error: SLIMS folder may be empty. Export SLIMS info .csv file.', end='\r')
+            print(
+                'Error: SLIMS folder may be empty. Export SLIMS info .csv file.', end='\r')
             return
         except UnicodeDecodeError:
             print('Error: SLIMS file may not be in a .csv file. Please export it again from SLIMS as .csv.', end='\r')
@@ -85,7 +91,8 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     birth_date = datetime.datetime.strptime(birth_date, "%d/%m/%Y")
     days = (session_date - birth_date).days
     subject_metadata['age'] = f"P{days}D"
-    subject_metadata['date_of_birth'] = datetime.datetime.strftime(birth_date, '%m/%d/%Y')
+    subject_metadata['date_of_birth'] = datetime.datetime.strftime(
+        birth_date, '%m/%d/%Y')
 
     # Add strain from Slims if not WT mouse.
     # Whether mouse is WT in not in the default Slims metadata, so use 'gmo' parameter.
@@ -110,24 +117,29 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
 
     # Get mouse reference weight
     ref_weight_path = get_ref_weight_folder(experimenter=experimenter)
-    ref_weight_csv_path = os.path.join(ref_weight_path, 'mouse_reference_weight.xlsx')
+    ref_weight_csv_path = os.path.join(
+        ref_weight_path, 'mouse_reference_weight.xlsx')
     if not os.path.exists(ref_weight_csv_path):
-        print(f'Error: reference weight file not found for {experimenter}. Please create it.')
+        print(
+            f'Error: reference weight file not found for {experimenter}. Please create it.')
         ref_weight = np.nan
     else:
         ref_weight_df = pd.read_excel(ref_weight_csv_path)
         # Make sure subject is in the reference weight file
         if subject_id not in ref_weight_df.mouse_name.values:
-            print(f'Error: subject {subject_id} not found in reference weight file for {subject_id}. Please add it.')
+            print(
+                f'Error: subject {subject_id} not found in reference weight file for {subject_id}. Please add it.')
             ref_weight = np.nan
         else:
-            ref_weight_cols = [col for col in ref_weight_df.columns if 'weight' in col]
+            ref_weight_cols = [
+                col for col in ref_weight_df.columns if 'weight' in col]
             if len(ref_weight_cols) > 1:
                 print(
                     f'NotImplementedError: more than one reference weight column found for {experimenter}. Please check.')
                 ref_weight = np.nan
             else:
-                ref_weight = ref_weight_df.loc[ref_weight_df.mouse_name == subject_id, ref_weight_cols[0]].values[0]
+                ref_weight = ref_weight_df.loc[ref_weight_df.mouse_name ==
+                                               subject_id, ref_weight_cols[0]].values[0]
                 assert isinstance(ref_weight,
                                   float), f'Error: reference weight for {subject_id} is not a float. Please check.'
 
@@ -144,31 +156,44 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     #     session_type = 'behaviour_only_session'
 
     # Get session_type from database.
-    if database.loc[database.session_id==session_id, '2P_calcium_imaging'].values[0]:
+    if database.loc[database.session_id == session_id, '2P_calcium_imaging'].values[0]:
         session_type = 'twophoton_session'
-    elif database.loc[database.session_id==session_id, 'optogenetic'].values[0]:
+    elif database.loc[database.session_id == session_id, 'optogenetic'].values[0]:
         session_type = 'opto_session'
-    elif database.loc[database.session_id==session_id, 'pharmacology'].values[0]:
+    elif database.loc[database.session_id == session_id, 'pharmacology'].values[0]:
         session_type = 'pharma_session'
     else:
         session_type = 'behaviour_only_session'
-
-    # Read json performance file.
-    perf_path = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis', 'Anthony_Renard',
-                             'data', subject_id, 'Recordings', 'BehaviourData', session_id, 'performanceResults.json')
-    with open(perf_path, 'r') as f:
-        perf_json = json.load(f)
-    perf_df = pd.DataFrame(perf_json['results'], columns=perf_json['headers'])
-
-    # Check if R+ or R- mouse.
-    if (perf_df.whrew==1).sum() > 0:
-        wh_reward = 1
-    else:
+        
+    non_rewarded = [
+        'GF208',
+        'GF319',
+        'GF320',
+        'GF340',
+        'GF348',
+        'GF350',
+        'MI059',
+        'MI061',
+        'MI062',
+        'MI069',
+        'MI070',
+        'MI071',
+        'MI072',
+        'MI073',
+        'MI075',
+        'MI076',
+        'MI077']
+    
+    if subject_id in non_rewarded:
         wh_reward = 0
+    else:
+        wh_reward = 1
 
     # Infer stimuli proportions from session day.
-    session_day = database.loc[database.session_id==session_id, 'session_day'].values[0]
-    if '-' in session_day:  # Audiotry session, otherwise there are whisker trials.
+    session_day = database.loc[database.session_id ==
+                               session_id, 'session_day'].values[0]
+    # Audiotry session, otherwise there are whisker trials.
+    if '-' in session_day:
         wh_stim_weight = 0
         aud_stim_weight = 10
     else:
@@ -181,7 +206,13 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
         camera_flag = 1
     else:
         camera_flag = 0
-
+        
+    # Number of unmotivated played at the end of the session.
+    if database.loc[database.session_id==session_id, 'unmotivated_trials'].to_numpy()[0]:
+        unmotivated_trials = 50
+    else:
+        unmotivated_trials = 0
+    
     session_experiment_metadata = {
         'reference_weight': 'na',  # reference weight before water-restriction
         'session_type': session_type,
@@ -197,26 +228,51 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
         'camera_exposure_time': 2,
         'camera_start_delay': 'na',
         'artifact_window': 100,
+        'unmotivated_trials': unmotivated_trials,
     }
 
     # Session metadata.
     # #################
 
+    start_date = session_id.split('_')[1]
+    start_date = datetime.datetime.strptime(
+        start_date, '%d%m%Y').strftime('%Y%m%d')
+    start_time = session_id.split('_')[2]
+    if int(start_time[-2:]) > 59:
+        start_time = start_time[:-2] + '59'
+
     # Find is there is pharmacolyg, optogentic or chemogenetic.
-    if database.loc[database.session_id==session_id, 'pharmacology'].values[0]:
-        pharma = 1
+    if database.loc[database.session_id == session_id, 'pharmacology'].values[0]:
+        pharma_day = database.loc[database.session_id ==
+                                  session_id, 'pharma_day'].values[0]
+        pharma_inactivation = database.loc[database.session_id ==
+                                           session_id, 'pharma_inactivation_type'].values[0]
+        pharma_area = database.loc[database.session_id ==
+                                   session_id, 'pharma_area'].values[0]
+        pharma = {'pharma_day': pharma_day,
+                  'pharma_inactivation': pharma_inactivation,
+                  'pharma_area': pharma_area}
     else:
-        pharma = 0
-    if database.loc[database.session_id==session_id, 'optogenetic'].values[0]:
-        opto = 1
+        pharma = 'na'
+    if database.loc[database.session_id == session_id, 'optogenetic'].values[0]:
+        opto_day = database.loc[database.session_id ==
+                                session_id, 'opto_day'].values[0]
+        opto_inactivation = database.loc[database.session_id ==
+                                         session_id, 'opto_inactivation_type'].values[0]
+        opto_area = database.loc[database.session_id ==
+                                 session_id, 'opto_area'].values[0]
+        opto = {'opto_day': opto_day,
+                'opto_inactivation': opto_inactivation,
+                'opto_area': opto_area}
     else:
-        opto = 0
+        opto = 'na'
 
     # session data
+
     session_metadata = {
         'identifier': session_id,  # key to name the NWB file
         'session_id': session_id,
-        'session_start_time': session_id.split('_')[1] + ' ' + session_id.split('_')[2],
+        'session_start_time': f'{start_date} {start_time}',
         'session_description': session_description,
         'experimenter': experimenter,
         'institution': 'Ecole Polytechnique Federale de Lausanne',
@@ -224,9 +280,9 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
         'experiment_description': str(session_experiment_metadata),
         'keywords': GENERAL_KEYWORDS + KEYWORD_MAP[experimenter],
         'notes': 'na',
-        'pharmacology': pharma,
-        'optogenetic': opto,
-        'chemogenetic': 0,
+        'pharmacology': str(pharma),
+        'optogenetic': str(opto),
+        'chemogenetic': 'na',
         'protocol': 'na',
         'related_publications': 'na',
         'source_script': 'na',
@@ -237,33 +293,36 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
         'slices': 'na',
     }
 
+    # Log continuous metadata.
+    # ########################
 
-    # # Log continuous metadata.
-    # # ########################
+    log_continuous_metadata = {}
 
-    # log_continuous_metadata = {}
-
-    # # Add logged channels and thresholds (Volt) for edge detections.
+    # Add logged channels and thresholds (Volt) for edge detections.
     # channels_dict, threshold_dict = create_channels_threshold_dict(experimenter=experimenter,
     #                                                                json_config=json_config)
-    # if json_config['twophoton_session'] == 1:
-    #     scanimage_dict = {
-    #         'theoretical_ci_sampling_rate': 30,
-    #         'zoom': 3
-    #     }
-    #     log_continuous_metadata.update({'scanimage_dict': scanimage_dict})
+    if 'twophoton' in session_type:
+        scanimage_dict = {
+            'theoretical_ci_sampling_rate': 30,
+            'zoom': 3
+        }
+        log_continuous_metadata.update({'scanimage_dict': scanimage_dict})
 
-    # # Add to general dictionary.
+    # Add to general dictionary.
     # log_continuous_metadata.update({'channels_dict': channels_dict})
     # log_continuous_metadata.update({'threshold_dict': threshold_dict})
 
-
-    # # Behaviour metadata. #TODO: this could also be experimenter-dependent and a function of the json config file.
-    # # ###################
+    # Behaviour metadata. #TODO: this could also be experimenter-dependent and a function of the json config file.
+    # ###################
 
     # behaviour_metadata = create_behaviour_metadata(experimenter=experimenter,
     #                                                path_to_json_config=session_config_json_path)
-
+    behaviour_metadata = {
+        'path_to_config_file': 'na',
+        'behaviour_type': 'na',
+        'trial_table': 'standard',  # for raw NWB trial data, 'standard', 'simple'
+        'camera_flag': 'na',
+    }
 
     # Trial outcome mapping.
     # ######################
@@ -278,7 +337,6 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
         6: 'early_lick',
     }
 
-
     # 2P imaging metadata.
     # ####################
 
@@ -290,16 +348,11 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
         'indicator': 'GCaMP6f',
     }
 
-    
     # Optogenetic metadata.
     # #####################
-    
-    
-    
+
     # Pharmacology metadata.
     # ######################
-    
-    
 
     # Write to yaml file.
     # ###################
@@ -307,8 +360,8 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     main_dict = {
         'subject_metadata': subject_metadata,
         'session_metadata': session_metadata,
-        # 'log_continuous_metadata': log_continuous_metadata,
-        # 'behaviour_metadata': behaviour_metadata,
+        'log_continuous_metadata': log_continuous_metadata,
+        'behaviour_metadata': behaviour_metadata,
         'trial_map': trial_map,
     }
 
@@ -320,68 +373,10 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     if not os.path.exists(analysis_session_folder):
         os.makedirs(analysis_session_folder)
     with open(os.path.join(analysis_session_folder, f"config_{session_id}.yaml"), 'w') as stream:
-        yaml.dump(main_dict, stream, default_flow_style=False, explicit_start=True)
+        yaml.dump(main_dict, stream, default_flow_style=False,
+                  explicit_start=True)
 
     return
-
-
-def create_behaviour_metadata(experimenter, path_to_json_config):
-    """
-    Make behaviour metadata dictionary.
-    Args:
-        experimenter: experimenter initials
-        path_to_json_config:
-
-    Returns:
-
-    """
-
-    with open(path_to_json_config, 'r') as f:
-        json_config = json.load(f)
-
-    # Default behaviour metadata
-    behaviour_metadata = {
-        'path_to_config_file': path_to_json_config,
-        'behaviour_type': json_config['behaviour_type'],
-        'trial_table': 'standard',  # for raw NWB trial data, 'standard', 'simple'
-        'camera_flag': json_config['camera_flag'],
-    }
-    # Add camera exposure time if present in json config (was not logged before a certain date)
-    if 'camera_exposure_time' in json_config.keys():
-        behaviour_metadata.update({'camera_exposure_time': json_config['camera_exposure_time']})
-
-    return behaviour_metadata
-
-
-def read_excel_database(folder, file_name):
-    excel_path = os.path.join(folder, file_name)
-    database = pd.read_excel(excel_path, converters={'session_day': str})
-
-    # Remove empty lines.
-    database = database.loc[~database.isna().all(axis=1)]
-
-    # Change yes/no columns to booleans.
-    database = database.replace('yes', True)
-    database = database.replace('no', False)
-    database = database.astype({'2P_calcium_imaging': bool, 'optogenetic': bool,
-                     'pharmacology': bool})
-
-    return database
-
-
-def format_session_day_GF(mouse_id, session_days):
-    formated_days = []
-    for iday in session_days:
-        if iday[0] == '-':
-            formated_days.append(f'auditory_{iday}')
-        elif iday[0] in ['0', '+']:
-            formated_days.append(f'whisker_{iday}')
-        elif iday in ['whisker_on_1', 'whisker_off', 'whisker_on_2']:
-            formated_days.append(iday)
-        else:
-            raise ValueError(f'Unrecognized session day {iday} for mouse {mouse_id}.')
-
-    return formated_days
 
 
 if __name__ == '__main__':
@@ -393,8 +388,8 @@ if __name__ == '__main__':
     # Read excel database.
     db_folder = 'C:\\Users\\aprenard\\recherches\\fast-learning\\docs'
     db_name = 'sessions_GF.xlsx'
-    db = read_excel_database(db_folder, db_name)
-    
+    db = utils_gf.read_excel_database(db_folder, db_name)
+
     # Select mouse IDs.
     mouse_ids = db.subject_id.unique()
 
@@ -405,9 +400,10 @@ if __name__ == '__main__':
         analysis_folder = get_subject_analysis_folder(mouse_id)
 
         # Find training day for that mouse.
-        training_days = db.loc[db.subject_id==mouse_id, 'session_day'].to_list()
-        training_days = format_session_day_GF(mouse_id, training_days)
-        sessions = db.loc[db.subject_id==mouse_id, 'session_id'].to_list()
+        training_days = db.loc[db.subject_id ==
+                               mouse_id, 'session_day'].to_list()
+        training_days = utils_gf.format_session_day_GF(mouse_id, training_days)
+        sessions = db.loc[db.subject_id == mouse_id, 'session_id'].to_list()
 
         for session_id, day in list(zip(sessions, training_days)):
             session_date = session_id.split('_')[1]
@@ -421,5 +417,5 @@ if __name__ == '__main__':
                 if session_date <= datetime.datetime.strptime(last_done_day, "%Y%m%d"):
                     continue
 
-            make_yaml_config(mouse_id, session_id, day, data_folder, analysis_folder,
-                             mouse_line='C57BL/6', gmo=gmo, database=db)
+            make_yaml_config_GF(mouse_id, session_id, day, data_folder, analysis_folder,
+                                mouse_line='C57BL/6', gmo=gmo, database=db)

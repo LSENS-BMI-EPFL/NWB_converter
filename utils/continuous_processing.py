@@ -1,17 +1,21 @@
+import os
+import cv2
+import itertools
 import numpy as np
+import matplotlib as mpl
+mpl.use('TkAgg')
 import matplotlib.pyplot as plt
 import scipy.signal as sci_si
-import cv2
+from scipy.ndimage import gaussian_filter1d
+from scipy.signal import savgol_filter
 from ScanImageTiffReader import ScanImageTiffReader
-import time
-import os
 
 
 def get_continuous_time_periods(binary_array):
     """
-    take a binary array and return a list of tuples representing the first and last position(included) of continuous
-    positive period
-    This code was copied from another project or from a forum, but i've lost the reference.
+    Take a binary array and return a list of tuples representing the first and last position(included) of continuous
+    positive period.
+    This code was copied from another project or from a forum, but the reference was lost.
     :param binary_array:
     :return:
     """
@@ -63,12 +67,12 @@ def get_continuous_time_periods(binary_array):
 
 def read_binary_continuous_log(bin_file, channels_dict, ni_session_sr=5000, t_stop=None):
     """
-    Read binary continuous log file and return a dictionary with the data per channel.
+        Read behaviour binary file containing continuous data and return a dictionary containing the data and log timestamps.
     Args:
-        bin_file:
-        channels_dict:
-        ni_session_sr:
-        t_stop:
+        bin_file: Behaviour logging file.
+        channels_dict: Dictionary of channels to read from the binary file, defined in behaviour GUI logging session.
+        ni_session_sr: Logging session sampling rate.
+        t_stop: Optional parameter to stop reading the file at a certain time point.
 
     Returns:
 
@@ -112,8 +116,69 @@ def read_binary_continuous_log(bin_file, channels_dict, ni_session_sr=5000, t_st
     return continuous_data_dict
 
 
+def detect_piezo_lick_times(continuous_data_dict, ni_session_sr=5000, lick_threshold=None, sigma=100, do_plot=False):
+    """
+        Detect lick times from the lick data envelope.
+        The lick data is first filtered with a low pass filter to remove high frequency fluctuations.
+    Args:
+        sigma:
+        continuous_data_dict: Dictionary containing continuous data
+        ni_session_sr: Sampling rate of session
+        lick_threshold: Lick threshold of session
+        sigma: Standard deviation of gaussian filter used to smooth lick data
+
+    Returns:
+
+    """
+
+    # Smooth lick data with a gaussian filter
+    lick_data = continuous_data_dict.get("lick_trace")
+    lick_data_smooth = gaussian_filter1d(lick_data, sigma=sigma)
+
+    # Detect piezo data crossings using behaviour lick threshold
+    if lick_threshold is None:
+        lick_threshold = 0.1
+
+    lick_data_sub = lick_data_smooth - lick_threshold
+    cross_on_thr_indices = np.where(np.isclose(lick_data_sub, 0, atol=0.001))[0]  # find crossings
+    cross_thr_indices = [i for i in cross_on_thr_indices if lick_data_sub[i+1]>0 and lick_data_sub[i-1]<0] # keep upward crossings
+    cross_thr_pairs = [(i1, i2) for i1, i2 in zip(cross_thr_indices, cross_thr_indices[1:])]
+    cross_thr_indices_valid = [i1 for i1, i2 in cross_thr_pairs if (i2-i1) > 100]  # keep only crossings with a minimum distance of 100 samples i.e. 20ms
+    lick_times = np.array(cross_thr_indices_valid) / float(ni_session_sr)  # get lick times in seconds
+
+    # Debugging: optional plotting
+    if do_plot:
+        t_start = 0
+        t_stop = 800
+        ni_session_sr = int(float(ni_session_sr))
+        plt.axhline(y=lick_threshold, color='red', lw=1, ls='--', alpha=0.9, zorder=0)
+        plt.plot(lick_data[ni_session_sr*t_start:ni_session_sr*t_stop], c='k', label="lick_data", lw=1)
+        plt.plot(lick_data_smooth[ni_session_sr*t_start:ni_session_sr*t_stop], c='green', label="lick_envelope", lw=3)
+        for lick_time in lick_times:
+            plt.axvline(x=ni_session_sr*lick_time, color='red', lw=3, alpha=0.8)
+        plt.xlim(t_start * ni_session_sr, t_stop * ni_session_sr)
+        #plt.ylim(-0.05, 5*lick_threshold)
+        plt.legend(loc='upper right', frameon=False)
+        plt.show()
+
+    return lick_times
+
+
 def plot_continuous_data_dict(continuous_data_dict, timestamps_dict, ni_session_sr=5000, t_start=None, t_stop=None,
                               black_background=False):
+    """
+    Plot continuous data from a dictionary containing the data and timestamps.
+    Args:
+        continuous_data_dict: Dictionary containing continuous data
+        timestamps_dict: Dictionary containing timestamps for each channel
+        ni_session_sr: Sampling rate of session
+        t_start: Optional parameter to start plotting the figure at a certain time point.
+        t_stop: Optional parameter to stop plotting the figure at a certain time point.
+        black_background: Optional parameter to plot the figure with a black background.
+
+    Returns:
+
+    """
     channel_names = list(continuous_data_dict.keys())
     n_channels = len(channel_names)
 
@@ -225,6 +290,18 @@ def detect_ci_pause(ci_frame_times):
 
 
 def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scanimage_dict=None, filter_cameras=False):
+    """
+    Extract timestamps from continuous logging data.
+    Args:
+        continuous_data_dict:  Dictionary with continuous data
+        threshold_dict: Dictionary with threshold values for each channel, in Volt
+        ni_session_sr: Sampling rate of session
+        scanimage_dict: Dictionary with ScanImage information
+        filter_cameras: Boolean, whether to filter camera timestamps
+
+    Returns:
+
+    """
     binary_data_dict = {}
     timestamps_dict = {}
     n_frames_dict = {}
@@ -234,8 +311,28 @@ def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scan
     for key, data in continuous_data_dict.items():
 
         # Do not extract timestamps for these keys
-        if key in ["timestamps", "lick_trace", 'empty_1', 'empty_2']:
+        if key in ["timestamps", 'empty_1', 'empty_2']:
+
             continue
+
+        if key == "lick_trace":
+
+            if threshold_dict.get(key) is not None:
+
+                # Detect lick times using behaviour GUI lick threshold
+                lick_threshold = float(threshold_dict.get(key))
+                lick_timestamps = detect_piezo_lick_times(continuous_data_dict,
+                                                          ni_session_sr=ni_session_sr,
+                                                          lick_threshold=lick_threshold,
+                                                          sigma=100,
+                                                          do_plot=False)
+
+                # Format as tuples of on/off times for NWB
+                lick_timestamps_on_off = list(zip(lick_timestamps, itertools.repeat(np.nan)))
+                timestamps_dict[key] = lick_timestamps_on_off
+
+            else:
+                timestamps_dict[key] = None
 
         elif key == "galvo_position":
 
@@ -361,26 +458,34 @@ def plot_exposure_times(timestamps_dict):
     plt.show()
 
 
-def read_behavior_avi_movie(movie_files):
+def read_behavior_avi_movie(movie_file):
+    """
+    Open behaviour movie file with OpenCV and return the number of frames and the frame rate.
+    Args:
+        movie_file: path to movie file
 
-    for movie_file in movie_files:
-        movie_name = os.path.split(movie_file)[1]
-        video_capture = cv2.VideoCapture(movie_file)
+    Returns:
 
-        # Check if camera opened successfully
-        if not video_capture.isOpened():
-            print("Error opening video stream or file")
+    """
+    movie_name = os.path.split(movie_file)[1]
+    print(f"AVI name : {movie_name}")
+    video_capture = cv2.VideoCapture(movie_file)
 
-        video_length = int(video_capture.get(cv2.CAP_PROP_FRAME_COUNT))
-        video_frame_rate = np.round(video_capture.get(cv2.CAP_PROP_FPS), 2)
+    # Check if camera opened successfully
+    if not video_capture.isOpened():
+        print("Error opening video stream or file")
+    else:
+        print("Video stream is opened")
 
-        print(f"AVI name : {movie_name}")
-        print(f"AVI video frames: {video_length}, @ {video_frame_rate} Hz")
+    video_length = int(video_capture.get(cv2.CAP_PROP_FRAME_COUNT))
+    video_frame_rate = np.round(video_capture.get(cv2.CAP_PROP_FPS), 2)
+    print(f"AVI video frames: {video_length}, @ {video_frame_rate} Hz")
 
-        return video_length, video_frame_rate
+    return video_length, video_frame_rate
 
 
 def print_info_dict(my_dict):
+    """ Print a dictionary in a nice way. """
     for key, data in my_dict.items():
         print(f"- {key}: {data}")
 

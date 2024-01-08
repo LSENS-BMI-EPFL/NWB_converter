@@ -1,14 +1,18 @@
 """_summary_
 """
-import os
 import datetime
 import json
-import yaml
+import os
+
 import numpy as np
 import pandas as pd
+import yaml
+
 from utils.behavior_converter_misc import find_training_days
-from utils.server_paths import get_subject_data_folder, get_subject_analysis_folder, get_ref_weight_folder
-from utils.server_paths import get_subject_mouse_number
+from utils.server_paths import (get_ref_weight_folder,
+                                get_subject_analysis_folder,
+                                get_subject_data_folder,
+                                get_subject_mouse_number)
 
 # Update your keywords
 GENERAL_KEYWORDS = ['neurophysiology', 'behaviour', 'mouse']
@@ -98,7 +102,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     else:
         subject_metadata['weight'] = 'na'
 
-    # Get mouse reference weight
+    # Get mouse reference weight # TODO: modularize
     ref_weight_path = get_ref_weight_folder(experimenter=experimenter)
     ref_weight_csv_path = os.path.join(ref_weight_path, 'mouse_reference_weight.xlsx')
     if not os.path.exists(ref_weight_csv_path):
@@ -121,7 +125,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
                 assert isinstance(ref_weight,
                                   float), f'Error: reference weight for {subject_id} is not a float. Please check.'
 
-    # Generating session metadata dictionary as experimenter_description
+    # Generating session metadata dictionary as experimenter_description #TODO: modularize
     session_type_flags = [sess_key_flag for sess_key_flag in json_config.keys() if 'session' in sess_key_flag]
     session_type_flags.remove('session_time')
     session_type_flags.remove('dummy_session_flag')
@@ -198,7 +202,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     log_continuous_metadata.update({'channels_dict': channels_dict})
     log_continuous_metadata.update({'threshold_dict': threshold_dict})
 
-    # Behaviour metadata. #TODO: this could also be experimenter-dependent and a function of the json config file.
+    # Behaviour metadata. # TODO: this could also be experimenter-dependent and a function of the json config file.
     # ###################
 
     behaviour_metadata = create_behaviour_metadata(experimenter=experimenter,
@@ -220,13 +224,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     # 2P imaging metadata.
     # ####################
 
-    two_photon_metadata = {
-        'device': '2P microscope setup 1',
-        'emission_lambda': 510.0,
-        'excitation_lambda': 940.0,
-        'image_plane_location': 'S1_L2/3',
-        'indicator': 'GCaMP8m',
-    }
+    two_photon_metadata = create_two_photon_metadata(experimenter)
 
     # Extracell. ephys. metadata.
     # ####################
@@ -250,10 +248,6 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
 
     elif json_config['ephys_session']:
         main_dict.update({'ephys_metadata': ephys_metadata})
-
-    elif json_config['wf_session']:
-        widefield_metadata = create_wf_metadata(config_path=os.path.join(input_folder, 'Training', session_id))
-        main_dict.update({'widefield_metadata': widefield_metadata})
 
     main_dict.update({'behaviour_metadata': behaviour_metadata})
 
@@ -307,7 +301,6 @@ def create_channels_threshold_dict(experimenter, json_config):
             'galvo_position': 1,
             'cam1': 3,
             'cam2': 4,
-            # 'context': 5,
         }
         threshold_dict = {
             'trial_TTL': 4,
@@ -328,7 +321,6 @@ def create_channels_threshold_dict(experimenter, json_config):
             'widefield': 1,
             'cam1': 3,
             'cam2': 4,
-            #'context': 5,
         }
         threshold_dict = {
             'trial_TTL': 4,
@@ -344,6 +336,12 @@ def create_channels_threshold_dict(experimenter, json_config):
     if session_date > context_channel_date:
         channels_dict.update({'context': 5})
         threshold_dict.update({'context': 4})
+
+    if json_config['mouse_name'] == 'AB082': # to be removed when NWB file done
+        channels_dict.pop('context')
+        threshold_dict.pop('context')
+        #channels_dict.pop('empty_2')
+        #threshold_dict.pop('empty_2')
 
     # elif experimenter in ['PB'] and json_config['mouse_name']!='PB124':
     # ...
@@ -366,6 +364,9 @@ def create_behaviour_metadata(experimenter, path_to_json_config):
         json_config = json.load(f)
 
     # Default behaviour metadata
+    if json_config['behaviour_type'] == 'whisker_off':
+        json_config['behaviour_type'] = 'whisker_off_1' # ensures correct parsing later on
+
     behaviour_metadata = {
         'path_to_config_file': path_to_json_config,
         'behaviour_type': json_config['behaviour_type'],
@@ -406,33 +407,32 @@ def create_ephys_metadata(subject_id):
     return ephys_metadata
 
 
-def create_wf_metadata(config_path):
-    """Create metadata structure specific for widefield imaging
-    Args:
-        subject_id
-
-    Returns:
-        """
-
-    wf_config_json_path = os.path.join(config_path, 'wf_config.json')
-
-    with open(wf_config_json_path, 'r') as f:
-        widefield_metadata = json.load(f)
-
-    for item in ['CameraRoot', 'CameraPathConfig', 'CameraPathTemplateConfig', 'n_frames_to_grab', 'savedir']:
-        del(widefield_metadata[item])
-
-    return widefield_metadata
+def create_two_photon_metadata(experimenter):
+    # TODO make it dependant on excel file for imaging params
+    if experimenter == 'AR':
+        setup_id = 1
+    else:
+        setup_id = 3
+    two_photon_metadata = {
+        'device': f'2P microscope setup {setup_id}',
+        'emission_lambda': 510.0,
+        'excitation_lambda': 940.0,
+        'image_plane_location': 'S1_L2/3',
+        'indicator': 'GCaMP8m',
+    }
+    return two_photon_metadata
 
 
 if __name__ == '__main__':
     # Select mouse IDs.
     # mouse_ids = ['RD001', 'RD002', 'RD003', 'RD004', 'RD005', 'RD006']
-    # mouse_ids = [164, 165, 166, 168]
-    mouse_ids = ['157']
-    mouse_ids = ['PB{}'.format(i) for i in mouse_ids]
-    # mouse_ids = ['PB168']
-    last_done_day = "20231202"
+    # mouse_ids = ['RD001', 'RD002', 'RD003', 'RD004', 'RD005', 'RD006']
+    # mouse_ids = ['RD013', 'RD014', 'RD015', 'RD016', 'RD017']
+    # mouse_ids = ['RD025', 'RD026']
+    mouse_ids = ['AB082']
+    # mouse_ids = ['RD030']
+    # mouse_ids = ['RD033', 'RD034', 'RD035', 'RD036']
+
     last_done_day = None
 
     for mouse_id in mouse_ids:
@@ -448,17 +448,13 @@ if __name__ == '__main__':
             session_date = session_id.split('_')[1]
             session_date = datetime.datetime.strptime(session_date, "%Y%m%d")
 
-            # if last_done_day is not None:
-            #     if session_date <= datetime.datetime.strptime(last_done_day, "%Y%m%d"):
-            #         continue
+            if last_done_day is not None:
+                if session_date <= datetime.datetime.strptime(last_done_day, "%Y%m%d"):
+                    continue
 
-            if session_id in ['PB168_20231201_134856']:
-                continue
+            # sessions_to_do = ["PB124_20230404_141456"]
+            # if session_id not in sessions_to_do:
+            #    continue
 
-            sessions_to_do = ["20231219"]
-            # print(session_id.split('_')[1])
-            if session_id.split('_')[1] not in sessions_to_do:
-               continue
-            print(session_id.split('_')[1])
             make_yaml_config(mouse_id, session_id, day, data_folder, analysis_folder,
                              mouse_line='C57BL/6', gmo=False)

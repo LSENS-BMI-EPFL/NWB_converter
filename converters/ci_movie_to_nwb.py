@@ -1,8 +1,9 @@
 import numpy as np
 import yaml
-from pynwb.ophys import TwoPhotonSeries, OpticalChannel, Device
-from utils.tiff_loading import load_tiff_movie_in_memory, get_tiff_movie_shape
+from pynwb.ophys import Device, OpticalChannel, TwoPhotonSeries
+
 from utils.server_paths import get_imaging_file
+from utils.tiff_loading import get_tiff_movie_shape, load_tiff_movie_in_memory
 
 
 def convert_ci_movie(nwb_file, config_file, movie_format, ci_frame_timestamps):
@@ -17,12 +18,7 @@ def convert_ci_movie(nwb_file, config_file, movie_format, ci_frame_timestamps):
 
 
     """
-
-    motion_corrected_file_name = get_imaging_file(config_file)
-    if motion_corrected_file_name is None:
-        print(f"No calcium imaging movie to add, return")
-        return
-
+    
     with open(config_file, 'r') as stream:
         config = yaml.safe_load(stream)
     two_p_metadata = config['two_photon_metadata']
@@ -45,6 +41,11 @@ def convert_ci_movie(nwb_file, config_file, movie_format, ci_frame_timestamps):
                                                   imaging_rate=float(ci_sampling_rate),
                                                   indicator=indicator,
                                                   location=image_plane_location)
+    
+    motion_corrected_file_name = get_imaging_file(config_file)
+    if motion_corrected_file_name is None:
+        print(f"No calcium imaging movie to add, return")
+        return
 
     if movie_format != 'link':
         if len(motion_corrected_file_name) == 1:
@@ -69,7 +70,7 @@ def convert_ci_movie(nwb_file, config_file, movie_format, ci_frame_timestamps):
                                                       timestamps=ci_frame_timestamps,
                                                       unit="lux")
     elif movie_format == 'link':
-        print(f"Extract tiff movie shape:")
+        print("Extract tiff movie shape:")
         n_frames, n_lines, n_cols, starting_frames = get_tiff_movie_shape(motion_corrected_file_name)
         print(f"Movie dimensions n_frames, n_lines, n_cols :{n_frames, n_lines, n_cols}")
 

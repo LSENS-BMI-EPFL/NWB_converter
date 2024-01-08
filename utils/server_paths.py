@@ -1,5 +1,7 @@
 import os
+
 import yaml
+
 
 EXPERIMENTER_MAP = {
     'AR': 'Anthony_Renard',
@@ -46,11 +48,14 @@ def get_subject_mouse_number(subject_id):
     else:
         mouse_number = int(float(mouse_number[1:]))
 
+    if initials == 'MI':
+        initials = 'GF'
+
     return mouse_number, initials
 
 
 def get_nwb_folder(subject_id):
-    if subject_id in ['PB124', 'AR103', 'AR071']:
+    if subject_id in ['PB124']:
         experimenter = 'Robin_Dard'
     else:
         experimenter = EXPERIMENTER_MAP[subject_id[:2]]
@@ -89,6 +94,15 @@ def get_behavior_results_file(config_file):
     behavior_results_file = os.path.join(data_folder, 'Training', session_name, 'results.csv')
     if not os.path.exists(behavior_results_file):
         behavior_results_file = os.path.join(data_folder, 'Training', session_name, 'results.txt')
+
+    if mouse_name[:2] in ['GF', 'MI']:
+        if not os.path.exists(behavior_results_file):
+            behavior_results_file = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis',
+                                                 'Anthony_Renard', 'data', mouse_name, 'Recordings', 'BehaviourData',
+                                                 session_name, 'performanceResults.json')
+        # if not os.path.exists(behavior_results_file):
+        #     behavior_results_file = os.path.join(data_folder, 'Recordings', 'BehaviourFiles',
+        #                                          session_name, 'BehavResults.mat')
 
     return behavior_results_file
 
@@ -189,13 +203,36 @@ def get_suite2p_folder(config_file):
         config = yaml.safe_load(stream)
     mouse_name = config['subject_metadata']['subject_id']
     session_name = config['session_metadata']['session_id']
+
     data_folder = get_subject_analysis_folder(mouse_name)
     suite2p_path = os.path.join(data_folder, session_name, 'suite2p')
+
     if not os.path.exists(suite2p_path):
         print(f"No suite2p folder found for {session_name} session from {mouse_name}")
         return None
     else:
         return suite2p_path
+
+
+def get_raw_ephys_folder(config_file):
+    with open(config_file, 'r', encoding='utf8') as stream:
+        config = yaml.safe_load(stream)
+    mouse_name = config['subject_metadata']['subject_id']
+    session_name = config['session_metadata']['session_id']
+    data_folder = get_subject_data_folder(mouse_name)
+    raw_ephys_path = os.path.join(data_folder, 'Recording', session_name, 'Ephys')
+    run_name = [f for f in os.listdir(raw_ephys_path)][0]
+    raw_ephys_run_folder = os.path.join(raw_ephys_path, run_name)
+
+    return raw_ephys_run_folder
+
+def get_raw_ephys_nidq_files(config_file):
+    raw_ephys_folder = get_raw_ephys_folder(config_file)
+    raw_nidq_meta = [f for f in os.listdir(raw_ephys_folder) if 'nidq.meta' in f][0]
+    raw_nidq_meta = os.path.join(raw_ephys_folder, raw_nidq_meta)
+    raw_nidq_bin = [f for f in os.listdir(raw_ephys_folder) if 'nidq.bin' in f][0]
+    raw_nidq_bin = os.path.join(raw_ephys_folder, raw_nidq_bin)
+    return raw_nidq_meta, raw_nidq_bin
 
 
 def get_ephys_folder(config_file):
@@ -293,7 +330,7 @@ def get_opto_config_file(config_file):
         config = yaml.safe_load(stream)
     mouse_name = config['subject_metadata']['subject_id']
     session_name = config['session_metadata']['session_id']
-    data_folder = get_subject_data_folder(mouse_name)
+    data_folder = get_subject_analysis_folder(mouse_name)
     opto_config_file = os.path.join(data_folder, 'Training', session_name, 'opto_config.json')
 
     if not os.path.exists(opto_config_file):
@@ -301,21 +338,3 @@ def get_opto_config_file(config_file):
         return None
 
     return opto_config_file
-
-
-
-def get_widefield_file(mat_path):
-
-    if not os.path.exists(mat_path):
-        mat_file = None
-        return mat_file
-
-    data_file = [os.path.join(mat_path, m) for m in os.listdir(mat_path)
-                 if 'timestamps' not in m]
-    timestamps_file = [os.path.join(mat_path, m) for m in os.listdir(mat_path)
-                 if 'timestamps' in m]
-
-    if not data_file:
-        data_file = None
-
-    return sorted(data_file), sorted(timestamps_file)

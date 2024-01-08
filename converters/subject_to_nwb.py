@@ -1,9 +1,9 @@
+from datetime import datetime
+
 import numpy as np
 import yaml
-from datetime import datetime
 from dateutil.tz import tzlocal
-from pynwb import NWBHDF5IO
-from pynwb import NWBFile
+from pynwb import NWBHDF5IO, NWBFile
 from pynwb.file import Subject
 
 from utils.continuous_processing import print_info_dict
@@ -41,7 +41,7 @@ def create_nwb_file(config_file):
         date_of_birth = date_of_birth.replace(tzinfo=tzlocal())
         kwargs_subject['date_of_birth'] = date_of_birth
     print('Subject')
-    print_info_dict(kwargs_subject)
+    # print_info_dict(kwargs_subject)
     subject = Subject(**kwargs_subject)
 
     # Session info
@@ -76,11 +76,13 @@ def create_nwb_file(config_file):
     if 'session_id' not in kwargs_nwb_file:
         kwargs_nwb_file['session_id'] = kwargs_nwb_file['identifier']
 
+
     #####################################
     # ###    Creating the NWB file    ###
     #####################################
+
     print('Session')
-    print_info_dict(kwargs_nwb_file)
+    # print_info_dict(kwargs_nwb_file)
 
     kwargs_nwb_file['subject'] = subject
     kwargs_nwb_file['file_create_date'] = datetime.now(tzlocal())

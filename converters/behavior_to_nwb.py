@@ -1,17 +1,20 @@
 import os
-import numpy as np
-import yaml
 import re
 
-from utils.behavior_converter_misc import get_trial_timestamps_dict, build_simplified_trial_table, add_trials_to_nwb,\
-    build_standard_trial_table, add_trials_standard_to_nwb, \
-    get_context_timestamps_dict
-from pynwb.behavior import BehavioralEvents, BehavioralEpochs
+import numpy as np
+import yaml
 from pynwb.base import TimeSeries
+from pynwb.behavior import BehavioralEpochs, BehavioralEvents
 from pynwb.image import ImageSeries
-from utils import server_paths
-from utils import continuous_processing
 
+from utils import continuous_processing, server_paths
+from utils.behavior_converter_misc import (add_trials_standard_to_nwb,
+                                           add_trials_to_nwb,
+                                           build_simplified_trial_table,
+                                           build_standard_trial_table,
+                                           get_context_timestamps_dict,
+                                           get_piezo_licks_timestamps_dict,
+                                           get_trial_timestamps_dict)
 
 
 def convert_behavior_data(nwb_file, timestamps_dict, config_file):
@@ -29,9 +32,6 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
     # Get session behaviour results file
     behavior_results_file = server_paths.get_behavior_results_file(config_file)
 
-    # Get trial timestamps and indexes
-    trial_timestamps_dict, trial_indexes_dict = get_trial_timestamps_dict(timestamps_dict,
-                                                                          behavior_results_file, config_file)
     # Make trial table
     with open(config_file, 'r', encoding='utf8') as stream:
         config_dict = yaml.safe_load(stream)
@@ -43,12 +43,11 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
                 behavior_results_file=behavior_results_file,
                 timestamps_dict=timestamps_dict
             )
-        elif config_dict.get('behaviour_metadata').get('trial_table') == 'simple':
+        elif config_dict.get('behaviour_metadata').get('trial_table') == 'simple': #TODO: remove?
             trial_table = build_simplified_trial_table(behavior_results_file=behavior_results_file,
                                                        timestamps_dict=timestamps_dict)
-    else: #TODO: remove this else statement once all config files have behaviour_metadata
-        trial_table = build_simplified_trial_table(behavior_results_file=behavior_results_file,
-                                                   timestamps_dict=timestamps_dict)
+    else:
+        print('NWB config file lacks a behaviour_metadata section. Fix config file first.')
 
     print("Adding trials to NWB file")
     if config_dict.get('behaviour_metadata').get('trial_table') == 'standard':
@@ -56,11 +55,9 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
     else:
         add_trials_to_nwb(nwb_file=nwb_file, trial_table=trial_table)
 
-    # Note: If no context, this takes care of it
-    context_timestamps_dict, context_sound_dict = get_context_timestamps_dict(timestamps_dict=timestamps_dict,
-                                                                              nwb_trial_table=trial_table)
 
     # Create NWB behaviour module (and module interfaces)
+    print("Creating behaviour processing module")
     if 'behavior' in nwb_file.processing:
         bhv_module = nwb_file.processing['behavior']
     else:
@@ -72,7 +69,11 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
         behavior_events = BehavioralEvents(name='BehavioralEvents')
         bhv_module.add_data_interface(behavior_events)
 
-    # For each trial type, add a time series of trial timestamps
+    # Get trial timestamps and indexes
+    trial_timestamps_dict, trial_indexes_dict = get_trial_timestamps_dict(timestamps_dict,
+                                                                          behavior_results_file, config_file)
+
+    # Add a time series of trial timestamps, for each trial type
     trial_types = list(trial_timestamps_dict.keys())
     for trial_type in trial_types:
         data_to_store = np.transpose(np.array(trial_indexes_dict.get(trial_type)))
@@ -97,9 +98,38 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
         behavior_events.add_timeseries(trial_timeseries)
         print(f"Adding {len(data_to_store)} {trial_type} to BehavioralEvents")
 
+
+    # Get piezo lick timestamps
+    piezo_licks_timestamps_dict = get_piezo_licks_timestamps_dict(timestamps_dict)
+
+    if piezo_licks_timestamps_dict is not None:
+        timestamps_to_store = np.array(piezo_licks_timestamps_dict)
+        timestamps_to_store = timestamps_to_store[:,0]
+        data_to_store = np.transpose(np.array(timestamps_to_store))
+        lick_timeseries = TimeSeries(name='piezo_lick_times',
+                                     data=data_to_store,
+                                     unit='seconds',
+                                     resolution=-1.0,
+                                     conversion=1.0,
+                                     offset=0.0,
+                                     timestamps=timestamps_to_store,
+                                     starting_time=None,
+                                     rate=None,
+                                     comments='no comments',
+                                     description='piezo lick timestamps',
+                                     control=None,
+                                     control_description=None,
+                                     continuity='instantaneous')
+        behavior_events.add_timeseries(lick_timeseries)
+        print(f"Adding {len(data_to_store)} piezo lick times to BehavioralEvents")
+
+
+    # Get context timestamps if they exist
+    context_timestamps_dict, context_sound_dict = get_context_timestamps_dict(timestamps_dict=timestamps_dict,
+                                                                              nwb_trial_table=trial_table)
     # If context, add context timestamps to NWB file
     if context_timestamps_dict is not None:
-        print("Adding epochs to NWB file")
+        print("Adding context epochs to NWB file")
         try:
             behavior_epochs = bhv_module.get(name='BehavioralEpochs')
         except KeyError:
@@ -120,6 +150,8 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
                                                    comments='no comments',
                                                    description=description,
                                                    control=None, control_description=None)
+
+
 
     # Check if behaviour video filming
     if config_dict.get('session_metadata').get('experimenter') == 'AB':
@@ -142,7 +174,7 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
 
             # Get information about video
             print("Check length and frame rate")
-            video_length, video_frame_rate = continuous_processing.read_behavior_avi_movie(movie_files=movie_files)
+            video_length, video_frame_rate = continuous_processing.read_behavior_avi_movie(movie_file=movie)
 
             #  Check number of frames in video vs. number of timestamps
             if config_dict.get('session_metadata').get('experimenter') == 'AB':
