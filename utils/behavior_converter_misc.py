@@ -58,7 +58,8 @@ def find_training_days(subject_id, input_folder): #TODO: make this more general 
 
     whisker_behaviours = ['whisker',
                           'whisker_psy',
-                          'context']
+                          'context',
+                          'whisker_context']
     n_wh = len([s for s in behavior_type if s in whisker_behaviours])
 
     control_behaviours = ['whisker_on_1',
@@ -412,6 +413,11 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
             opto_results_file = server_paths.get_opto_results_file(config_file=config_file)
             opto_trial_table = pd.read_csv(opto_results_file)
 
+            if 'is_opto' not in opto_trial_table.keys():
+                standard_trial_table['opto_stim'] = opto_trial_table['opto_amp'] > 0
+            else:
+                standard_trial_table['opto_stim'] = opto_trial_table['is_opto']
+
             standard_trial_table['opto_stim'] = opto_trial_table['is_opto']
             standard_trial_table['opto_grid_ap'] = opto_trial_table['coord_AP']
             standard_trial_table['opto_grid_ml'] = opto_trial_table['coord_ML']
@@ -421,7 +427,7 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
             standard_trial_table['opto_stim_amplitude'] = opto_trial_table['opto_amp']
             standard_trial_table['opto_stim_frequency'] = opto_trial_table['opto_freq']
     else:
-        standard_trial_table['opto_stim'] = np.nan
+        standard_trial_table['opto_stim'] = 0
         standard_trial_table['opto_grid_ap'] = np.nan
         standard_trial_table['opto_grid_ml'] = np.nan
         standard_trial_table['opto_grid_no'] = np.nan

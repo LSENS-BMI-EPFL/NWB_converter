@@ -249,6 +249,11 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     elif json_config['ephys_session']:
         main_dict.update({'ephys_metadata': ephys_metadata})
 
+    elif json_config['wf_session']:
+        widefield_metadata = create_wf_metadata(config_path=os.path.join(input_folder, 'Training', session_id))
+        main_dict.update({'widefield_metadata': widefield_metadata})
+
+
     main_dict.update({'behaviour_metadata': behaviour_metadata})
 
     analysis_session_folder = os.path.join(output_folder, session_id)
@@ -421,6 +426,25 @@ def create_two_photon_metadata(experimenter):
         'indicator': 'GCaMP8m',
     }
     return two_photon_metadata
+
+
+def create_wf_metadata(config_path):
+    """Create metadata structure specific for widefield imaging
+    Args:
+        subject_id
+
+    Returns:
+        """
+
+    wf_config_json_path = os.path.join(config_path, 'wf_config.json')
+
+    with open(wf_config_json_path, 'r') as f:
+        widefield_metadata = json.load(f)
+
+    for item in ['CameraRoot', 'CameraPathConfig', 'CameraPathTemplateConfig', 'n_frames_to_grab', 'savedir']:
+        del(widefield_metadata[item])
+
+    return widefield_metadata
 
 
 if __name__ == '__main__':
