@@ -17,7 +17,9 @@ import yaml
 from utils.ephys_converter_misc import (build_simplified_unit_table,
                                         create_electrode_table,
                                         create_simplified_unit_table,
-                                        create_unit_table, get_target_location)
+                                        create_unit_table,
+                                        get_probe_insertion_info,
+                                        get_target_location)
 from utils.server_paths import (get_imec_probe_folder_list,
                                 get_sync_event_times_folder)
 from utils.sglx_meta_to_coords import MetaToCoords, readMeta
@@ -55,6 +57,18 @@ def convert_ephys_recording(nwb_file, config_file):
     # Then, iterate over each probe/device used in recording
     for imec_id, imec_folder in enumerate(imec_probe_list):
         print('Probe IMEC{}'.format(imec_id), imec_folder)
+
+        # Check if recording is valid (otherwise skip)
+        probe_info_df = get_probe_insertion_info(config_file=config_file)
+        mouse_name = config.get('subject_metadata').get('subject_id')
+        probe_row = probe_info_df[(probe_info_df['mouse_name'] == mouse_name)
+                                  &
+                                  (probe_info_df['probe_id'] == imec_id)
+                                  ]
+        is_valid_probe = probe_row['valid'].values[0]
+        if not is_valid_probe:
+            print('Skipping {} probe IMEC{} because invalid recording.'.format(mouse_name, imec_id))
+            continue
 
         # Get serial number
         ap_meta_file = [f for f in os.listdir(imec_folder) if 'ap.meta' in f][0]
@@ -119,7 +133,7 @@ def convert_ephys_recording(nwb_file, config_file):
 
         # Get path to preprocessed sync spike times
         sync_path = get_sync_event_times_folder(config_file)
-        spike_times_sync_file = [f for f in os.listdir(sync_path) if str(imec_id) in f][0]
+        spike_times_sync_file = [f for f in os.listdir(sync_path) if device_name in f][0]
         sync_spike_times_path = pathlib.Path(sync_path, spike_times_sync_file)
 
         # Different table types
