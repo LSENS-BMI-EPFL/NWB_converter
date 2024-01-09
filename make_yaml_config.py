@@ -112,7 +112,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
         ref_weight_df = pd.read_excel(ref_weight_csv_path)
         # Make sure subject is in the reference weight file
         if subject_id not in ref_weight_df.mouse_name.values:
-            print(f'Error: subject {subject_id} not found in reference weight file for {subject_id}. Please add it.')
+            print(f'Error: subject {subject_id} not found in reference weight file for {subject_id}.')
             ref_weight = np.nan
         else:
             ref_weight_cols = [col for col in ref_weight_df.columns if 'weight' in col]
@@ -279,7 +279,7 @@ def create_channels_threshold_dict(experimenter, json_config):
             'cam1': 3,
             'cam2': 4,
             'empty_1': 1,
-            'empty_2': 6
+            'empty_2': 6 #TODO: to remove at some point?
         }
         threshold_dict = {
             'trial_TTL': 4,
@@ -287,12 +287,13 @@ def create_channels_threshold_dict(experimenter, json_config):
             'cam1': 2,
             'cam2': 2,
             'empty_1': 0,
-            'empty_2': 0
+            'empty_2': 0 #TODO: to remove at some point?
         }
 
-        if json_config['mouse_name'] == 'AB068':  # before context logging
+        if json_config['mouse_name'] in ['AB068']:
             channels_dict.pop('empty_2')
             threshold_dict.pop('empty_2')
+
 
     elif experimenter in ['RD', 'AR'] or json_config['mouse_name'] == 'PB124':
         channels_dict = {
@@ -337,11 +338,9 @@ def create_channels_threshold_dict(experimenter, json_config):
         channels_dict.update({'context': 5})
         threshold_dict.update({'context': 4})
 
-    if json_config['mouse_name'] == 'AB082': # to be removed when NWB file done
+    if json_config['mouse_name'] in ['AB068', 'AB072', 'AB073', 'AB074', 'AB075', 'AB076', 'AB077', 'AB078']: # to be removed when NWB file done
         channels_dict.pop('context')
         threshold_dict.pop('context')
-        #channels_dict.pop('empty_2')
-        #threshold_dict.pop('empty_2')
 
     # elif experimenter in ['PB'] and json_config['mouse_name']!='PB124':
     # ...
@@ -429,7 +428,8 @@ if __name__ == '__main__':
     # mouse_ids = ['RD001', 'RD002', 'RD003', 'RD004', 'RD005', 'RD006']
     # mouse_ids = ['RD013', 'RD014', 'RD015', 'RD016', 'RD017']
     # mouse_ids = ['RD025', 'RD026']
-    mouse_ids = ['AB082']
+    mouse_ids = range(77,78)
+    mouse_ids = ['AB' + str(mouse_id).zfill(3) for mouse_id in mouse_ids]
     # mouse_ids = ['RD030']
     # mouse_ids = ['RD033', 'RD034', 'RD035', 'RD036']
 
@@ -440,6 +440,12 @@ if __name__ == '__main__':
         # Find data and analysis folders on server for that mouse.
         data_folder = get_subject_data_folder(mouse_id)
         analysis_folder = get_subject_analysis_folder(mouse_id)
+
+        if os.path.exists(data_folder):
+            pass
+        else:
+            print(f"No mouse data folder for {mouse_id}.")
+            continue
 
         # Make config files.
         training_days = find_training_days(mouse_id, data_folder)

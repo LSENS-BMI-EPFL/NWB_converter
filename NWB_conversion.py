@@ -37,7 +37,7 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True):
 
     if config_dict['session_metadata']['experimenter'] != 'GF':
         timestamps_dict, _ = analyze_continuous_log(config_file=config_file,
-                                                    do_plot=False, plot_start=0,
+                                                    do_plot=False, plot_start=1,
                                                     plot_stop=100, camera_filtering=False)
     else:
         timestamps_dict, _ = utils_gf.infer_timestamps_dict(
@@ -82,12 +82,8 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True):
 if __name__ == '__main__':
 
     # Run the conversion
-    # mouse_ids = ['RD001', 'RD002', 'RD003', 'RD004', 'RD005', 'RD006']
-    # mouse_ids = ['RD013', 'RD014', 'RD015', 'RD016', 'RD017']
-    # mouse_ids = ['RD025', 'RD026']
-    mouse_ids = ['AB082']
-    # mouse_ids = ['RD030']
-    # mouse_ids = ['RD033', 'RD034', 'RD035', 'RD036']
+    mouse_ids = [79,80,82,85,86,87,91,92]#[93,94,95] #74 to do
+    mouse_ids = ['AB' + str(mouse_id).zfill(3) for mouse_id in mouse_ids]
     experimenter = 'AB'
 
     if experimenter == 'GF':
@@ -98,6 +94,11 @@ if __name__ == '__main__':
 
     for mouse_id in mouse_ids:
         data_folder = get_subject_data_folder(mouse_id)
+        if os.path.exists(data_folder):
+            pass
+        else:
+            print(f"No mouse data folder for {mouse_id}.")
+            continue
         analysis_folder = get_subject_analysis_folder(mouse_id)
         nwb_folder = get_nwb_folder(mouse_id)
 
@@ -114,9 +115,9 @@ if __name__ == '__main__':
         for isession, iday in training_days:
 
             # # Filter sessions to do :
-            # session_to_do = ["GF307_20112020_082942"]
-            # if isession not in session_to_do:
-            #    continue
+            session_to_do = ["AB077_20230531_143839"]
+            if isession not in session_to_do:
+                continue
 
             #date_to_do = 'None'
             #if date_to_do not in isession:
