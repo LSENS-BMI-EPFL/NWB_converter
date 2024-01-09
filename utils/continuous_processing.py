@@ -140,7 +140,7 @@ def detect_piezo_lick_times(continuous_data_dict, ni_session_sr=5000, lick_thres
 
     lick_data_sub = lick_data_smooth - lick_threshold
     cross_on_thr_indices = np.where(np.isclose(lick_data_sub, 0, atol=0.001))[0]  # find crossings
-    cross_thr_indices = [i for i in cross_on_thr_indices if lick_data_sub[i+1]>0 and lick_data_sub[i-1]<0] # keep upward crossings
+    cross_thr_indices = [i for i in cross_on_thr_indices[:-1] if lick_data_sub[i+1]>0 and lick_data_sub[i-1]<0] # keep upward crossings, ignoring last crossing
     cross_thr_pairs = [(i1, i2) for i1, i2 in zip(cross_thr_indices, cross_thr_indices[1:])]
     cross_thr_indices_valid = [i1 for i1, i2 in cross_thr_pairs if (i2-i1) > 100]  # keep only crossings with a minimum distance of 100 samples i.e. 20ms
     lick_times = np.array(cross_thr_indices_valid) / float(ni_session_sr)  # get lick times in seconds
@@ -156,7 +156,6 @@ def detect_piezo_lick_times(continuous_data_dict, ni_session_sr=5000, lick_thres
         for lick_time in lick_times:
             plt.axvline(x=ni_session_sr*lick_time, color='red', lw=3, alpha=0.8)
         plt.xlim(t_start * ni_session_sr, t_stop * ni_session_sr)
-        #plt.ylim(-0.05, 5*lick_threshold)
         plt.legend(loc='upper right', frameon=False)
         plt.show()
 
