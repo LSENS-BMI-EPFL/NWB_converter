@@ -325,6 +325,7 @@ def get_opto_results_file(config_file):
 
     return behavior_results_file
 
+
 def get_opto_config_file(config_file):
     with open(config_file, 'r', encoding='utf8') as stream:
         config = yaml.safe_load(stream)
@@ -338,3 +339,20 @@ def get_opto_config_file(config_file):
         return None
 
     return opto_config_file
+
+
+def get_widefield_file(mat_path):
+
+    if not os.path.exists(mat_path):
+        mat_file = None
+        return mat_file
+
+    data_file = [os.path.join(mat_path, m) for m in os.listdir(mat_path)
+                 if 'timestamps' not in m]
+    timestamps_file = [os.path.join(mat_path, m) for m in os.listdir(mat_path)
+                 if 'timestamps' in m]
+
+    if not data_file:
+        data_file = None
+
+    return sorted(data_file), sorted(timestamps_file)

@@ -99,8 +99,13 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
                         'F0: 5% percentile baseline computed over a 2 min rolling window.',
                         'dF/F0: Normalized neuropil corrected suite2p fluorescence.']
 
+    # Add information about cell type (projections, ... )
+    cell_type_codes = None
+    cell_type_names = None
+
     # Add fluorescence data to roi response series
     print('Add Roi Response Series.')
+    # todo : add control (list of int code for cell type) and control_description (list of str for name of cell type)
     for d, l, desc in zip(data, data_labels, descriptions):
         if d is not None:
             # Filtering is already done for GF data.
@@ -114,7 +119,10 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
                                           unit='lumens',
                                           rois=rt_region, timestamps=ci_frame_timestamps,
                                           description=desc)
-
+            if cell_type_codes is not None and cell_type_names is not None:
+                rrs = fl.get_roi_response_series(name=l)
+                rrs.control = cell_type_codes
+                rrs.control_description = cell_type_names
             print(f"- Creating Roi Response Series with: {desc}"
                   f"shape: {(np.transpose(d_filt)).shape}")
 

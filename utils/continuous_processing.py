@@ -478,4 +478,3 @@ def print_info_dict(my_dict):
     """ Print a dictionary in a nice way. """
     for key, data in my_dict.items():
         print(f"- {key}: {data}")
-
