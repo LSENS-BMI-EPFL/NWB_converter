@@ -104,7 +104,9 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
 
     if piezo_licks_timestamps_dict is not None:
         timestamps_to_store = np.array(piezo_licks_timestamps_dict)
-        timestamps_to_store = timestamps_to_store[:,0]
+        if timestamps_to_store.any():
+            timestamps_to_store = timestamps_to_store[:,0]
+
         data_to_store = np.transpose(np.array(timestamps_to_store))
         lick_timeseries = TimeSeries(name='piezo_lick_times',
                                      data=data_to_store,
