@@ -222,6 +222,14 @@ def plot_continuous_data_dict(continuous_data_dict, timestamps_dict, ni_session_
                             continue
                         ax.axvline(x=on_off[0], color="green")
                         ax.axvline(x=on_off[1], color="red")
+
+                elif channel_name == 'lick_trace':
+                    for x_pos in list(on_off_times):
+                        if t_start is not None and x_pos[0] < t_start:
+                            continue
+                        if t_stop is not None and x_pos[0] > t_stop:
+                            continue
+                        ax.axvline(x=x_pos[0], color="green")
                 else:
                     for x_pos in list(on_off_times):
                         if t_start is not None and x_pos < t_start:
@@ -404,7 +412,6 @@ def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scan
                 if len(early_licks) > 0:
                     early_licks = list(early_licks)
                     early_licks_true_ind = [i - early_licks.index(i) for i in early_licks]
-                    print(f"early licks trial indexes: {early_licks_true_ind}")
                     on_off_to_remove = np.array([i + 1 for i in early_licks])
                     filtered_on_off_timestamps = np.delete(on_off_timestamps, on_off_to_remove, axis=0)
                     on_off_timestamps = filtered_on_off_timestamps
