@@ -91,19 +91,9 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True):
 if __name__ == '__main__':
 
     # Run the conversion
-<<<<<<< HEAD
     mouse_ids = [79,80,82,85,86,87,91,92]#[93,94,95] #74 to do
     mouse_ids = ['AB' + str(mouse_id).zfill(3) for mouse_id in mouse_ids]
     experimenter = 'AB'
-=======
-    # mouse_ids = ['RD001', 'RD002', 'RD003', 'RD004', 'RD005', 'RD006']
-    # mouse_ids = ['RD013', 'RD014', 'RD015', 'RD016', 'RD017']
-    # mouse_ids = ['RD025', 'RD026']
-    mouse_ids = ['PB157']
-    # mouse_ids = ['RD030']
-    # mouse_ids = ['RD033', 'RD034', 'RD035', 'RD036']
-    experimenter = 'PB'
->>>>>>> 3cff9fc29bfc54ea73eb11939d44087a462d0e0f
 
     if experimenter == 'GF':
         # Read excel database.
@@ -138,9 +128,9 @@ if __name__ == '__main__':
             if isession not in session_to_do:
                 continue
 
-            date_to_do = '20231219'
-            if date_to_do not in isession:
-               continue
+            #date_to_do = '20231219'
+            #if date_to_do not in isession:
+            #   continue
 
             # session_date = isession.split('_')[1]
             # session_date = datetime.datetime.strptime(session_date, "%Y%m%d")
