@@ -299,7 +299,7 @@ def create_channels_threshold_dict(experimenter, json_config):
         #    channels_dict.pop('empty_2')
         #    threshold_dict.pop('empty_2')
 
-    elif experimenter in ['RD', 'AR'] or json_config['mouse_name'] == 'PB124':
+    elif json_config['twophoton_session']:
         channels_dict = {
             'trial_TTL': 2,
             'lick_trace': 0,
@@ -319,7 +319,7 @@ def create_channels_threshold_dict(experimenter, json_config):
             },
         }
 
-    elif experimenter in ['PB']:
+    elif json_config['wf_session']:
         channels_dict = {
             'trial_TTL': 2,
             'lick_trace': 0,
