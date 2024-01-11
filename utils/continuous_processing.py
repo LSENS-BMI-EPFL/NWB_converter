@@ -112,7 +112,6 @@ def read_binary_continuous_log(bin_file, channels_dict, ni_session_sr=5000, t_st
     continuous_data_dict["timestamps"] = timestamps
     print(f"start : {timestamps[0]}s, end at {np.round(timestamps[-1], 2)}s")
 
-
     return continuous_data_dict
 
 
@@ -141,7 +140,7 @@ def detect_piezo_lick_times(continuous_data_dict, ni_session_sr=5000, lick_thres
 
     lick_data_sub = lick_data_smooth - lick_threshold
     cross_on_thr_indices = np.where(np.isclose(lick_data_sub, 0, atol=0.001))[0]  # find crossings
-    cross_thr_indices = [i for i in cross_on_thr_indices if lick_data_sub[i+1]>0 and lick_data_sub[i-1]<0] # keep upward crossings
+    cross_thr_indices = [i for i in cross_on_thr_indices[:-1] if lick_data_sub[i+1]>0 and lick_data_sub[i-1]<0] # keep upward crossings, ignoring last crossing
     cross_thr_pairs = [(i1, i2) for i1, i2 in zip(cross_thr_indices, cross_thr_indices[1:])]
     cross_thr_indices_valid = [i1 for i1, i2 in cross_thr_pairs if (i2-i1) > 100]  # keep only crossings with a minimum distance of 100 samples i.e. 20ms
     lick_times = np.array(cross_thr_indices_valid) / float(ni_session_sr)  # get lick times in seconds
@@ -157,7 +156,6 @@ def detect_piezo_lick_times(continuous_data_dict, ni_session_sr=5000, lick_thres
         for lick_time in lick_times:
             plt.axvline(x=ni_session_sr*lick_time, color='red', lw=3, alpha=0.8)
         plt.xlim(t_start * ni_session_sr, t_stop * ni_session_sr)
-        #plt.ylim(-0.05, 5*lick_threshold)
         plt.legend(loc='upper right', frameon=False)
         plt.show()
 
@@ -223,6 +221,14 @@ def plot_continuous_data_dict(continuous_data_dict, timestamps_dict, ni_session_
                             continue
                         ax.axvline(x=on_off[0], color="green")
                         ax.axvline(x=on_off[1], color="red")
+
+                elif channel_name == 'lick_trace':
+                    for x_pos in list(on_off_times):
+                        if t_start is not None and x_pos[0] < t_start:
+                            continue
+                        if t_stop is not None and x_pos[0] > t_stop:
+                            continue
+                        ax.axvline(x=x_pos[0], color="green")
                 else:
                     for x_pos in list(on_off_times):
                         if t_start is not None and x_pos < t_start:
@@ -259,17 +265,6 @@ def filter_cameras_live_timestamps(on_off_timestamps):
     long_exposure_idx = np.where(exposure_time > 2 * np.median(exposure_time))[0]
     if len(long_exposure_idx) > 0:
         filtered_on_off_timestamps = on_off_timestamps[long_exposure_idx[0] + 1: long_exposure_idx[1]]
-    else:
-        filtered_on_off_timestamps = on_off_timestamps
-
-    return filtered_on_off_timestamps
-
-
-def filter_wf_camera_live_timestamps(on_off_timestamps):
-    inter_frame_interval = np.diff(on_off_timestamps)
-    long_pause_idx = np.where(inter_frame_interval > 2 * np.median(inter_frame_interval))[0]
-    if len(long_pause_idx) > 0:
-        filtered_on_off_timestamps = on_off_timestamps[:long_pause_idx[0]]
     else:
         filtered_on_off_timestamps = on_off_timestamps
 
@@ -416,7 +411,6 @@ def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scan
                 if len(early_licks) > 0:
                     early_licks = list(early_licks)
                     early_licks_true_ind = [i - early_licks.index(i) for i in early_licks]
-                    print(f"early licks trial indexes: {early_licks_true_ind}")
                     on_off_to_remove = np.array([i + 1 for i in early_licks])
                     filtered_on_off_timestamps = np.delete(on_off_timestamps, on_off_to_remove, axis=0)
                     on_off_timestamps = filtered_on_off_timestamps
@@ -424,11 +418,6 @@ def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scan
             if key in ["trial_TTL"] and binary_data[-1] == 1:
                 print(f"Session likely stopped before end of last {key}")
                 filtered_on_off_timestamps = on_off_timestamps[0: -1]  # remove last timestamp that signals session end
-                on_off_timestamps = filtered_on_off_timestamps
-
-            if key in ["widefield"]:
-                print(f"Cutting extra frames after stop signal")
-                filtered_on_off_timestamps = filter_wf_camera_live_timestamps(on_off_timestamps)
                 on_off_timestamps = filtered_on_off_timestamps
 
             timestamps_dict[key] = on_off_timestamps
@@ -488,4 +477,3 @@ def print_info_dict(my_dict):
     """ Print a dictionary in a nice way. """
     for key, data in my_dict.items():
         print(f"- {key}: {data}")
-

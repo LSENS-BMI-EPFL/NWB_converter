@@ -317,7 +317,7 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
     print(f"Read '.csv' file to build trial NWB trial table ({n_trials} trials)")
 
     # Get logged timestamps
-    if (timestamps_dict is not None) and (timestamps_dict['trial_TTL'] != []):
+    if (timestamps_dict is not None) and (timestamps_dict['trial_TTL'] !=[]):
         trial_timestamps = np.array(timestamps_dict['trial_TTL'])
 
     # Case when sessions were acquired before continuous logging of behavioral data
@@ -387,9 +387,13 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
     standard_trial_table['early_lick'] = trial_table['early_lick']
 
     # Add contextual information if relevant, nan otherwise
-    if session_config['context_flag']:
-        standard_trial_table['context'] = trial_table['wh_reward']
-        standard_trial_table['context_background'] = trial_table['context_block']
+    if 'context_flag' in session_config.keys():
+        if session_config['context_flag']:
+            standard_trial_table['context'] = trial_table['wh_reward']
+            standard_trial_table['context_background'] = trial_table['context_block']
+        else:
+            standard_trial_table['context'] = np.nan
+            standard_trial_table['context_background'] = np.nan
     else:
         standard_trial_table['context'] = np.nan
         standard_trial_table['context_background'] = np.nan

@@ -190,7 +190,8 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
 
     # Add logged channels and thresholds (Volt) for edge detections.
     channels_dict, threshold_dict = create_channels_threshold_dict(experimenter=experimenter,
-                                                                   json_config=json_config)
+                                                                   json_config=json_config,
+                                                                   session_type=session_type)
     if json_config['twophoton_session'] == 1:
         scanimage_dict = {
             'theoretical_ci_sampling_rate': 30,
@@ -265,12 +266,13 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     return
 
 
-def create_channels_threshold_dict(experimenter, json_config):
+def create_channels_threshold_dict(experimenter, json_config, session_type):
     """
     Make log_continuous channels & thresholds dictionary for a given experimenter and session.
     Args:
         experimenter: experimenter initials
         json_config: session config dictionary from session_config.json file
+        session_type: session type (helpful to know if it is behavior only)
     Returns:
 
     """
@@ -284,7 +286,7 @@ def create_channels_threshold_dict(experimenter, json_config):
             'cam1': 3,
             'cam2': 4,
             'empty_1': 1,
-            'empty_2': 6
+            #'empty_2': 6
         }
         threshold_dict = {
             'trial_TTL': 4,
@@ -292,14 +294,14 @@ def create_channels_threshold_dict(experimenter, json_config):
             'cam1': 2,
             'cam2': 2,
             'empty_1': 0,
-            'empty_2': 0
+            #'empty_2': 0
         }
 
-        if json_config['mouse_name'] == 'AB068':  # before context logging
-            channels_dict.pop('empty_2')
-            threshold_dict.pop('empty_2')
+        #if json_config['mouse_name'] == 'AB068':  # before context logging
+        #    channels_dict.pop('empty_2')
+        #    threshold_dict.pop('empty_2')
 
-    elif experimenter in ['RD', 'AR'] or json_config['mouse_name'] == 'PB124':
+    elif json_config['twophoton_session'] or session_type == 'behaviour_only_session':
         channels_dict = {
             'trial_TTL': 2,
             'lick_trace': 0,
@@ -319,7 +321,7 @@ def create_channels_threshold_dict(experimenter, json_config):
             },
         }
 
-    elif experimenter in ['PB']:
+    elif json_config['wf_session']:
         channels_dict = {
             'trial_TTL': 2,
             'lick_trace': 0,
@@ -342,11 +344,6 @@ def create_channels_threshold_dict(experimenter, json_config):
         channels_dict.update({'context': 5})
         threshold_dict.update({'context': 4})
 
-    if json_config['mouse_name'] == 'AB082': # to be removed when NWB file done
-        channels_dict.pop('context')
-        threshold_dict.pop('context')
-        #channels_dict.pop('empty_2')
-        #threshold_dict.pop('empty_2')
 
     # elif experimenter in ['PB'] and json_config['mouse_name']!='PB124':
     # ...
@@ -449,13 +446,8 @@ def create_wf_metadata(config_path):
 
 if __name__ == '__main__':
     # Select mouse IDs.
-    # mouse_ids = ['RD001', 'RD002', 'RD003', 'RD004', 'RD005', 'RD006']
-    # mouse_ids = ['RD001', 'RD002', 'RD003', 'RD004', 'RD005', 'RD006']
-    # mouse_ids = ['RD013', 'RD014', 'RD015', 'RD016', 'RD017']
-    # mouse_ids = ['RD025', 'RD026']
-    mouse_ids = ['AB082']
-    # mouse_ids = ['RD030']
-    # mouse_ids = ['RD033', 'RD034', 'RD035', 'RD036']
+    mouse_ids = range(77,78)
+    mouse_ids = ['AB' + str(mouse_id).zfill(3) for mouse_id in mouse_ids]
 
     last_done_day = None
 
@@ -463,6 +455,11 @@ if __name__ == '__main__':
 
         # Find data and analysis folders on server for that mouse.
         data_folder = get_subject_data_folder(mouse_id)
+        if os.path.exists(data_folder):
+            pass
+        else:
+            print(f"No mouse data folder for {mouse_id}.")
+            continue
         analysis_folder = get_subject_analysis_folder(mouse_id)
 
         # Make config files.

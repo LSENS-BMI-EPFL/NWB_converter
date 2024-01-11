@@ -53,7 +53,13 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
             # Check if continuous processing is required
             exp_desc = ast.literal_eval(config.get('session_metadata').get('experiment_description'))
             if exp_desc['session_type'] == 'behaviour_only_session':
-                return None, None
+                if os.path.isfile(bin_file):
+                    pass
+                else:
+                    print("No continuous data found for this session. No timestamps available: using trial table "
+                          "information only")
+                    return None, None
+
             movie_files = server_paths.get_session_movie_files(config_file)
         else:
             movie_files = server_paths.get_movie_files(config_file)

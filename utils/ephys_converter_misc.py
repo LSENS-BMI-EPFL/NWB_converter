@@ -33,6 +33,30 @@ AREA_COORDINATES_MAP = {
     'DLS': (0, 3.5)
 }
 
+def get_probe_insertion_info(config_file):
+    """
+    Read probe insertion information from a metadata external file.
+    Args:
+        config_file:
+
+    Returns:
+
+    """
+    # Read config file
+    with open(config_file, 'r') as f:
+        config = yaml.load(f, Loader=yaml.FullLoader)
+
+    # This is experimenter-specific tracking of that information
+    if config.get('session_metadata').get('experimenter') == 'AB':
+        # Load probe insertion table
+        path_to_info_file = r'M:\analysis\Axel_Bisi\mice_info\probe_insertion_info.xlsx'
+        probe_info_df = pd.read_excel(path_to_info_file)
+
+    else:
+        print('No probe insertion information found for this experimenter.')
+        raise NotImplementedError
+
+    return probe_info_df
 
 def get_target_location(config_file, device_name):
     """
@@ -48,55 +72,46 @@ def get_target_location(config_file, device_name):
     with open(config_file, 'r') as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
 
-    # This is experimenter-specific tracking of that information
-    if config.get('session_metadata').get('experimenter') == 'AB':
+    location_df = get_probe_insertion_info(config_file=config_file)
 
-        # Load probe insertion table
-        path_to_info_file = r'M:\analysis\Axel_Bisi\mice_info\probe_insertion_info.xlsx'
-        location_df = pd.read_excel(path_to_info_file, sheet_name='Sheet1')
+    # Keep subset for mouse and probe_id
+    mouse_name = config.get('subject_metadata').get('subject_id')
+    location_df = location_df[(location_df['mouse_name'] == mouse_name)
+                              &
+                              (location_df['probe_id'] == int(device_name[-1]))
+                              ]
 
-        # Keep subset for mouse and probe_id
-        mouse_name = config.get('subject_metadata').get('subject_id')
-        location_df = location_df[(location_df['mouse_name'] == mouse_name)
-                                  &
-                                  (location_df['probe_id'] == int(device_name[-1]))
-                                  ]
+    # Get coordinates of target area
+    target_area = location_df['target_area'].values[0]
+    if target_area in AREA_COORDINATES_MAP.keys():
 
-        # Get coordinates of target area
-        target_area = location_df['target_area'].values[0]
-        if target_area in AREA_COORDINATES_MAP.keys():
+        if type(AREA_COORDINATES_MAP[target_area]) is tuple:
 
-            if type(AREA_COORDINATES_MAP[target_area]) is tuple:
+            ap = AREA_COORDINATES_MAP[target_area][0]
+            ml = AREA_COORDINATES_MAP[target_area][1]
 
-                ap = AREA_COORDINATES_MAP[target_area][0]
-                ml = AREA_COORDINATES_MAP[target_area][1]
+        elif type(AREA_COORDINATES_MAP[target_area]) is str:
 
-            elif type(AREA_COORDINATES_MAP[target_area]) is str:
-
-                ap = AREA_COORDINATES_MAP[target_area]
-                ml = AREA_COORDINATES_MAP[target_area]
-            else:
-                print('Unknown type for AP, ML coordinates. Setting to NaN')
-                ap, ml = (np.nan, np.nan)
-
+            ap = AREA_COORDINATES_MAP[target_area]
+            ml = AREA_COORDINATES_MAP[target_area]
         else:
-            print('No standard coordinates found for this target area. Setting to NaN')
+            print('Unknown type for AP, ML coordinates. Setting to NaN')
             ap, ml = (np.nan, np.nan)
 
-        # Create ephys target location dictionary
-        location_dict = {
-            'hemisphere': 'left',
-            'area': location_df['target_area'].values[0],
-            'ap': ap,
-            'ml': ml,
-            'azimuth': location_df['azimuth'].values[0],
-            'elevation': location_df['elevation'].values[0],
-            'depth': location_df['depth'].values[0],
-        }
-
     else:
-        print('No location information found for this experimenter.')
-        raise NotImplementedError
+        print('No standard coordinates found for this target area. Setting to NaN')
+        ap, ml = (np.nan, np.nan)
+
+    # Create ephys target location dictionary
+    location_dict = {
+        'hemisphere': 'left',
+        'area': location_df['target_area'].values[0],
+        'ap': ap,
+        'ml': ml,
+        'azimuth': location_df['azimuth'].values[0],
+        'elevation': location_df['elevation'].values[0],
+        'depth': location_df['depth'].values[0],
+    }
 
     return location_dict
 
@@ -128,7 +143,8 @@ def load_ephys_sync_timestamps(config_file, log_timestamps_dict):
 
     timestamps_dict = {}
     events_to_do = ['trial_start_times', 'cam0_frame_times', 'cam1_frame_times', 'valve_times']
-    for event in events_to_do:
+    events_available = [event for event in events_to_do if event in event_keys]
+    for event in events_available:
         print('Ephys session with {} event'.format(event))
 
         # Load sync timestamps
@@ -166,10 +182,14 @@ def format_ephys_timestamps(config_file, ephys_timestamps_dict):
     with open(config_file, 'r') as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
 
-    movie_files = server_paths.get_session_movie_files(config_file)
-    movie_file_names = [os.path.basename(f) for f in movie_files]
-    movie_file_suffix = [f.split('-')[0] for f in movie_file_names]
-    movie_file_suffix = [f.split('_')[1] for f in movie_file_suffix]
+    if config.get('behaviour_metadata').get('camera_flag'):
+        movie_files = server_paths.get_session_movie_files(config_file)
+        movie_file_names = [os.path.basename(f) for f in movie_files]
+        movie_file_suffix = [f.split('-')[0] for f in movie_file_names]
+        movie_file_suffix = [f.split('_')[1] for f in movie_file_suffix]
+    else:
+        movie_files = None
+        movie_file_suffix = None
 
     # Format each timestamps type separately
     for event in ephys_timestamps_dict.keys():
@@ -279,10 +299,8 @@ def extract_ephys_timestamps(config_file, continuous_data_dict, threshold_dict, 
     lick_timestamps_on_off = list(zip(lick_timestamps, itertools.repeat(np.nan)))
     timestamps_dict['lick_trace'] = lick_timestamps_on_off
 
+    # The only mandatory timestamps
     assert 'trial_TTL' in timestamps_dict.keys()
-    assert 'cam1' in timestamps_dict.keys()
-    assert 'cam2' in timestamps_dict.keys()
-
     assert isinstance(timestamps_dict['trial_TTL'][0], tuple)
 
     n_frames_dict = {k: len(v) for k, v in timestamps_dict.items()}
