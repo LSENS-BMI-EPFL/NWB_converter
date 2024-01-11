@@ -190,7 +190,8 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
 
     # Add logged channels and thresholds (Volt) for edge detections.
     channels_dict, threshold_dict = create_channels_threshold_dict(experimenter=experimenter,
-                                                                   json_config=json_config)
+                                                                   json_config=json_config,
+                                                                   session_type=session_type)
     if json_config['twophoton_session'] == 1:
         scanimage_dict = {
             'theoretical_ci_sampling_rate': 30,
@@ -265,12 +266,13 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     return
 
 
-def create_channels_threshold_dict(experimenter, json_config):
+def create_channels_threshold_dict(experimenter, json_config, session_type):
     """
     Make log_continuous channels & thresholds dictionary for a given experimenter and session.
     Args:
         experimenter: experimenter initials
         json_config: session config dictionary from session_config.json file
+        session_type: session type (helpful to know if it is behavior only)
     Returns:
 
     """
@@ -299,7 +301,7 @@ def create_channels_threshold_dict(experimenter, json_config):
         #    channels_dict.pop('empty_2')
         #    threshold_dict.pop('empty_2')
 
-    elif json_config['twophoton_session']:
+    elif json_config['twophoton_session'] or session_type == 'behaviour_only_session':
         channels_dict = {
             'trial_TTL': 2,
             'lick_trace': 0,
