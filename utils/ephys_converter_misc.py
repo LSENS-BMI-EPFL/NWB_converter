@@ -9,7 +9,7 @@
 import itertools
 import os
 import pathlib
-
+import json
 import numpy as np
 import pandas as pd
 import yaml
@@ -184,9 +184,14 @@ def format_ephys_timestamps(config_file, ephys_timestamps_dict):
 
     if config.get('behaviour_metadata').get('camera_flag'):
         movie_files = server_paths.get_session_movie_files(config_file)
-        movie_file_names = [os.path.basename(f) for f in movie_files]
-        movie_file_suffix = [f.split('-')[0] for f in movie_file_names]
-        movie_file_suffix = [f.split('_')[1] for f in movie_file_suffix]
+        if movie_files is not None:
+            movie_file_names = [os.path.basename(f) for f in movie_files]
+            movie_file_suffix = [f.split('-')[0] for f in movie_file_names]
+            movie_file_suffix = [f.split('_')[1] for f in movie_file_suffix]
+            movie_file_suffix = [f.split(' ')[0] for f in movie_file_suffix]
+        else:
+            movie_files = None
+            movie_file_suffix = None
     else:
         movie_files = None
         movie_file_suffix = None
@@ -208,6 +213,16 @@ def format_ephys_timestamps(config_file, ephys_timestamps_dict):
             trial_artifact_windows = trial_table.artifact_window.values / 1000
             trial_durations_sec = trial_response_windows + trial_artifact_windows
             trial_durations_sec = trial_durations_sec.astype(float)
+
+            # Keep only as many trials as in recorded behaviour output
+            n_trials_behaviour = len(trial_durations_sec)
+            n_trials_ts = len(ts_on)
+            if n_trials_behaviour > n_trials_ts:
+                trial_durations_sec = trial_durations_sec[:n_trials_ts]
+            elif n_trials_behaviour < n_trials_ts:
+                ts_on = ts_on[:n_trials_behaviour]
+            else:
+                ts_on = ts_on
             ts_off = ts_on + trial_durations_sec
             timestamps = list(zip(ts_on, ts_off))
 
@@ -325,7 +340,9 @@ def create_electrode_table(nwb_file):
                            'shank': 'shank number',
                            'shank_col': 'column number of electrode on shank',
                            'shank_row': 'row number of electrode on shank',
-                           'ccf_location': 'ccf area of electrode'
+                           'ccf_id': 'ccf region ID',
+                           'ccf_acronym': 'ccf region acronym',
+                           'ccf_name': 'ccf region name',
                            }
 
     for col_key, col_desc in dict_columns_to_add.items():
@@ -374,21 +391,19 @@ def create_unit_table(nwb_file):
     dict_columns_to_add = {
         'cluster_id': 'cluster index, from KS(probe-wise)',
         'peak_channel': 'electrode with max waveform amplitude, from KS',
-        'rel_x': 'peak channel x-coordinate in probe space (as above)',
-        'rel_y': 'peak channel y-coordinate in probe space (as above)',
         'electrode_group': 'ElectrodeGroup object (i.e. probe) recording the unit',
         'depth': 'depth of peak electrode, in probe space, from KS',
         'ks_label': 'unit quality label, form Kilosort and curation (Phy): “good”, “mua”',
         'firing_rate': 'total firing rate in session, in Hz',
-        'ccf_area': 'atlas label from anatomical estimation',
-        'ccf_area_layer': 'same as ccf_area, with layer-specficity',
         'waveform_mean': 'mean spike waveform (a vector), in uV',
         'spike_width': 'spike duration, in ms, form trough to baseline',
-        'peak_to_trough': 'spike duration, in ms, from peak to trough',
-        'unit_type': '“rsu” or “fsu” classification',
+        'duration': 'spike duration, in ms, from trough to peak',
+        'pt_ratio' : 'peak-to-trough ratio',
+        #'unit_type': '“rsu” or “fsu” classification',
         'sampling_rate': 'sampling rate used for that probe, in Hz',
-        'isi_violation': '',
-        'isolation_distance': '',
+        'ccf_id': 'ccf region ID',
+        'ccf_acronym': 'ccf region acronym',
+        'ccf_name': 'ccf region name',
     }
     for col_key, col_desc in dict_columns_to_add.items():
         nwb_file.add_unit_column(name=col_key, description=col_desc)
@@ -400,7 +415,6 @@ def build_simplified_unit_table(imec_folder,
     unit_table = pd.DataFrame()
 
     # Load unit data
-    # 2. Cwaves waveform data + metrics todo
     # 3. track localization output (electrode) -> function matching electrode peak channel and neuron area
 
     # Load cluster table
@@ -423,9 +437,9 @@ def build_simplified_unit_table(imec_folder,
 
     # Get valid cluster indices
     valid_cluster_ids = cluster_info_df[cluster_info_df.group.isin(['good', 'mua'])].index # dataframe indices
-
     cluster_info_df_sub = cluster_info_df.loc[valid_cluster_ids, :]
 
+    # Add cluster information
     unit_table['cluster_id'] = cluster_info_df_sub['cluster_id']
     unit_table['peak_channel'] = cluster_info_df_sub['ch']
     unit_table['depth'] = cluster_info_df_sub['depth']
@@ -453,19 +467,74 @@ def build_simplified_unit_table(imec_folder,
 
     # Load mean waveform data
     mean_wfs = np.load(os.path.join(imec_folder, 'cwaves', 'mean_waveforms.npy'))
-
-    #valid_cluster_ids = cluster_info_df[cluster_info_df.group.isin(['good', 'mua'])].index
     peak_channels = cluster_info_df_sub.loc[valid_cluster_ids, 'ch'].values
-
-    # Filter mean waveform array and add to table
     mean_wfs = mean_wfs[valid_cluster_ids, peak_channels, :]
     unit_table['waveform_mean'] = pd.DataFrame(mean_wfs).to_numpy().tolist()
 
-    # Load mean waveform metrics TODO
+    # Load mean waveform metrics
     mean_wf_metrics = pd.read_csv(os.path.join(imec_folder, 'cwaves', 'waveform_metrics.csv'))
-    #unit_table['spike_width'] = mean_wf_metrics[valid_cluster_ids, 'spike_width'].values
-    #unit_table['peak_to_trough'] = mean_wf_metrics[valid_cluster_ids, 'peak_to_trough'].values
-
-
+    unit_table['duration'] = mean_wf_metrics[valid_cluster_ids, 'duration'].values
 
     return unit_table
+
+def build_area_table(imec_folder):
+
+    # Load ccf areas (sample space)
+    imec_id = imec_folder[-1]
+    path_to_proc_anat = imec_folder.replace('Ephys', 'Anatomy') #TODO: confirm location
+    path_to_proc_anat = r'M:\analysis\Axel_Bisi\ImagedBrains\AB082'
+    path_to_tracks_sample = os.path.join(path_to_proc_anat, 'brainreg/manual_segmentation/sample_space/tracks')
+    area_table = pd.read_csv(os.path.join(path_to_tracks_sample, 'imec{}.csv'.format(imec_id)))
+    area_table.rename(columns={'Position': 'position',
+                               'Region ID': 'ccf_id',
+                               'Region acronym': 'ccf_acronym',
+                               'Region name': 'ccf_name'}, inplace=True)
+    area_table = area_table.iloc[::-1]  # reverse order (from probe tip upwards)
+    area_table = area_table.iloc[9:, :] # remove first 9 rows (probe tip)
+
+    # Add atlas metadata
+    path_to_atlas = r'C:\Users\bisi\.brainglobe\allen_mouse_25um_v1.2'
+    with open(os.path.join(path_to_atlas, 'metadata.json')) as f:
+        atlas_metadata = json.load(f)
+    area_table['atlas_metadata'] = str(atlas_metadata)
+
+    # Simplify CCF hierarchical nomenclature with parent structure
+    with open(os.path.join(path_to_atlas, 'structures.json')) as f:
+        structures_dict_list = json.load(f)
+
+    # For each region_id, get parent structures
+    ccf_ids = area_table['ccf_id'].values
+    present_structures = {i['id']:i for i in structures_dict_list if i['id'] in ccf_ids} # all present structures
+    ccf_parent_ids = {ccf_id:struct['structure_id_path'][-2] for ccf_id, struct in present_structures.items()} # parent_ids
+    ccf_parent_dict =  {i['id']:i for i in structures_dict_list if i['id'] in ccf_parent_ids.values()} # parent structures
+
+    # Make mappers: cff_id <-> ccf_parent information
+    ccf_parent_id_mapper = {ccf_id:ccf_parent_dict[ccf_parent_ids[ccf_id]]['id'] for ccf_id in ccf_parent_ids.keys()}
+    ccf_parent_acronym_mapper = {ccf_id:ccf_parent_dict[ccf_parent_ids[ccf_id]]['acronym'] for ccf_id in ccf_parent_ids.keys()}
+    ccf_parent_name_mapper = {ccf_id:ccf_parent_dict[ccf_parent_ids[ccf_id]]['name'] for ccf_id in ccf_parent_ids.keys()}
+
+    area_table['ccf_parent_id'] = [ccf_parent_id_mapper[ccf_id] for ccf_id in ccf_ids]
+    area_table['ccf_parent_acronym'] = [ccf_parent_acronym_mapper[ccf_id] for ccf_id in ccf_ids]
+    area_table['ccf_parent_name'] = [ccf_parent_name_mapper[ccf_id] for ccf_id in ccf_ids]
+    # TODO: add all info incl. RGB triplets?
+
+    # Load ccf coordinates (ccf standard space)
+    path_to_tracks_std = os.path.join(path_to_proc_anat, 'brainreg/manual_segmentation/standard_space/tracks')
+    coords = np.load(os.path.join(path_to_tracks_std, 'imec{}.npy'.format(imec_id)))
+    coords = coords[::-1]  # reverse order (from probe tip upwards)
+    coords = coords[9:, :]  # remove first 9 rows (probe tip)
+    print('Coords:', coords)
+    #area_table['ccf_ap'] = coords[:, 0]
+    #area_table['ccf_ml'] = coords[:, 1]
+    #area_table['ccf_dv'] = coords[:, 2]
+
+    #import matplotlib.pyplot as plt
+#
+    ## make 3d plot of coords
+    #fig = plt.figure()
+    #ax = fig.add_subplot(111, projection='3d')
+    #ax.scatter(coords[:, 0], coords[:, 1], coords[:, 2])
+    ##ax.set_xlabel('ML')
+    #plt.show()
+
+    return area_table
