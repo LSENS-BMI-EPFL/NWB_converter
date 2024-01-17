@@ -394,14 +394,14 @@ def create_ephys_metadata(subject_id):
 
     """
     mouse_number, initials = get_subject_mouse_number(subject_id)
-    if initials == 'AB' and int(mouse_number) >= 86:
+    if initials == 'AB' and int(mouse_number) >= 93:
         processed = 0
     else:
         processed = 1
 
     ephys_metadata = {
         'setup': 'Neuropixels setup 1 AI3209',
-        'unit_table': 'simple',  # 'simple' or 'standard'
+        'unit_table': 'standard',  # 'simple' or 'standard'
         'processed': processed,
     }
     return ephys_metadata
@@ -444,7 +444,7 @@ def create_wf_metadata(config_path):
 
 if __name__ == '__main__':
     # Select mouse IDs.
-    mouse_ids = range(77,78)
+    mouse_ids = range(79,80)
     mouse_ids = ['AB' + str(mouse_id).zfill(3) for mouse_id in mouse_ids]
 
     last_done_day = None
