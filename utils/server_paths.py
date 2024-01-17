@@ -236,7 +236,7 @@ def get_raw_ephys_nidq_files(config_file):
 
 
 def get_ephys_folder(config_file):
-    """Returns the path to the ephys folder for a given session."""
+    """Returns the path to the processed ephys folder for a given session."""
     with open(config_file, 'r', encoding='utf8') as stream:
         config = yaml.safe_load(stream)
     mouse_name = config['subject_metadata']['subject_id']
@@ -253,7 +253,7 @@ def get_ephys_folder(config_file):
 
 
 def get_imec_probe_folder_list(config_file):
-    """ Get list of all imec probe folders for a given session."""
+    """ Get list of all processed imec probe folders for a given session."""
     with open(config_file, 'r', encoding='utf8') as stream:
         config = yaml.safe_load(stream)
     mouse_name = config['subject_metadata']['subject_id']
@@ -262,7 +262,7 @@ def get_imec_probe_folder_list(config_file):
     imec_folder_list = [f for f in os.listdir(data_folder) if 'imec' in f]
     imec_folder_list = [os.path.join(data_folder, f) for f in imec_folder_list]
     if not imec_folder_list:
-        print(f"No imec folder found for {session_name} session from {mouse_name}")
+        print(f"No processed imec folder found for {session_name} session from {mouse_name}")
         return None
     else:
         return imec_folder_list
@@ -291,6 +291,17 @@ def get_cwaves_folder(imec_probe_folder):
         return None
     else:
         return cwaves_folder
+
+
+def get_anatomy_folder(config_file):
+    """ Get path to raw data mouse anatomy folder."""
+    with open(config_file, 'r', encoding='utf8') as stream:
+        config = yaml.safe_load(stream)
+    mouse_name = config['subject_metadata']['subject_id']
+    data_folder = get_subject_data_folder(mouse_name)
+    anatomy_path = os.path.join(data_folder, 'Anatomy')
+
+    return anatomy_path
 
 
 def get_anat_images_files(config_file):

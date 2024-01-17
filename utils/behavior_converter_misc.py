@@ -368,7 +368,7 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
     standard_trial_table['whisker_stim_time'] = whisker_stim_time
 
     standard_trial_table['auditory_stim'] = trial_table['is_auditory']
-    standard_trial_table['auditory_stim_amplitude'] = trial_table['aud_stim_amp']  # TODO: convert from calibration data
+    standard_trial_table['auditory_stim_amplitude'] = trial_table['aud_stim_amp']  # TODO: convert from calibration data to dB?
     standard_trial_table['auditory_stim_frequency'] = trial_table['aud_stim_freq']
     standard_trial_table['auditory_stim_duration'] = trial_table['aud_stim_duration']
     standard_trial_table['auditory_stim_time'] = auditory_stim_time
