@@ -133,7 +133,6 @@ def convert_ephys_recording(nwb_file, config_file):
             row_id = int(shank_rows[electrode_id])
             area_info = area_table.iloc[row_id, :]
             area_info = area_info.astype(str)
-            #print(area_info)
 
             nwb_file.add_electrode(
                 id=electrode_counter,
@@ -177,8 +176,8 @@ def convert_ephys_recording(nwb_file, config_file):
         unit_table['shank_row'] = unit_table['peak_channel'].map(lambda x: int(shank_rows[x])) # get shank row from peak channel
         unit_table.set_index(keys='shank_row', drop=True, inplace=True)
         unit_table = unit_table.merge(area_table, on='shank_row', how='left') #shank_row as indices on both dataframes
-        unit_table = unit_table[[c for c in unit_table.columns if c not in ['spike_times', 'waveform_mean']]].astype(str)
-
+        cols_to_str = [c for c in unit_table.columns if c not in ['spike_times', 'waveform_mean']]
+        unit_table[cols_to_str] = unit_table[cols_to_str].astype(str) # convert to string to avoid error when adding to NWB file
 
         # -----------------------
         # Add units to Unit table

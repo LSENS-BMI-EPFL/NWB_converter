@@ -580,4 +580,5 @@ def build_area_table(imec_folder):
     # ax.scatter(coords[:, 0], coords[:, 1], coords[:, 2])
     # plt.show()
 
+
     return area_table
