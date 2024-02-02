@@ -366,7 +366,8 @@ def create_simplified_unit_table(nwb_file):
     Returns:
 
     """
-    # Create Units table
+    default_cols = ['id', 'spike_times']
+    # Create Units table (default columns are id and spike_times)
     dict_columns_to_add = {
         'cluster_id': 'cluster index, from KS(probe-wise)',
         'peak_channel': 'electrode with max waveform amplitude, from KS',
@@ -376,6 +377,9 @@ def create_simplified_unit_table(nwb_file):
         'firing_rate': 'total firing rate in session, in Hz',
         'waveform_mean': 'mean spike waveform (a vector), in uV',
         'sampling_rate': 'sampling rate used for that probe, in Hz',
+        'duration': 'spike duration, in ms, from trough to peak',
+        'pt_ratio': 'peak-to-trough ratio',
+        # 'unit_type': '“rsu” or “fsu” classification',
     }
     for col_key, col_desc in dict_columns_to_add.items():
         nwb_file.add_unit_column(name=col_key, description=col_desc)
@@ -510,8 +514,10 @@ def build_area_table(imec_folder):
     # -----------------------------------------
 
     imec_id = imec_folder[-1]
-    path_to_proc_anat = imec_folder.replace('Ephys', 'Anatomy')  # TODO: confirm location
-    path_to_proc_anat = path_to_proc_anat.replace(imec_folder.partition('Ephys')[-1], '\\brainreg\\manual_segmentation\\')
+    mouse_name = imec_folder.split('\\')[7]
+    #path_to_proc_anat = imec_folder.replace('Ephys', 'Anatomy')  # TODO: confirm location and update
+    #path_to_proc_anat = path_to_proc_anat.replace(imec_folder.partition('Ephys')[-1], '\\brainreg\\manual_segmentation\\')
+    path_to_proc_anat = r'M:\analysis\Axel_Bisi\ImagedBrains\{}\brainreg\manual_segmentation'.format(mouse_name)
     area_table = pd.read_csv(os.path.join(path_to_proc_anat, 'sample_space\\tracks', 'imec{}.csv'.format(imec_id)))
 
     # Format table for future shank row matching
