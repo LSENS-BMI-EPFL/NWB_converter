@@ -91,7 +91,8 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True):
 if __name__ == '__main__':
 
     # Run the conversion
-    mouse_ids = [79,80,82,85,86,87,91,92]#[93,94,95] #74 to do
+    mouse_ids = [95] #85 to do
+    mouse_ids = range(68,75) #85 to do
     mouse_ids = ['AB' + str(mouse_id).zfill(3) for mouse_id in mouse_ids]
     experimenter = 'AB'
 
@@ -123,24 +124,30 @@ if __name__ == '__main__':
         # Create NWB by looping over sessions.
         for isession, iday in training_days:
 
-            # # Filter sessions to do :
-            session_to_do = ["AB077_20230531_143839"]
-            if isession not in session_to_do:
-                continue
+            # Filter by session ID
+            #session_to_do = ["AB085_20231005_152636"]
+            #if isession not in session_to_do:
+            #    continue
 
+            # Filter by date
             #date_to_do = '20231219'
             #if date_to_do not in isession:
             #   continue
 
+            # Filter by time since date
             # session_date = isession.split('_')[1]
             # session_date = datetime.datetime.strptime(session_date, "%Y%m%d")
-
             # if last_done_day is not None:
             #     if session_date <= datetime.datetime.strptime(last_done_day, "%Y%m%d"):
             #         continue
+
+            # Filter by session type
+            #if experimenter == 'AB' and iday != 'whisker_0':
+            #    continue
+
+
             # Find yaml config file and behavior results for this session.
-            config_yaml = os.path.join(
-                analysis_folder, isession, f"config_{isession}.yaml")
+            config_yaml = os.path.join( analysis_folder, isession, f"config_{isession}.yaml")
 
             # Make conversion.
             print(" ------------------ ")
