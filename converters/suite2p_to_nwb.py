@@ -100,8 +100,9 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
                         'dF/F0: Normalized neuropil corrected suite2p fluorescence.']
 
     # Add information about cell type (projections, ... )
-    cell_type_codes = None
-    cell_type_names = None
+    # todo : add to the get serverpath functions -> get projection neurons folder / get file to match color and area
+    cell_type_codes = None  # list [1, 1, 2, 3, 3, 1, 2, 3, 3] same length as d_filt (1 to M1, 2 project to M2, 3 other)
+    cell_type_names = None  # list ["M1", "M1", "S2", "UN", "UN", "M1", "S2", "UN", "UN"]
 
     # Add fluorescence data to roi response series
     print('Add Roi Response Series.')
