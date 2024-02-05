@@ -4,8 +4,19 @@ import numpy as np
 import scipy
 
 
+def set_merged_roi_to_non_cell(stat, is_cell):
+    # Set merged cells to 0 in is_cell.
+    if 'inmerge' in stat[0].keys():
+        for i, st in enumerate(stat):
+            # 0: no merge; -1: output of a merge; index > 0: merged cell.
+            if st['inmerge'] not in [0, -1]:
+                is_cell[i] = 0.0
+
+    return is_cell
+
+
 def compute_F0(F, fs, window):
-    
+
     # Parameters --------------------------------------------------------------
     nfilt = 30  # Number of taps to use in FIR filter
     fw_base = 1  # Cut-off frequency for lowpass filter, in Hz
@@ -57,11 +68,11 @@ def compute_F0(F, fs, window):
 
 
 def compute_dff(F, Fneu, fs, window=60):
-    
+
     Fcor = F - .7 * Fneu  # Neuropil correction.
     F0 = compute_F0(Fcor, fs, window)
     dff = (Fcor - F0) / F0
-    
+
     return F0, dff
 
 
@@ -94,3 +105,17 @@ def get_processed_ci(suite2p_folder):
     return stat, is_cell, F, Fneu, dcnv
 
 
+def get_roi_labels(rois_label_folder):
+    far_red_rois = np.load(os.path.join(rois_label_folder, 'FarRedRois.npy'), allow_pickle=True)
+    red_rois = np.load(os.path.join(rois_label_folder, 'RedRois.npy'), allow_pickle=True)
+    un_rois = np.load(os.path.join(rois_label_folder, 'UNRois.npy'), allow_pickle=True)
+    info_file = os.path.join(rois_label_folder, 'CTBInjectionsInfo.txt')
+
+    info = {}
+    with open(info_file) as f:
+        for line in f:
+            key, val = line.split()
+            info[key] = val
+    info = {color: area for area, color in info.items()}
+
+    return far_red_rois, red_rois, un_rois, info

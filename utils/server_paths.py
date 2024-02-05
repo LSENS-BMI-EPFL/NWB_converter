@@ -367,3 +367,14 @@ def get_widefield_file(mat_path):
         data_file = None
 
     return sorted(data_file), sorted(timestamps_file)
+
+
+def get_rois_label_folder(config_file):
+    with open(config_file, 'r', encoding='utf8') as stream:
+        config = yaml.safe_load(stream)
+    mouse_name = config['subject_metadata']['subject_id']
+    folder = get_subject_analysis_folder(mouse_name)
+    folder = os.path.join(folder, 'projection_neurons')
+    
+    if os.path.exists(folder):
+        return folder

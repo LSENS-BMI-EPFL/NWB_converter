@@ -55,6 +55,9 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
     else:
         stat, is_cell, F, Fneu, dcnv, F_fissa = utils_gf.get_gf_processed_ci(config_file)
 
+    # Correct is_cell for merges.
+    is_cell = utils_ci.set_merged_roi_to_non_cell(stat, is_cell)
+
     # Compute F0 and dff.
     print('Compute F0 and dff.')
     fs = config['log_continuous_metadata']['scanimage_dict']['theoretical_ci_sampling_rate']
@@ -62,7 +65,7 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
     # Fissa is substracted but not normalized.
     if F_fissa is not None:
         dff_fissa = F_fissa / F0
-        
+
     # Extract image dimensions
     if image_series is not None:
         dim_y, dim_x = image_series.dimension[1:]
@@ -99,12 +102,34 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
                         'F0: 5% percentile baseline computed over a 2 min rolling window.',
                         'dF/F0: Normalized neuropil corrected suite2p fluorescence.']
 
-    # Add information about cell type (projections, ... )
-    # todo : add to the get serverpath functions -> get projection neurons folder / get file to match color and area
-    cell_type_codes = None  # list [1, 1, 2, 3, 3, 1, 2, 3, 3] same length as d_filt (1 to M1, 2 project to M2, 3 other)
-    cell_type_names = None  # list ["M1", "M1", "S2", "UN", "UN", "M1", "S2", "UN", "UN"]
+    # Add information about cell type (projections, ... ).
+    # ####################################################
 
-    # Add fluorescence data to roi response series
+    projection_folder = get_rois_label_folder(config_file)
+    
+    if not projection_folder:
+        cell_type_names = None
+        cell_type_codes = None
+    else:
+        far_red_rois, red_rois, un_rois, info = utils_ci.get_roi_labels(config_file)
+
+        # Code: 1: wM1, 2: wS2 and 0: unassigned.
+        # Cell code list [1, 1, 2, 0, 0, 1, 2, 0, 0] same length as d_filt.
+        # Cell type list: ["M1", "M1", "S2", "UN", "UN", "M1", "S2", "UN", "UN"].
+        projection_code = {'na': 0, 'wM1': 1, 'wS2': 2}
+        cell_type_codes = [0 for i in range(n_cells)] 
+        cell_type_names = ['na' for i in range(n_cells)]
+        for iroi in range(n_cells):
+            # Far red.
+            if iroi in far_red_rois:
+                cell_type_codes[iroi] = projection_code[info['CTB-647']]
+                cell_type_names[iroi] = info['CTB-647']
+            # Red.
+            if iroi in red_rois:
+                cell_type_codes[iroi] = projection_code[info['CTB-594']]
+                cell_type_names[iroi] = info['CTB-594']
+            
+    # Add fluorescence data to roi response series.
     print('Add Roi Response Series.')
     # todo : add control (list of int code for cell type) and control_description (list of str for name of cell type)
     for d, l, desc in zip(data, data_labels, descriptions):
@@ -114,16 +139,19 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
                 d_filt = d
             else:
                 d_filt = d[is_cell[:, 0].astype(bool)]
-
-            fl.create_roi_response_series(name=l,
-                                          data=np.transpose(d_filt),
-                                          unit='lumens',
-                                          rois=rt_region, timestamps=ci_frame_timestamps,
-                                          description=desc)
             if cell_type_codes is not None and cell_type_names is not None:
-                rrs = fl.get_roi_response_series(name=l)
-                rrs.control = cell_type_codes
-                rrs.control_description = cell_type_names
+                fl.create_roi_response_series(name=l,
+                                            data=np.transpose(d_filt),
+                                            unit='lumens',
+                                            rois=rt_region, timestamps=ci_frame_timestamps,
+                                            description=desc,
+                                            control=cell_type_codes,
+                                            control_description=cell_type_names)
+            else:
+                fl.create_roi_response_series(name=l,
+                                            data=np.transpose(d_filt),
+                                            unit='lumens',
+                                            rois=rt_region, timestamps=ci_frame_timestamps,
+                                            description=desc)
             print(f"- Creating Roi Response Series with: {desc}"
-                  f"shape: {(np.transpose(d_filt)).shape}")
-
+                f"shape: {(np.transpose(d_filt)).shape}")

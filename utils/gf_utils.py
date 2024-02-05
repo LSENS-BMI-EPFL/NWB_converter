@@ -280,12 +280,11 @@ def get_gf_processed_ci(config_file):
         spks = np.load(os.path.join(suite2p_folder, "spks.npy"), allow_pickle=True)
         F_fissa = np.load(os.path.join(fissa_folder, "F_fissa.npy"), allow_pickle=True)
 
-        # Set merged cells to 0 in is_cell.
-        if 'inmerge' in stat[0].keys():
-            for i, st in enumerate(stat):
-                # 0: no merge; -1: output of a merge; index > 0: merged cell.
-                if st['inmerge'] not in [0, -1]:
-                    is_cell[i] = 0.0
+        # # Set merged cells to 0 in is_cell.
+        # if 'inmerge' in stat[0].keys():
+        #     for i, st in enumerate(stat):
+        #         # 0: no merge; -1: output of a merge; index > 0: merged cell.
+        #         if st['inmerge'] not in [0, -1]:
+        #             is_cell[i] = 0.0
 
         return stat, is_cell, F, Fneu, spks, F_fissa,
-
