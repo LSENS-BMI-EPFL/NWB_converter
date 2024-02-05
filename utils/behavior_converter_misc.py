@@ -1,10 +1,9 @@
 import json
 import os
-
 import numpy as np
 import pandas as pd
 import yaml
-
+from datetime import datetime
 import utils.gf_utils as utils_gf
 from utils import server_paths
 
@@ -41,15 +40,17 @@ def find_training_days(subject_id, input_folder): #TODO: make this more general 
             print('Ignoring dummy session found: {}'.format(isession))
             continue
 
-        # Add to list of behaviours
+        # Correct behaviour names
         if json_config['behaviour_type'] == 'whisker_off':
             json_config['behaviour_type'] = 'whisker_off_1' # ensures correct string parsing
+
+        if json_config['behaviour_type'] in ['fl', 'free licking']:
+            json_config['behaviour_type'] = 'free_licking'
+
+        # Add to list of behaviours
         behavior_type.append(json_config['behaviour_type'])
 
     print('Found the following sessions behaviors from raw data: {}'.format(behavior_type))
-
-    # Fixing typo in behavior type
-    behavior_type = ['free_licking' if behavior == 'free licking' else behavior for behavior in behavior_type]
 
     # Format behavior type for NWB
     pretraining_behaviours = ['free_licking',
@@ -69,6 +70,13 @@ def find_training_days(subject_id, input_folder): #TODO: make this more general 
 
     # Create behaviour-day/session index labels  aligned to first whisker day
     label = list(range(-n_aud, 0)) + list(range(0, n_wh + n_ctrl))
+
+    if subject_id[0:2] == 'AB': # count "day" if increasing dates
+        dates = [datetime.strptime(s.split('_')[1], '%Y%m%d') for s in sessions_list]
+        for i in range(len(label)):
+            print(i, dates[i], dates[i-1], label[i])
+            if dates[i] <= dates[i-1] and label[i] >= 0:
+                label[i] = label[i-1]
 
     label = [f"+{d}" if d > 0 else str(d) for d in label]
     behavior_type = [f"{t}_{l}" for t, l in zip(behavior_type, label)]
