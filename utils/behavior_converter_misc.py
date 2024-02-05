@@ -74,9 +74,11 @@ def find_training_days(subject_id, input_folder): #TODO: make this more general 
     if subject_id[0:2] == 'AB': # count "day" if increasing dates
         dates = [datetime.strptime(s.split('_')[1], '%Y%m%d') for s in sessions_list]
         for i in range(len(label)):
-            print(i, dates[i], dates[i-1], label[i])
-            if dates[i] <= dates[i-1] and label[i] >= 0:
+            if (dates[i] <= dates[i-1]) and label[i] >= 0:
                 label[i] = label[i-1]
+
+            if behavior_type[i-1] == 'whisker_off_1':
+                label[i] = label[i-1] + 1
 
     label = [f"+{d}" if d > 0 else str(d) for d in label]
     behavior_type = [f"{t}_{l}" for t, l in zip(behavior_type, label)]
