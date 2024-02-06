@@ -66,6 +66,8 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
 
         tiff_file = server_paths.get_imaging_file(config_file)
 
+        mj2_file = server_paths.get_widefield_file(config_file)
+
     # Get relevant continuous processing information
     channels_dict = config['log_continuous_metadata']['channels_dict']
     threshold_dict = config['log_continuous_metadata']['threshold_dict']
@@ -90,7 +92,8 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
     timestamps_dict, n_frames_dict = extract_timestamps(continuous_data_dict, threshold_dict,
                                                         ni_session_sr=5000,
                                                         scanimage_dict=scanimage_dict,
-                                                        filter_cameras=camera_filtering)
+                                                        filter_cameras=camera_filtering,
+                                                        wf_file=mj2_file[0])
 
     # Optionally plot log_continuous.bin data for inspection, given a start and stop time
     if do_plot:
@@ -122,6 +125,10 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
         if tiff_file is not None:
             print(f"Tiff file found, reading number of CI frames")
             tiff_loading.get_tiff_movie_shape(tiff_file)
+
+        if mj2_file is not None:
+            print(f"Motion JPEG 2000 file found, reading number of widefield frames")
+            read_motion_jpeg_2000_movie(mj2_file=mj2_file)
 
     return timestamps_dict, n_frames_dict
 

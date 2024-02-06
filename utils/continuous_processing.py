@@ -271,6 +271,17 @@ def filter_cameras_live_timestamps(on_off_timestamps):
     return filtered_on_off_timestamps
 
 
+def filter_wf_camera_live_timestamps(on_off_timestamps):
+    inter_frame_interval = np.diff(on_off_timestamps)
+    long_pause_idx = np.where(inter_frame_interval > 2 * np.median(inter_frame_interval))[0]
+    if len(long_pause_idx) > 0:
+        filtered_on_off_timestamps = on_off_timestamps[:long_pause_idx[0]]
+    else:
+        filtered_on_off_timestamps = on_off_timestamps
+
+    return filtered_on_off_timestamps
+
+
 def detect_ci_pause(ci_frame_times):
     iti_distribution = np.diff(ci_frame_times)
     pause_thr = np.median(iti_distribution) + 10 * np.std(iti_distribution)
@@ -284,7 +295,7 @@ def detect_ci_pause(ci_frame_times):
         return has_pause, None, None
 
 
-def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scanimage_dict=None, filter_cameras=False):
+def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scanimage_dict=None, filter_cameras=False, wf_file=False):
     """
     Extract timestamps from continuous logging data.
     Args:
@@ -419,6 +430,14 @@ def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scan
                 print(f"Session likely stopped before end of last {key}")
                 filtered_on_off_timestamps = on_off_timestamps[0: -1]  # remove last timestamp that signals session end
                 on_off_timestamps = filtered_on_off_timestamps
+
+            if key in ["widefield"] and wf_file is not None:
+                import imageio as iio
+                props = iio.v3.improps(wf_file, plugin='pyav', format='gray16be')
+                if on_off_timestamps == props.n_images + 1:
+                    print(f"Cutting extra frames after stop signal")
+                    filtered_on_off_timestamps = on_off_timestamps[:-1]
+                    on_off_timestamps = filtered_on_off_timestamps
 
             timestamps_dict[key] = on_off_timestamps
             n_frames_dict[key] = len(on_off_timestamps)
