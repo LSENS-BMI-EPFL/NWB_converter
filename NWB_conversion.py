@@ -56,7 +56,7 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True):
     if config_dict.get("two_photon_metadata") is not None:
         print(" ")
         print("Convert CI movie")
-        convert_ci_movie(nwb_file=nwb_file, config_file=config_file,
+        convert_ci_movie(nwb_file=nwb_file, config_file=config_file, movie_format='link',
                          add_movie_data_or_link=True, ci_frame_timestamps=timestamps_dict['galvo_position'])
 
         print(" ")
