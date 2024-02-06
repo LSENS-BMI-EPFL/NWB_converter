@@ -220,6 +220,16 @@ def get_context_timestamps_dict(timestamps_dict, nwb_trial_table):
     return context_timestamps_dict, context_sound_dict
 
 
+def get_motivated_epoch_ts(timestamps_dict, nwb_trial_table):
+    motivated_timestamps_dict = dict()
+    trial_times = timestamps_dict['trial_TTL']
+    n_trials = nwb_trial_table.shape[0]
+    cut_off = n_trials - 50
+    motivated_timestamps_dict['motivated'] = [(trial_times[0][0], trial_times[cut_off][0] - 3)]
+    motivated_timestamps_dict['unmotivated'] = [(trial_times[cut_off][0] - 2, trial_times[-1][1])]
+    return motivated_timestamps_dict
+    
+
 def list_trial_type(results_table):
     """
     Get list and name trial types from results table.
