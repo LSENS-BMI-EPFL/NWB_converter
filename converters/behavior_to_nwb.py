@@ -156,7 +156,6 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
 
     # Get motivated/unmotivated timestamps
     motivated_timestamps_dict = get_motivated_epoch_ts(timestamps_dict=timestamps_dict, nwb_trial_table=trial_table)
-    print(f"motivated_timestamps_dict : {motivated_timestamps_dict}")
 
     # Add motivated epochs
     if motivated_timestamps_dict is not None:
@@ -178,9 +177,9 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
                 time_stamps_to_store.extend([start_time, stop_time])
                 data_to_store.extend([1, -1])
             behavior_epochs.create_interval_series(name=epoch, data=data_to_store, timestamps=time_stamps_to_store,
-                                                    comments='no comments',
-                                                    description=description,
-                                                    control=None, control_description=None)
+                                                   comments='no comments',
+                                                   description=description,
+                                                   control=None, control_description=None)
 
 
     # Check if behaviour video filming
