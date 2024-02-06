@@ -14,7 +14,8 @@ import numpy as np
 import pandas as pd
 import yaml
 
-from utils.ephys_converter_misc import (build_simplified_unit_table,
+from utils.ephys_converter_misc import (build_unit_table,
+                                        build_area_table,
                                         create_electrode_table,
                                         create_simplified_unit_table,
                                         create_unit_table,
@@ -40,25 +41,29 @@ def convert_ephys_recording(nwb_file, config_file):
     with open(config_file, 'r') as stream:
         config = yaml.safe_load(stream)
 
-    # First, create dynamic tables that will be filled with data
+    # -----------------------------
+    # First, create dynamic tables
+    # -----------------------------
     create_electrode_table(nwb_file=nwb_file)
     if config.get('ephys_metadata').get('unit_table') == 'simple':
         create_simplified_unit_table(nwb_file=nwb_file)
     else:
         create_unit_table(nwb_file=nwb_file)
 
-    # Get number of probes used
-    imec_probe_list = get_imec_probe_folder_list(config_file=config_file)
-
-    # Counter for total number of electrode in recording
+    # Counter for total number of items
     electrode_counter = 0
     neuron_counter = 0
 
+    # Get number of probes used
+    imec_probe_list = get_imec_probe_folder_list(config_file=config_file)
+
+    # ------------------------------------------------------
     # Then, iterate over each probe/device used in recording
+    # ------------------------------------------------------
     for imec_id, imec_folder in enumerate(imec_probe_list):
         print('Probe IMEC{}'.format(imec_id), imec_folder)
 
-        # Check if recording is valid (otherwise skip)
+        # Check if recording is valid (otherwise skip) #TODO: a function to check if recording is valid
         probe_info_df = get_probe_insertion_info(config_file=config_file)
         mouse_name = config.get('subject_metadata').get('subject_id')
         probe_row = probe_info_df[(probe_info_df['mouse_name'] == mouse_name)
@@ -69,6 +74,10 @@ def convert_ephys_recording(nwb_file, config_file):
         if not is_valid_probe:
             print('Skipping {} probe IMEC{} because invalid recording.'.format(mouse_name, imec_id))
             continue
+
+        # ------------------------
+        # Get probe insertion data
+        # ------------------------
 
         # Get serial number
         ap_meta_file = [f for f in os.listdir(imec_folder) if 'ap.meta' in f][0]
@@ -83,9 +92,8 @@ def convert_ephys_recording(nwb_file, config_file):
             manufacturer='IMEC'
         )
 
-        # Get stereotaxic targeted location from metadata file
-        location_dict = get_target_location(config_file=config_file,
-                                            device_name=device_name)
+        # Get stereotaxic targeted location from external metadata file
+        location_dict = get_target_location(config_file=config_file, device_name=device_name)
 
         # Create ElectrodeGroup object
         electrode_group = nwb_file.create_electrode_group(
@@ -102,91 +110,111 @@ def convert_ephys_recording(nwb_file, config_file):
         shank_id = coords[2]
         shank_cols = np.tile([1, 3, 0, 2], reps=int(xcoords.shape[0] / 4))
         shank_rows = np.divide(ycoords, 20)
-        connected = coords[3]  # whether bad channels
+        connected = coords[3]  # whether they are bad channels
         n_chan_total = int(coords[4])  # includes SY sync channel 768
 
+        # ----------------------------------
+        # Get anatomical reconstruction data
+        # ----------------------------------
+
+        # Build table with anatomical location estimates of each electrode
+        area_table = build_area_table(imec_folder=imec_folder)
+
+        # Reindex to match shank electrode order
+        area_table = area_table.sort_values(by=['shank_row'], ascending=True, axis=0)
+        area_table.set_index(keys='shank_row', drop=True, inplace=True)
+        area_table = area_table.reindex(labels=np.arange(0, np.max(shank_rows)+1), fill_value=np.nan, axis=0)
+
+        # --------------------------------
         # Add electrodes to ElectrodeTable
+        # --------------------------------
+
         for electrode_id in range(n_chan_total - 1):  # ignore reference channel 768
+            row_id = int(shank_rows[electrode_id])
+            area_info = area_table.iloc[row_id, :]
+            area_info = area_info.astype(str)
 
             nwb_file.add_electrode(
                 id=electrode_counter,
                 index_on_probe=electrode_id,
-                group=electrode_group,
+                group=electrode_group, # required argument
                 group_name=device_name,
-                # TODO: resolve this for location (ElectrodeGroup vs Electrode), SGLX vs anatomical estimates
-                location=str(location_dict),
-                ccf_location='nan',
                 rel_x=xcoords[electrode_id],
                 rel_y=ycoords[electrode_id],
                 rel_z=0.0,
                 shank=shank_id[electrode_id],
                 shank_col=shank_cols[electrode_id],
                 shank_row=shank_rows[electrode_id],
-                ccf_dv='nan',
-                ccf_ml='nan',
-                ccf_ap='nan'
+                ccf_dv=area_info['ccf_dv'],
+                ccf_ml=area_info['ccf_ml'],
+                ccf_ap=area_info['ccf_ap'],
+                ccf_id=area_info['ccf_id'],
+                ccf_acronym=area_info['ccf_acronym'],
+                ccf_name=area_info['ccf_name'],
+                ccf_parent_id=area_info['ccf_parent_id'],
+                ccf_parent_acronym=area_info['ccf_parent_acronym'],
+                ccf_parent_name=area_info['ccf_parent_name'],
+                location=str(area_info['ccf_acronym']) # required string argument
             )
 
             # Increment total number of electrode
             electrode_counter += 1
 
+        # ---------------------------
+        # Get electrophysiology data
+        # ---------------------------
 
         # Get path to preprocessed sync spike times
         sync_path = get_sync_event_times_folder(config_file)
         spike_times_sync_file = [f for f in os.listdir(sync_path) if device_name in f][0]
         sync_spike_times_path = pathlib.Path(sync_path, spike_times_sync_file)
 
-        # Different table types
-        if config.get('ephys_metadata').get('unit_table') == 'simple':
+        # Build unit table
+        unit_table = build_unit_table(imec_folder=imec_folder, sync_spike_times_path=sync_spike_times_path)
 
+        # Join anatomical info to each unit entry
+        unit_table['shank_row'] = unit_table['peak_channel'].map(lambda x: int(shank_rows[x])) # get shank row from peak channel
+        unit_table.set_index(keys='shank_row', drop=True, inplace=True)
+        unit_table = unit_table.merge(area_table, on='shank_row', how='left') #shank_row as indices on both dataframes
+        cols_to_str = [c for c in unit_table.columns if c not in ['spike_times', 'waveform_mean']]
+        unit_table[cols_to_str] = unit_table[cols_to_str].astype(str) # convert to string to avoid error when adding to NWB file
 
-            # Build unit table
-            unit_table = build_simplified_unit_table(imec_folder=imec_folder,
-                                                     sync_spike_times_path=sync_spike_times_path
-                                                     )
+        # -----------------------
+        # Add units to Unit table
+        # -----------------------
 
-            # Add units to unit table
-            n_neurons = len(unit_table)
-            for neuron_id in range(n_neurons):
+        n_neurons = len(unit_table)
+        for neuron_id in range(n_neurons):
 
-                nwb_file.add_unit(
-                    cluster_id=unit_table['cluster_id'].values[neuron_id],
-                    peak_channel=unit_table['peak_channel'].values[neuron_id],
-                    electrode_group=electrode_group,
-                    depth=unit_table['depth'].values[neuron_id],
-                    ks_label=unit_table['ks_label'].values[neuron_id],
-                    firing_rate=unit_table['firing_rate'].values[neuron_id],
-                    spike_times=unit_table['spike_times'].values[neuron_id],
-                    waveform_mean=unit_table['waveform_mean'].values[neuron_id],
-                    sampling_rate=ap_meta_data['imSampRate'],
-                    id=neuron_counter,
+            nwb_file.add_unit(
+                id=neuron_counter,
+                cluster_id=unit_table['cluster_id'].values[neuron_id],
+                peak_channel=unit_table['peak_channel'].values[neuron_id],
+                electrode_group=electrode_group,
+                depth=unit_table['depth'].values[neuron_id],
+                ks_label=unit_table['ks_label'].values[neuron_id],
+                firing_rate=unit_table['firing_rate'].values[neuron_id],
+                spike_times=unit_table['spike_times'].values[neuron_id],
+                waveform_mean=unit_table['waveform_mean'].values[neuron_id],
+                sampling_rate=ap_meta_data['imSampRate'],
+                duration=unit_table['duration'].values[neuron_id],
+                pt_ratio=unit_table['pt_ratio'].values[neuron_id],
+                ccf_dv=unit_table['ccf_dv'].values[neuron_id],
+                ccf_ml=unit_table['ccf_ml'].values[neuron_id],
+                ccf_ap=unit_table['ccf_ap'].values[neuron_id],
+                ccf_id=unit_table['ccf_id'].values[neuron_id],
+                ccf_acronym=unit_table['ccf_acronym'].values[neuron_id],
+                ccf_name=unit_table['ccf_name'].values[neuron_id],
+                ccf_parent_id=unit_table['ccf_parent_id'].values[neuron_id],
+                ccf_parent_acronym=unit_table['ccf_parent_acronym'].values[neuron_id],
+                ccf_parent_name=unit_table['ccf_parent_name'].values[neuron_id],
+            )
 
-                )
-
-                # Increment total number of neuron
-                neuron_counter += 1
-
-        #elif config.get('ephys_metadata').get('unit_table') == 'standard':
-        #    print('Standard unit table not yet implemented')
-#
-        #    # Build standard unit table
-        #    # TODO: implement this
-        #    unit_table = build_standard_unit_table(imec_folder=imec_folder,
-        #                                            sync_spike_times_path=sync_spike_times_path
-        #                                            )
-#
-        #    # Add units to unit table
-        #    n_neurons = len(unit_table)
-        #    for neuron_id in range(n_neurons):
-#
-        #        nwb_file.add_unit()
-#
-#
-        #        # Increment total number of neuron
-        #        neuron_counter += 1
+            # Increment total number of neuron
+            neuron_counter += 1
 
         print('Done adding data for IMEC{}'.format(imec_id))
 
-    print('Done ephys conversion to NWB. ')
+    print('Done ephys conversion to NWB.')
 
     return

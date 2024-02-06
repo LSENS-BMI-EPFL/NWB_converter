@@ -57,7 +57,6 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True):
         print(" ")
         print("Convert CI movie")
         convert_ci_movie(nwb_file=nwb_file, config_file=config_file,
-                         movie_format='link', ci_frame_timestamps=timestamps_dict['galvo_position'])
 
         print(" ")
         print("Convert Suite2p data")
@@ -94,6 +93,9 @@ if __name__ == '__main__':
     mouse_ids = [000]#[93,94,95] #74 to do
     mouse_ids = ['PB' + str(mouse_id).zfill(3) for mouse_id in mouse_ids]
     experimenter = 'PB'
+    mouse_ids = range(68,75) #85 to do
+    mouse_ids = ['AB' + str(mouse_id).zfill(3) for mouse_id in mouse_ids]
+    experimenter = 'AB'
 
     if experimenter == 'GF':
         # Read excel database.
@@ -130,17 +132,30 @@ if __name__ == '__main__':
 
             # date_to_do = '20240110'
             # if date_to_do not in isession:
+            # Filter by session ID
+            #session_to_do = ["AB085_20231005_152636"]
+            #if isession not in session_to_do:
+            #    continue
+
+            # Filter by date
+            #date_to_do = '20231219'
+            #if date_to_do not in isession:
             #   continue
 
+            # Filter by time since date
             # session_date = isession.split('_')[1]
             # session_date = datetime.datetime.strptime(session_date, "%Y%m%d")
-
             # if last_done_day is not None:
             #     if session_date <= datetime.datetime.strptime(last_done_day, "%Y%m%d"):
             #         continue
+
+            # Filter by session type
+            #if experimenter == 'AB' and iday != 'whisker_0':
+            #    continue
+
+
             # Find yaml config file and behavior results for this session.
-            config_yaml = os.path.join(
-                analysis_folder, isession, f"config_{isession}.yaml")
+            config_yaml = os.path.join( analysis_folder, isession, f"config_{isession}.yaml")
 
             # Make conversion.
             print(" ------------------ ")

@@ -112,8 +112,21 @@ def get_trial_timestamps_dict(timestamps_dict, behavior_results_file, config_fil
         else:
             sep = ','
         behavior_results = pd.read_csv(behavior_results_file, sep=sep, engine='python')
-    
-    
+        n_trials_max = len(behavior_results)
+
+        # TODO: get max number of trials possible
+    if len(behavior_results) > len(timestamps_dict['trial_TTL']):
+        n_trials_max = len(timestamps_dict['trial_TTL'])
+        print(f"Found more trials in .csv file than TTL up/down signal, session must have been stopped "
+              f"before saving the very last trial. Ignoring last trials of .csv table.")
+    elif len(behavior_results) < len(timestamps_dict['trial_TTL']):
+        n_trials_max = len(behavior_results)
+        print(f"Found more trials in TTL up/down signal than in .csv file, logging of TTLs must have been interrupted "
+                f"before the end of the behaviour. Ignoring last trial TTLs of session.")
+
+    behavior_results = behavior_results.iloc[:n_trials_max, :]  # limit number of trials
+
+
     # Get trial outcomes, number of trials and trial types
     trial_outcomes = behavior_results['perf'].values
     trial_types = np.unique(trial_outcomes)
@@ -206,6 +219,17 @@ def get_context_timestamps_dict(timestamps_dict, nwb_trial_table):
 
     return context_timestamps_dict, context_sound_dict
 
+
+def get_motivated_epoch_ts(timestamps_dict, nwb_trial_table):
+    motivated_timestamps_dict = dict()
+    trial_times = timestamps_dict['trial_TTL']
+    frame_times = timestamps_dict['galvo_position']
+    n_trials = nwb_trial_table.shape[0]
+    cut_off = n_trials - 50
+    motivated_timestamps_dict['motivated'] = [(max(trial_times[0][0], frame_times[0]), trial_times[cut_off][0] - 2)]
+    motivated_timestamps_dict['unmotivated'] = [(trial_times[cut_off][0] - 2, min(trial_times[-1][1], frame_times[-1]))]
+    return motivated_timestamps_dict
+    
 
 def list_trial_type(results_table):
     """
@@ -330,16 +354,24 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
 
     # Compare number of trials in .csv table and TTL timestamps
     if len(trial_timestamps[:, 0]) > n_trials:
-        print(f"The .csv table has less trial than TTL up/down signal session must have been stopped "
+        print(f"The .csv table has less trial than TTL up/down signal, session must have been stopped "
               f"before saving the very last trial. Ignoring last trial TTLs of session.")
         trial_timestamps = trial_timestamps[0:n_trials, :]
 
-    # Format timestamps for specific events
-    whisker_stim_time = [t + trial_table['baseline_window'][i] / 1000 if trial_table.iloc[i].is_whisker == 1 else np.nan
+    elif len(trial_timestamps[:, 0]) < n_trials:
+        print(f"The .csv table has more trials than TTL up/down signal, logging of TTLs must have been interrupted "
+                f"before the end of the behaviour. Ignoring last trials of .csv table.")
+        n_trials = len(trial_timestamps)
+        trial_table = trial_table.iloc[0:n_trials, :]
+        trial_type_list = trial_type_list[0:n_trials]
+
+
+    # Format timestamps for specific events #TODO: confirm that this is correct
+    whisker_stim_time = [t + trial_table['baseline_window'][i] / 1000 if trial_table.loc[i].is_whisker == 1 else np.nan
                          for i, t in enumerate(trial_timestamps[:, 0])]
-    auditory_stim_time = [t + trial_table['baseline_window'][i] / 1000 if trial_table.iloc[i].is_auditory == 1 else np.nan
+    auditory_stim_time = [t + trial_table['baseline_window'][i] / 1000 if trial_table.loc[i].is_auditory == 1 else np.nan
                           for i, t in enumerate(trial_timestamps[:, 0])]
-    no_stim_time = [t + trial_table['baseline_window'][i] / 1000 if trial_table.iloc[i].is_stim == 0 else np.nan
+    no_stim_time = [t + trial_table['baseline_window'][i] / 1000 if trial_table.loc[i].is_stim == 0 else np.nan
                     for i, t in enumerate(trial_timestamps[:, 0])]
 
     # Format response window times, relative to start time
@@ -350,8 +382,8 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
     trial_table['reaction_time'].replace(0, np.nan, inplace=True)
 
     # Define rewards availability
-    reward_available = [1 if(trial_table.iloc[i].is_auditory == 1 or
-                             (trial_table.iloc[i].is_whisker == 1 and trial_table.iloc[i].wh_reward == 1)) else 0
+    reward_available = [1 if(trial_table.loc[i].is_auditory == 1 or
+                             (trial_table.loc[i].is_whisker == 1 and trial_table.loc[i].wh_reward == 1)) else 0
                         for i in range(n_trials)]
 
     # Build trial table
@@ -368,7 +400,7 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
     standard_trial_table['whisker_stim_time'] = whisker_stim_time
 
     standard_trial_table['auditory_stim'] = trial_table['is_auditory']
-    standard_trial_table['auditory_stim_amplitude'] = trial_table['aud_stim_amp']  # TODO: convert from calibration data
+    standard_trial_table['auditory_stim_amplitude'] = trial_table['aud_stim_amp']  # TODO: convert from calibration data to dB?
     standard_trial_table['auditory_stim_frequency'] = trial_table['aud_stim_freq']
     standard_trial_table['auditory_stim_duration'] = trial_table['aud_stim_duration']
     standard_trial_table['auditory_stim_time'] = auditory_stim_time

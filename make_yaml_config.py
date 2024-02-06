@@ -396,15 +396,26 @@ def create_ephys_metadata(subject_id):
 
     """
     mouse_number, initials = get_subject_mouse_number(subject_id)
-    if initials == 'AB' and int(mouse_number) >= 86:
+    if initials == 'AB':
+        setup = 'Neuropixels setup 1 AI3209'
+    else:
+        setup = 'Neuropixels setup 2 AI3209'
+
+    if initials == 'AB' and int(mouse_number) > 95:
         processed = 0
     else:
         processed = 1
 
+    data_folder = get_subject_data_folder(subject_id)
+    if os.path.isdir(os.path.join(data_folder, 'Anatomy')):
+        unit_table = 'standard'
+    else:
+        unit_table = 'simple'
+
     ephys_metadata = {
-        'setup': 'Neuropixels setup 1 AI3209',
-        'unit_table': 'simple',  # 'simple' or 'standard'
-        'processed': processed,
+        'setup': setup,
+        'unit_table': unit_table,  # 'simple' or 'standard'
+        'processed': processed, # 0 or 1
     }
     return ephys_metadata
 
@@ -446,7 +457,7 @@ def create_wf_metadata(config_path):
 
 if __name__ == '__main__':
     # Select mouse IDs.
-    mouse_ids = range(77,78)
+    mouse_ids = [95]
     mouse_ids = ['AB' + str(mouse_id).zfill(3) for mouse_id in mouse_ids]
 
     last_done_day = None
@@ -473,8 +484,8 @@ if __name__ == '__main__':
                 if session_date <= datetime.datetime.strptime(last_done_day, "%Y%m%d"):
                     continue
 
-            # sessions_to_do = ["PB124_20230404_141456"]
-            # if session_id not in sessions_to_do:
+            #sessions_to_do = ["PB124_20230404_141456"]
+            #if session_id not in sessions_to_do:
             #    continue
 
             make_yaml_config(mouse_id, session_id, day, data_folder, analysis_folder,
