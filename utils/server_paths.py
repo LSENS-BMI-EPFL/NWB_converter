@@ -364,6 +364,9 @@ def get_widefield_file(config_file):
     session_name = config['session_metadata']['session_id']
     data_folder = get_subject_data_folder(mouse_name)
     wf_folder = os.path.join(data_folder, 'Recording', 'Imaging', session_name)
+    if not os.path.exists(wf_folder):
+        mj2_file = None
+        return mj2_file
     mj2_file = [os.path.join(wf_folder, m) for m in os.listdir(wf_folder)
                    if os.path.splitext(m)[1] in ['.mj2']]
 

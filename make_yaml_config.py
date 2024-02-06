@@ -301,7 +301,7 @@ def create_channels_threshold_dict(experimenter, json_config, session_type):
         #    channels_dict.pop('empty_2')
         #    threshold_dict.pop('empty_2')
 
-    elif json_config['twophoton_session'] or session_type == 'behaviour_only_session':
+    elif json_config['twophoton_session'] or (session_type in ['pharma_session', 'behaviour_only_session']):
         channels_dict = {
             'trial_TTL': 2,
             'lick_trace': 0,
