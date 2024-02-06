@@ -36,7 +36,8 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
     else:
         ophys_module = nwb_file.create_processing_module('ophys', 'contains optical physiology processed data')
 
-    image_series = nwb_file.acquisition.get("motion_corrected_ci_movie")
+    # image_series = nwb_file.acquisition.get("motion_corrected_ci_movie")
+    image_series = None 
     if image_series is None:
         print("No calcium imaging movie named 'motion_corrected_ci_movie' found in nwb_file")
 
