@@ -365,15 +365,16 @@ def get_widefield_file(config_file):
     data_folder = get_subject_data_folder(mouse_name)
     wf_folder = os.path.join(data_folder, 'Recording', 'Imaging', session_name)
     if not os.path.exists(wf_folder):
-        mj2_file = None
-        return mj2_file
+        return None
     mj2_file = [os.path.join(wf_folder, m) for m in os.listdir(wf_folder)
                    if os.path.splitext(m)[1] in ['.mj2']]
-
+    
     if not mj2_file:
         mj2_file = None
+    else:
+        mj2_file = sorted(mj2_file)
 
-    return sorted(mj2_file)
+    return mj2_file
 
 
 def get_rois_label_folder(config_file):
