@@ -226,8 +226,8 @@ def get_motivated_epoch_ts(timestamps_dict, nwb_trial_table):
     frame_times = timestamps_dict['widefield'] if 'widefield' in timestamps_dict.keys() else timestamps_dict['galvo_position']
     n_trials = nwb_trial_table.shape[0]
     cut_off = n_trials - 50
-    motivated_timestamps_dict['motivated'] = [(max(trial_times[0][0], frame_times[0][0]), trial_times[cut_off][0] - 2)]
-    motivated_timestamps_dict['unmotivated'] = [(trial_times[cut_off][0] - 2, min(trial_times[-1][1], frame_times[-1][0]))]
+    motivated_timestamps_dict['motivated'] = [(max(trial_times[0][0], frame_times[0]), trial_times[cut_off][0] - 2)]
+    motivated_timestamps_dict['unmotivated'] = [(trial_times[cut_off][0] - 2, min(trial_times[-1][1], frame_times[-1]))]
     return motivated_timestamps_dict
     
 
