@@ -93,7 +93,7 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
                                                         ni_session_sr=5000,
                                                         scanimage_dict=scanimage_dict,
                                                         filter_cameras=camera_filtering,
-                                                        wf_file=mj2_file)
+                                                        wf_file=mj2_file[0] if mj2_file is not None else None)
 
     # Optionally plot log_continuous.bin data for inspection, given a start and stop time
     if do_plot:
