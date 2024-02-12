@@ -118,9 +118,11 @@ def convert_widefield_recording(nwb_file, config_file, wf_frame_timestamps):
     roi_file = server_paths.get_wf_fiji_rois_file(config_file)
 
     if roi_file is not None:
+        print(f"Add fluorescence traces from ROIs in roi file ")
         img_shape = dff0_data.shape[1:]
 
         # Extract list of region mask
+        print(f"Extract pixel masks from roi file")
         area_names, brain_region_pixel_masks, brain_region_image_masks = \
             ci_processing.get_wf_roi_pixel_mask(roi_file, img_shape)
 
@@ -133,6 +135,7 @@ def convert_widefield_recording(nwb_file, config_file, wf_frame_timestamps):
                                                reference_images=dFF0_wf_series if dFF0_wf_series is not None else None)
 
         # Add rois to plane segmentation
+        print(f"Add masks to plane segmentation")
         ci_processing.add_wf_roi(ps, pix_masks=brain_region_pixel_masks, img_masks=brain_region_image_masks)
 
         # Create Fluorescence object to store fluorescence data
@@ -142,6 +145,7 @@ def convert_widefield_recording(nwb_file, config_file, wf_frame_timestamps):
         rt_region = ps.create_roi_table_region('brain areas', region=list(np.arange(n_cells)))
 
         # Compute dff0 traces
+        print(f"Compute traces")
         dff0_traces = np.zeros((n_cells, dff0_data.shape[0]))
         for cell in np.arange(n_cells):
             img_mask = ps['image_mask'][cell]
@@ -154,7 +158,7 @@ def convert_widefield_recording(nwb_file, config_file, wf_frame_timestamps):
                                             timestamps=[timestamp[0] for timestamp in wf_frame_timestamps],
                                             description="dff0 traces", control=list(np.arrange(n_cells)),
                                             control_description=area_names)
-        print(f"- Creating Roi Response Series with raw traces of shape: {(np.transpose(dff0_traces)).shape}")
+        print(f"- Creating Roi Response Series with dff0 traces of shape: {(np.transpose(dff0_traces)).shape}")
 
 
 
