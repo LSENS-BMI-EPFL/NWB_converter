@@ -81,7 +81,7 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
     # Create Fluorescence object to store fluorescence data
     fl = Fluorescence(name="fluorescence_all_cells")
     ophys_module.add_data_interface(fl)
-    n_cells = (is_cell[:, 0]==1).sum()
+    n_cells = (is_cell[:, 0] == 1).sum()
     rt_region = ps.create_roi_table_region('all cells', region=list(np.arange(n_cells)))
 
     # List fluorescence data to save

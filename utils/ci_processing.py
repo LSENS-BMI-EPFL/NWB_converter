@@ -2,6 +2,8 @@ import os
 
 import numpy as np
 import scipy
+from scipy import ndimage
+from read_roi import read_roi_file, read_roi_zip
 
 
 def set_merged_roi_to_non_cell(stat, is_cell):
@@ -119,3 +121,56 @@ def get_roi_labels(rois_label_folder):
     info = {color: area for area, color in info.items()}
 
     return far_red_rois, red_rois, un_rois, info
+
+
+def get_wf_roi_pixel_mask(roi_file, img_shape):
+    roi_file = roi_file[0] if roi_file is not None else None
+    if roi_file.endswith("zip"):
+        zip_data = read_roi_zip(roi_file)
+        area_names = list(zip_data.keys())
+        coords_loaded = np.empty((len(zip_data),), dtype=np.object)
+        for roi_index, roi in enumerate(zip_data.values()):
+            n_points = len(roi['x'])
+            contours = np.zeros((2, n_points), dtype="int16")
+            contours[0] = roi['x']
+            contours[1] = roi['y']
+            coords_loaded[roi_index] = contours
+    elif roi_file.endswith("roi"):
+        roi = read_roi_file(roi_file)
+        area_names = os.path.basename(roi_file).split('.')[0]
+        coords_loaded = np.empty((1,), dtype=np.object)
+        roi = roi[list(roi.keys())[0]]
+        n_points = len(roi['x'])
+        contours = np.zeros((2, n_points), dtype="int16")
+        contours[0] = roi['x']
+        contours[1] = roi['y']
+        coords_loaded[0] = contours
+    else:
+        return None
+
+    dim_y, dim_x = img_shape
+    pix_masks = []
+    image_masks = []
+    for cell, coord in enumerate(coords_loaded):
+        if coord.shape[0] == 0:
+            print(f'Error: {cell} coord.shape {coord.shape}')
+            continue
+
+        image_mask = np.zeros((dim_y, dim_x))
+        image_mask[coord[1, :] - 1, coord[0, :] - 1] = 1
+        # we  use morphology.binary_fill_holes to build pixel_mask from coord
+        image_mask = ndimage.binary_fill_holes(image_mask).astype(int)
+        pix_mask = np.argwhere(image_mask)
+        pix_mask = [(pix[0], pix[1], 1) for pix in pix_mask]
+
+        pix_masks.append(pix_mask)
+        image_masks.append(image_mask)
+
+    return area_names, pix_masks, image_masks
+
+
+def add_wf_roi(ps, pix_masks, img_masks):
+    for cell in np.arange(len(pix_masks)):
+        pix_mask = pix_masks[cell]
+        image_mask = img_masks[cell]
+        ps.add_roi(pixel_mask=pix_mask, image_mask=image_mask)
