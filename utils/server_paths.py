@@ -377,6 +377,30 @@ def get_widefield_file(config_file):
     return mj2_file
 
 
+def get_wf_fiji_rois_file(config_file):
+    with open(config_file, 'r', encoding='utf8') as stream:
+        config = yaml.safe_load(stream)
+    mouse_name = config['subject_metadata']['subject_id']
+    session_name = config['session_metadata']['session_id']
+
+    data_folder = get_subject_analysis_folder(mouse_name)
+    wf_roi_folder = os.path.join(data_folder, session_name, 'wf_rois')
+
+    if not os.path.exists(wf_roi_folder):
+        print(f"No widefield rois folder found for {session_name} session from {mouse_name}")
+        return None
+
+    roi_file = [os.path.join(wf_roi_folder, m) for m in os.listdir(wf_roi_folder)
+                if os.path.splitext(m)[1] in ['.zip']]
+
+    if not roi_file:
+        roi_file = None
+    else:
+        roi_file = sorted(roi_file)
+
+    return roi_file
+
+
 def get_rois_label_folder(config_file):
     with open(config_file, 'r', encoding='utf8') as stream:
         config = yaml.safe_load(stream)

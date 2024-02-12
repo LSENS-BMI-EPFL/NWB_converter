@@ -5,8 +5,9 @@ import yaml
 import importlib
 import subprocess
 from utils.widefield_utils import *
-from pynwb.ophys import OpticalChannel, Device, OnePhotonSeries
-from utils.server_paths import get_widefield_file, get_subject_analysis_folder, get_subject_data_folder
+from pynwb.ophys import OpticalChannel, Device, OnePhotonSeries, ImageSegmentation, Fluorescence
+import utils.server_paths as server_paths
+import utils.ci_processing as ci_processing
 
 
 def convert_widefield_recording(nwb_file, config_file, wf_frame_timestamps):
@@ -29,10 +30,10 @@ def convert_widefield_recording(nwb_file, config_file, wf_frame_timestamps):
     wf_metadata = config["widefield_metadata"]
     subject_id = config["subject_metadata"]["subject_id"]
     session_name = config["session_metadata"]["session_id"]
-    data_folder = get_subject_data_folder(subject_id)
+    data_folder = server_paths.get_subject_data_folder(subject_id)
 
-    analysis_folder = get_subject_analysis_folder(subject_id=subject_id)
-    file_names = get_widefield_file(config_file=config_file)
+    analysis_folder = server_paths.get_subject_analysis_folder(subject_id=subject_id)
+    file_names = server_paths.get_widefield_file(config_file=config_file)
     frames, fps = read_motion_jpeg_2000_movie(file_names[0])
 
     if len(file_names)>1:
@@ -43,8 +44,8 @@ def convert_widefield_recording(nwb_file, config_file, wf_frame_timestamps):
 
     if not os.path.exists(F_file):
         concat_widefield_data(file_names,
-                               wf_frame_timestamps,
-                               output_folder=os.path.join(analysis_folder, session_name))
+                              wf_frame_timestamps,
+                              output_folder=os.path.join(analysis_folder, session_name))
     else:
         with h5py.File(F_file) as f:
             print(" ")
@@ -111,3 +112,50 @@ def convert_widefield_recording(nwb_file, config_file, wf_frame_timestamps):
 
     nwb_file.add_acquisition(F_wf_series)
     ophys_module.add(dFF0_wf_series)
+
+    # ADD the segmentation from multiple brain areas
+    # Get file containing segmentation of brain regions
+    roi_file = server_paths.get_wf_fiji_rois_file(config_file)
+
+    if roi_file is not None:
+        img_shape = dff0_data.shape[1:]
+
+        # Extract list of region mask
+        area_names, brain_region_pixel_masks, brain_region_image_masks = \
+            ci_processing.get_wf_roi_pixel_mask(roi_file, img_shape)
+
+        # Create an ImageSegmentation & PlaneSegmentation
+        img_seg = ImageSegmentation(name="brain_areas")
+        ophys_module.add_data_interface(img_seg)
+
+        ps = img_seg.create_plane_segmentation(description='brain area segmentation',
+                                               imaging_plane=imaging_plane, name='brain_area_segmentation',
+                                               reference_images=dFF0_wf_series if dFF0_wf_series is not None else None)
+
+        # Add rois to plane segmentation
+        ci_processing.add_wf_roi(ps, pix_masks=brain_region_pixel_masks, img_masks=brain_region_image_masks)
+
+        # Create Fluorescence object to store fluorescence data
+        fl = Fluorescence(name="brain_area_fluorescence")
+        ophys_module.add_data_interface(fl)
+        n_cells = len(area_names)
+        rt_region = ps.create_roi_table_region('brain areas', region=list(np.arange(n_cells)))
+
+        # Compute dff0 traces
+        dff0_traces = np.zeros((n_cells, dff0_data.shape[0]))
+        for cell in np.arange(n_cells):
+            img_mask = ps['image_mask'][cell]
+            img_mask = img_mask.astype(bool)
+            dff0_traces[cell, :] = np.mean(dff0_data[:, img_mask], axis=1)
+
+        # Add fluorescence data to roi response series.
+        rrs = fl.create_roi_response_series(name='dff0_traces', data=np.transpose(dff0_traces), unit='lumens',
+                                            rois=rt_region,
+                                            timestamps=[timestamp[0] for timestamp in wf_frame_timestamps],
+                                            description="dff0 traces", control=list(np.arrange(n_cells)),
+                                            control_description=area_names)
+        print(f"- Creating Roi Response Series with raw traces of shape: {(np.transpose(dff0_traces)).shape}")
+
+
+
+
