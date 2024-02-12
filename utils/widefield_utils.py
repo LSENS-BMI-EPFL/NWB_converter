@@ -1,6 +1,8 @@
 import os
 import h5py
 import time
+
+import pandas as pd
 import scipy
 import tqdm
 import numpy as np
@@ -8,6 +10,8 @@ import dask.array as da
 import imageio as iio
 import gc
 gc.collect()
+import matplotlib.pyplot as plt
+from utils.server_paths import get_subject_analysis_folder, get_widefield_file
 
 
 
@@ -123,7 +127,7 @@ def concat_and_save(file, wf_frame_timestamps, output_folder):
     return output_folder + r'\F_data.h5', F
 
 
-def concat_inmemory_and_save(file, wf_frame_timestamps, output_folder):
+def concat_inmemory_and_save(file, wf_frame_timestamps, output_folder, align_to='bregma'):
     start = time.time()
     props = iio.v3.improps(file, plugin='pyav', format='gray16be')
 
@@ -131,6 +135,13 @@ def concat_inmemory_and_save(file, wf_frame_timestamps, output_folder):
     print("Loading widefield calcium imaging data")
 
     vid = iio.v3.imread(file, plugin='pyav', format='gray16be')
+
+    session_id = file.split("\\")[-1].split(".")[0]
+
+    start = get_alignment_reference(session_id, align_to=align_to)
+    dest = (175,240)
+    vid = align_videos(vid, start=start, dest=dest)
+
     vid = vid.reshape(-1, int(vid.shape[1] / 2), 2, int(vid.shape[2] / 2), 2).mean(axis=2).mean(axis=3)
 
     if vid.shape[0]>len(wf_frame_timestamps):
@@ -144,12 +155,8 @@ def concat_inmemory_and_save(file, wf_frame_timestamps, output_folder):
 
     print(" ")
     print("Saving widefield calcium imaging data")
-    #
     with h5py.File(output_folder + r'\F_data.h5', 'w') as f:
         wf_dataset = f.create_dataset('F', data=vid)
-
-        # F = da.from_array(vid).rechunk(10000, -1, -1)
-        # da.store(F, wf_dataset)
 
     end = time.time()
     print(f"F file created with shape {vid.shape}")
@@ -186,3 +193,113 @@ def prompt_overwrite(folder_path, file):
     else:
         return True
 
+
+def make_alignment_reference(mouse_id, align_to='bregma', overwrite_sesison=None):
+
+    analysis_folder = get_subject_analysis_folder(mouse_id)
+    ref_file = os.path.join(analysis_folder, 'alignment_ref.csv')
+    sessions = os.listdir(analysis_folder)
+    for session_id in sessions:
+        if overwrite_sesison is not None and session_id != overwrite_sesison:
+            continue
+
+        if not os.path.isdir(os.path.join(analysis_folder, session_id)):
+            continue
+
+        wf_file = get_widefield_file(os.path.join(analysis_folder, session_id, f"config_{session_id}.yaml"))
+        if wf_file is None:
+            continue
+
+        if os.path.exists(ref_file):
+            reference_list = pd.read_csv(ref_file)
+            if session_id in reference_list['session_id'].values:
+                continue
+
+            new_line = pd.Series(index=['session_id', 'bregma_x', 'bregma_y', 'c2_x', 'c2_y'])
+
+            coord_x, coord_y = reference_list.loc[reference_list.index[-1], [f'{align_to}_x', f'{align_to}_y']]
+            image = iio.v3.imread(wf_file[0], plugin='pyav', format='gray16be', index=0)
+            fig, ax = plt.subplots()
+            ax.imshow(image)
+            ax.scatter(coord_x, coord_y, marker='+', color='red')
+            fig.show()
+
+            answer = input(f"Do you want to use the previous coordinates (x: {coord_x}, y: {coord_y})? [n], y")
+            while answer != 'y':
+                coords = input('Enter space separated ref coords: x y')
+                coord_x, coord_y = tuple(int(item) for item in coords.split())
+                fig, ax = plt.subplots()
+                ax.imshow(image)
+                ax.scatter(coord_x, coord_y, marker='+', color='red')
+                fig.show()
+                answer = input("Do you want to use these coordinates? [n], y")
+
+            fig.savefig(os.path.join(analysis_folder, session_id, f'{align_to}_reference.png'))
+
+        else:
+            reference_list = pd.DataFrame(columns=['session_id', 'bregma_x', 'bregma_y', 'c2_x', 'c2_y'])
+            new_line = pd.Series(index=['session_id', 'bregma_x', 'bregma_y', 'c2_x', 'c2_y'])
+
+            image = iio.v3.imread(wf_file[0], plugin='pyav', format='gray16be', index=0)
+            fig, ax = plt.subplots()
+            ax.imshow(image)
+            fig.show()
+
+            answer='n'
+            while answer != 'y':
+                coords = input('Enter space separated ref coords: x y')
+                coord_x, coord_y = tuple(int(item) for item in coords.split())
+                fig, ax = plt.subplots()
+                ax.imshow(image)
+                ax.scatter(coord_x, coord_y, marker='+', color='red')
+                fig.show()
+                answer = input("Do you want to use these coordinates? [n], y")
+
+            fig.savefig(os.path.join(analysis_folder, session_id, f'{align_to}_reference.png'))
+
+        new_line["session_id"] = session_id
+        new_line[f"{align_to}_x"] = coord_x
+        new_line[f"{align_to}_y"] = coord_y
+        reference_list =pd.concat([reference_list, new_line.to_frame().T], ignore_index=True)
+        reference_list.to_csv(ref_file, index=False)
+
+
+def get_alignment_reference(session_id, align_to='bregma'):
+    analysis_folder = get_subject_analysis_folder(session_id.split("_")[0])
+    file = os.path.join(analysis_folder, 'alignment_ref.csv')
+    reference_list = pd.read_csv(file)
+
+    if session_id not in reference_list['session_id']:
+        ValueError(f"{session_id} has no data in the bregma reference, run make_alignment_reference")
+
+    x = reference_list.loc[reference_list['session_id'] == session_id, f"{align_to}_x"].values[0]
+    y = reference_list.loc[reference_list['session_id'] == session_id, f"{align_to}_y"].values[0]
+
+    return x, y
+
+
+def align_videos(vid, start, dest):
+
+    orig_x, orig_y = start[0], start[1]
+    dest_x, dest_y = dest[0], dest[1]
+    trans_x, trans_y = dest_x - orig_x, dest_y - orig_y
+    margin_x = vid.shape[2] - np.abs(trans_x)
+    margin_y = vid.shape[1] - np.abs(trans_y)
+    if trans_y >= 0 and trans_x >= 0:
+        vid[:, trans_y:, trans_x:] = vid[:, :margin_y, :margin_x]
+        vid[:, :trans_y, :] *= 0
+        vid[:, :, :trans_x] *= 0
+    elif trans_y < 0 and trans_x >= 0:
+        vid[:, :trans_y, trans_x:] = vid[:, -margin_y:, :margin_x]
+        vid[:, trans_y:, :] *= 0
+        vid[:, :, :trans_x] *= 0
+    elif trans_y >= 0 and trans_x < 0:
+        vid[:, trans_y:, :trans_x] = vid[:, :margin_y, -margin_x:]
+        vid[:, :trans_y, :] *= 0
+        vid[:, :, trans_x:] *= 0
+    else:
+        vid[:, :trans_y, :trans_x] = vid[:, -margin_y:, -margin_x:]
+        vid[:, trans_y:, :] *= 0
+        vid[:, :, trans_x:] *= 0
+
+    return vid

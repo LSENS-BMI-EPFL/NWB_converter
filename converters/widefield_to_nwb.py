@@ -33,6 +33,8 @@ def convert_widefield_recording(nwb_file, config_file, wf_frame_timestamps):
 
     analysis_folder = get_subject_analysis_folder(subject_id=subject_id)
     file_names = get_widefield_file(config_file=config_file)
+    if not file_names:
+        return
     frames, fps = read_motion_jpeg_2000_movie(file_names[0])
 
     if len(file_names)>1:
