@@ -5,8 +5,9 @@ import yaml
 import importlib
 import subprocess
 from utils.widefield_utils import *
-from pynwb.ophys import OpticalChannel, Device, OnePhotonSeries
-from utils.server_paths import get_widefield_file, get_subject_analysis_folder, get_subject_data_folder
+from pynwb.ophys import OpticalChannel, Device, OnePhotonSeries, ImageSegmentation, Fluorescence
+import utils.server_paths as server_paths
+import utils.ci_processing as ci_processing
 
 
 def convert_widefield_recording(nwb_file, config_file, wf_frame_timestamps):
@@ -29,15 +30,15 @@ def convert_widefield_recording(nwb_file, config_file, wf_frame_timestamps):
     wf_metadata = config["widefield_metadata"]
     subject_id = config["subject_metadata"]["subject_id"]
     session_name = config["session_metadata"]["session_id"]
-    data_folder = get_subject_data_folder(subject_id)
+    data_folder = server_paths.get_subject_data_folder(subject_id)
 
-    analysis_folder = get_subject_analysis_folder(subject_id=subject_id)
+    analysis_folder = server_paths.get_subject_analysis_folder(subject_id=subject_id)
     file_names = get_widefield_file(config_file=config_file)
     if not file_names:
         return
     frames, fps = read_motion_jpeg_2000_movie(file_names[0])
 
-    if len(file_names)>1:
+    if len(file_names) > 1:
         file_names = [file for file in file_names if session_name in file.split("\\")[-1]][0]
 
     analysis_folder = fr'M:\analysis\Pol_Bech\data\{subject_id}'
@@ -45,8 +46,8 @@ def convert_widefield_recording(nwb_file, config_file, wf_frame_timestamps):
 
     if not os.path.exists(F_file):
         concat_widefield_data(file_names,
-                               wf_frame_timestamps,
-                               output_folder=os.path.join(analysis_folder, session_name))
+                              wf_frame_timestamps,
+                              output_folder=os.path.join(analysis_folder, session_name))
     else:
         with h5py.File(F_file) as f:
             print(" ")
