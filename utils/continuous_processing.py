@@ -434,7 +434,7 @@ def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scan
             if key in ["widefield"] and wf_file is not None:
                 import imageio as iio
                 props = iio.v3.improps(wf_file, plugin='pyav', format='gray16be')
-                if on_off_timestamps == props.n_images + 1:
+                if len(on_off_timestamps) == props.n_images + 1:
                     print(f"Cutting extra frames after stop signal")
                     filtered_on_off_timestamps = on_off_timestamps[:-1]
                     on_off_timestamps = filtered_on_off_timestamps

@@ -52,7 +52,8 @@ def get_subject_mouse_number(subject_id):
 
     if initials == 'MI':
         initials = 'GF'
-
+    if subject_id in ['RD039', 'RD040', 'RD041']:
+        initials='PB'
     return mouse_number, initials
 
 
@@ -384,7 +385,7 @@ def get_wf_fiji_rois_file(config_file):
     session_name = config['session_metadata']['session_id']
 
     data_folder = get_subject_analysis_folder(mouse_name)
-    wf_roi_folder = os.path.join(data_folder, session_name, 'wf_rois')
+    wf_roi_folder = os.path.join(data_folder, session_name)
 
     if not os.path.exists(wf_roi_folder):
         print(f"No widefield rois folder found for {session_name} session from {mouse_name}")

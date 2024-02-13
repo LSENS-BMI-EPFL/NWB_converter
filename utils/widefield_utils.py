@@ -128,7 +128,7 @@ def concat_and_save(file, wf_frame_timestamps, output_folder):
 
 
 def concat_inmemory_and_save(file, wf_frame_timestamps, output_folder, align_to='bregma'):
-    start = time.time()
+    start_time = time.time()
     props = iio.v3.improps(file, plugin='pyav', format='gray16be')
 
     print(" ")
@@ -158,9 +158,9 @@ def concat_inmemory_and_save(file, wf_frame_timestamps, output_folder, align_to=
     with h5py.File(output_folder + r'\F_data.h5', 'w') as f:
         wf_dataset = f.create_dataset('F', data=vid)
 
-    end = time.time()
+    end_time = time.time()
     print(f"F file created with shape {vid.shape}")
-    print("Preprocess took %0.4f min" % ((end - start) / 60))
+    print("Preprocess took %0.4f min" % ((end_time - start_time) / 60))
 
     return output_folder + r'\F_data.h5'
 
