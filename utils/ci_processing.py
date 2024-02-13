@@ -128,13 +128,13 @@ def get_wf_roi_pixel_mask(roi_file, img_shape):
     if roi_file.endswith("zip"):
         zip_data = read_roi_zip(roi_file)
         area_names = list(zip_data.keys())
-        coords_loaded = np.empty((len(zip_data),))
+        coords_loaded = []
         for roi_index, roi in enumerate(zip_data.values()):
             n_points = len(roi['x'])
             contours = np.zeros((2, n_points), dtype="int16")
             contours[0] = roi['x']
             contours[1] = roi['y']
-            coords_loaded[roi_index] = contours
+            coords_loaded.append(contours)
     elif roi_file.endswith("roi"):
         roi = read_roi_file(roi_file)
         area_names = os.path.basename(roi_file).split('.')[0]
