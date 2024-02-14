@@ -117,7 +117,8 @@ def convert_widefield_recording(nwb_file, config_file, wf_frame_timestamps):
     roi_file = server_paths.get_wf_fiji_rois_file(config_file)
 
     if roi_file is not None:
-        print(f"Add fluorescence traces from ROIs in roi file ")
+        print(f" ")
+        print(f"Found ROIs file : Add fluorescence traces from ROIs in roi file ")
         img_shape = dff0_data.shape[1:]
 
         # Extract list of region mask
@@ -155,7 +156,7 @@ def convert_widefield_recording(nwb_file, config_file, wf_frame_timestamps):
         rrs = fl.create_roi_response_series(name='dff0_traces', data=np.transpose(dff0_traces), unit='lumens',
                                             rois=rt_region,
                                             timestamps=[timestamp[0] for timestamp in wf_frame_timestamps],
-                                            description="dff0 traces", control=list(np.arange(n_cells)),
+                                            description="dff0 traces", control=list(np.arange(n_cells, dtype='uint32')),
                                             control_description=area_names)
-        print(f"- Creating Roi Response Series with dff0 traces of shape: {(np.transpose(dff0_traces)).shape}")
+        print(f"Creating Roi Response Series with dff0 traces of shape: {(np.transpose(dff0_traces)).shape}")
 
