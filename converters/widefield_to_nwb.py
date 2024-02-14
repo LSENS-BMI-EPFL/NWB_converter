@@ -150,13 +150,13 @@ def convert_widefield_recording(nwb_file, config_file, wf_frame_timestamps):
         for cell in np.arange(n_cells):
             img_mask = ps['image_mask'][cell]
             img_mask = img_mask.astype(bool)
-            dff0_traces[cell, :] = np.mean(dff0_data[:, img_mask], axis=1)
+            dff0_traces[cell, :] = np.nanmean(dff0_data[:, img_mask], axis=1)
 
         # Add fluorescence data to roi response series.
         rrs = fl.create_roi_response_series(name='dff0_traces', data=np.transpose(dff0_traces), unit='lumens',
                                             rois=rt_region,
                                             timestamps=[timestamp[0] for timestamp in wf_frame_timestamps],
-                                            description="dff0 traces", control=list(np.arange(n_cells, dtype='uint32')),
+                                            description="dff0 traces", control=[cell for cell in range(n_cells)],
                                             control_description=area_names)
         print(f"Creating Roi Response Series with dff0 traces of shape: {(np.transpose(dff0_traces)).shape}")
 
