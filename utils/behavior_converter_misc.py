@@ -379,7 +379,7 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
     response_window_stop_time = response_window_start_time + trial_table['response_window'] / 1000
 
     # Format absence of licks: make reaction time as NaN
-    trial_table['reaction_time'].replace(0, np.nan, inplace=True)
+    trial_table.replace({'reaction_time': 0}, np.nan, inplace=True)
 
     # Define rewards availability
     reward_available = [1 if(trial_table.loc[i].is_auditory == 1 or

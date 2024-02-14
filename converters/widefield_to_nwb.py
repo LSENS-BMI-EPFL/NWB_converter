@@ -30,7 +30,6 @@ def convert_widefield_recording(nwb_file, config_file, wf_frame_timestamps):
     wf_metadata = config["widefield_metadata"]
     subject_id = config["subject_metadata"]["subject_id"]
     session_name = config["session_metadata"]["session_id"]
-    data_folder = server_paths.get_subject_data_folder(subject_id)
 
     analysis_folder = server_paths.get_subject_analysis_folder(subject_id=subject_id)
     file_names = get_widefield_file(config_file=config_file)
@@ -39,9 +38,7 @@ def convert_widefield_recording(nwb_file, config_file, wf_frame_timestamps):
     frames, fps = read_motion_jpeg_2000_movie(file_names[0])
 
     if len(file_names) > 1:
-        file_names = [file for file in file_names if session_name in file.split("\\")[-1]][0]
-
-    analysis_folder = fr'M:\analysis\Pol_Bech\data\{subject_id}'
+        file_names = [file for file in file_names if session_name in os.path.basename(file)]
     F_file = os.path.join(analysis_folder, session_name, 'F_data.h5')
 
     if not os.path.exists(F_file):
@@ -158,7 +155,7 @@ def convert_widefield_recording(nwb_file, config_file, wf_frame_timestamps):
         rrs = fl.create_roi_response_series(name='dff0_traces', data=np.transpose(dff0_traces), unit='lumens',
                                             rois=rt_region,
                                             timestamps=[timestamp[0] for timestamp in wf_frame_timestamps],
-                                            description="dff0 traces", control=list(np.arrange(n_cells)),
+                                            description="dff0 traces", control=list(np.arange(n_cells)),
                                             control_description=area_names)
         print(f"- Creating Roi Response Series with dff0 traces of shape: {(np.transpose(dff0_traces)).shape}")
 
