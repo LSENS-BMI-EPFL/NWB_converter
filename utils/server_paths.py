@@ -25,8 +25,6 @@ def get_subject_data_folder(subject_id):
 def get_subject_analysis_folder(subject_id):
     if subject_id == 'PB124':
         experimenter = 'Robin_Dard'
-    # elif subject_id in ['RD039', 'RD040']:
-    #     experimenter='Pol_Bech'
     else:
         # Map initials to experimenter to get analysis folder path.
         experimenter = EXPERIMENTER_MAP[subject_id[:2]]
@@ -52,16 +50,13 @@ def get_subject_mouse_number(subject_id):
 
     if initials == 'MI':
         initials = 'GF'
-    if subject_id in ['RD039', 'RD040', 'RD041']:
-        initials='PB'
+
     return mouse_number, initials
 
 
 def get_nwb_folder(subject_id):
     if subject_id in ['PB124']:
         experimenter = 'Robin_Dard'
-    # elif subject_id in ['RD039', 'RD040']:
-    #     experimenter = 'Pol_Bech'
     else:
         experimenter = EXPERIMENTER_MAP[subject_id[:2]]
     nwb_folder = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis',
