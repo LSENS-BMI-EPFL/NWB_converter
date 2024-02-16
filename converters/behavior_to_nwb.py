@@ -228,14 +228,11 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
 
             # Get frame timestamps
             on_off_timestamps = timestamps_dict[cam_key]
-            if len(on_off_timestamps) - video_length > 2:
-                print("Difference in number of frames ({}) vs detected frames ({}) is larger than 2, do next video".format(video_length, len(on_off_timestamps)))
-                continue
-            elif video_length - len(on_off_timestamps) > 2:
-                print("Difference in number of frames ({}) vs detected frames ({}) is larger than 2, do next video".format(video_length, len(on_off_timestamps)))
+            if np.abs(len(on_off_timestamps) - video_length) > 2:
+                print(f"Difference in number of frames ({video_length}) vs detected frames ({len(on_off_timestamps)}) "
+                      f"is {len(on_off_timestamps) - video_length} (larger than 2), do next video")
                 continue
             else:
-
                 movie_timestamps = [on_off_timestamps[i][0] for i in range(video_length)]
 
             behavior_external_file = ImageSeries(
