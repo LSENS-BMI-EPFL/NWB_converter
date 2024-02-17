@@ -3,6 +3,8 @@
 import datetime
 import os
 
+import platform
+
 import yaml
 
 import utils.gf_utils as utils_gf
@@ -72,7 +74,11 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True):
         convert_ephys_recording(nwb_file=nwb_file,
                                 config_file=config_file)
 
-    if config_dict.get("widefield_metadata") is not None:
+    # Check we are on WF computer
+    platform_info = platform.uname()
+    computer_name = platform_info.node
+    computer_name = ['SV-07-082']  # Add name of WF preprocessing computers here
+    if computer_name in computer_name and config_dict.get("widefield_metadata") is not None:
         print(" ")
         print("Convert widefield data")
 
@@ -151,12 +157,11 @@ if __name__ == '__main__':
             #         continue
 
             # Filter by session type
-            #if experimenter == 'AB' and iday != 'whisker_0':
-            #    continue
-
+            # if experimenter == 'AB' and iday != 'whisker_0':
+            #     continue
 
             # Find yaml config file and behavior results for this session.
-            config_yaml = os.path.join( analysis_folder, isession, f"config_{isession}.yaml")
+            config_yaml = os.path.join(analysis_folder, isession, f"config_{isession}.yaml")
 
             # Make conversion.
             print(" ------------------ ")
