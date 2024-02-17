@@ -44,7 +44,7 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
                 behavior_results_file=behavior_results_file,
                 timestamps_dict=timestamps_dict
             )
-        elif config_dict.get('behaviour_metadata').get('trial_table') == 'simple': #TODO: remove?
+        elif config_dict.get('behaviour_metadata').get('trial_table') == 'simple':  # TODO: remove?
             trial_table = build_simplified_trial_table(behavior_results_file=behavior_results_file,
                                                        timestamps_dict=timestamps_dict)
     else:
@@ -55,7 +55,6 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
         add_trials_standard_to_nwb(nwb_file=nwb_file, trial_table=trial_table)
     else:
         add_trials_to_nwb(nwb_file=nwb_file, trial_table=trial_table)
-
 
     # Create NWB behaviour module (and module interfaces)
     print("Creating behaviour processing module")
@@ -99,14 +98,13 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
         behavior_events.add_timeseries(trial_timeseries)
         print(f"Adding {len(data_to_store)} {trial_type} to BehavioralEvents")
 
-
     # Get piezo lick timestamps
     piezo_licks_timestamps_dict = get_piezo_licks_timestamps_dict(timestamps_dict)
 
     if piezo_licks_timestamps_dict is not None:
         timestamps_to_store = np.array(piezo_licks_timestamps_dict)
         if timestamps_to_store.any():
-            timestamps_to_store = timestamps_to_store[:,0]
+            timestamps_to_store = timestamps_to_store[:, 0]
 
         data_to_store = np.transpose(np.array(timestamps_to_store))
         lick_timeseries = TimeSeries(name='piezo_lick_times',
@@ -125,7 +123,6 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
                                      continuity='instantaneous')
         behavior_events.add_timeseries(lick_timeseries)
         print(f"Adding {len(data_to_store)} piezo lick times to BehavioralEvents")
-
 
     # Get context timestamps if they exist
     context_timestamps_dict, context_sound_dict = get_context_timestamps_dict(timestamps_dict=timestamps_dict,
@@ -181,7 +178,6 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
                                                        comments='no comments',
                                                        description=description,
                                                        control=None, control_description=None)
-
 
     # Check if behaviour video filming
     if config_dict.get('session_metadata').get('experimenter') == 'AB':
