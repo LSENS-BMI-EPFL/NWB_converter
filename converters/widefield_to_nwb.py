@@ -159,3 +159,6 @@ def convert_widefield_recording(nwb_file, config_file, wf_frame_timestamps):
                                             description="dff0 traces", control=[cell for cell in range(n_cells)],
                                             control_description=area_names)
         print(f"Creating Roi Response Series with dff0 traces of shape: {(np.transpose(dff0_traces)).shape}")
+
+    gc.collect()
+
