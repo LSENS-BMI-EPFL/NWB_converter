@@ -6,10 +6,10 @@ import pandas as pd
 import scipy
 import tqdm
 import numpy as np
-import dask.array as da
-import imageio as iio
-import gc
-gc.collect()
+# import dask.array as da
+# import imageio as iio
+# import gc
+# gc.collect()
 import matplotlib.pyplot as plt
 from utils.server_paths import get_subject_analysis_folder, get_widefield_file
 

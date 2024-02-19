@@ -97,12 +97,8 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True):
 if __name__ == '__main__':
 
     # Run the conversion
-    mouse_ids = [000]#[93,94,95] #74 to do
-    mouse_ids = ['PB' + str(mouse_id).zfill(3) for mouse_id in mouse_ids]
-    experimenter = 'PB'
-    mouse_ids = range(68,75) #85 to do
-    mouse_ids = ['AB' + str(mouse_id).zfill(3) for mouse_id in mouse_ids]
-    experimenter = 'AB'
+    mouse_ids = ['GF333']
+    experimenter = 'GF'
 
     if experimenter == 'GF':
         # Read excel database.
@@ -110,6 +106,8 @@ if __name__ == '__main__':
         db_name = 'sessions_GF.xlsx'
         db = utils_gf.read_excel_database(db_folder, db_name)
 
+    mouse_ids = db['subject_id'].unique()
+    
     for mouse_id in mouse_ids:
         data_folder = get_subject_data_folder(mouse_id)
         if os.path.exists(data_folder):
@@ -132,10 +130,10 @@ if __name__ == '__main__':
         # Create NWB by looping over sessions.
         for isession, iday in training_days:
 
-            # # Filter sessions to do :
-            session_to_do = ["RD039_20240124_142334", "RD039_20240125_142517", "RD039_20240205_150044", "RD040_20240125_151535", "PB000_20240205_181158"]
-            if isession not in session_to_do:
-                continue
+            # # # Filter sessions to do :
+            # session_to_do = ['GF333_24012021_145617']
+            # if isession not in session_to_do:
+            #     continue
 
             # date_to_do = '20240110'
             # if date_to_do not in isession:

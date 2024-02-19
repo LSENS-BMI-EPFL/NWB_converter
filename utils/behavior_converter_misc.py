@@ -106,6 +106,7 @@ def get_trial_timestamps_dict(timestamps_dict, behavior_results_file, config_fil
         behavior_results = pd.DataFrame(perf_json['results'], columns=perf_json['headers'])
         # Remap GF columns.
         behavior_results = utils_gf.map_result_columns(behavior_results)
+        n_trials_max = len(behavior_results)
     else:
         if os.path.splitext(behavior_results_file)[1] == '.txt':
             sep = r'\s+'

@@ -37,7 +37,8 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
         ophys_module = nwb_file.create_processing_module('ophys', 'contains optical physiology processed data')
 
     # image_series = nwb_file.acquisition.get("motion_corrected_ci_movie")
-    image_series = None 
+    # TODO: add registered movie
+    image_series = None
     if image_series is None:
         print("No calcium imaging movie named 'motion_corrected_ci_movie' found in nwb_file")
 
@@ -50,20 +51,16 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
                                            reference_images=image_series)
 
     # Load Suite2p data
-    print('Load suite2p data.')
+    print('Loading suite2p data.')
     if experimenter not in ['GF', 'MI']:
         stat, is_cell, F, Fneu, dcnv = utils_ci.get_processed_ci(suite2p_folder)
         F_fissa = None
     else:
-        stat, is_cell, F, Fneu, dcnv, F_fissa = utils_gf.get_gf_processed_ci(config_file)
+        stat, is_cell, F, Fneu, F0, F_fissa = utils_gf.get_gf_processed_ci(config_file)
 
     # Correct is_cell for merges.
     is_cell = utils_ci.set_merged_roi_to_non_cell(stat, is_cell)
 
-    # Compute F0 and dff.
-    print('Compute F0 and dff.')
-    fs = config['log_continuous_metadata']['scanimage_dict']['theoretical_ci_sampling_rate']
-    F0, dff = utils_ci.compute_dff(F, Fneu, fs=fs, window=60)
     # Fissa is substracted but not normalized.
     if F_fissa is not None:
         dff_fissa = F_fissa / F0
@@ -85,36 +82,28 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
     rt_region = ps.create_roi_table_region('all cells', region=list(np.arange(n_cells)))
 
     # List fluorescence data to save
-    if experimenter in ['GF', 'MI']:
-        data = [F, Fneu, dcnv, F0, F_fissa, dff, dff_fissa]
-        data_labels = ['F', 'Fneu', 'dcnv', 'F0', 'F_fissa', 'dff', 'dff_fissa']
-        descriptions = ['F: Suite 2P raw fluoresence.',
-                        'Fneu: Suite 2P neuropil.',
-                        'spks: Suite 2P deconvolved fluorescence.',
-                        'F0: 5% percentile baseline computed over a 2 min rolling window.',
-                        'Fissa output.',
-                        'dF/F0: Normalized neuropil corrected suite2p fluorescence.',
-                        'dF_fissa/F0: Normalized fissa output, with F0 of original data.']
-    else:
-        data = [F, Fneu, dcnv, F0, dff]
-        data_labels = ['F', 'Fneu', 'dcnv', 'F0', 'dff']
-        descriptions = ['F: Suite 2P raw fluoresence.',
-                        'Fneu: Suite 2P neuropil.',
-                        'spks: Suite 2P deconvolved fluorescence.',
-                        'F0: 5% percentile baseline computed over a 2 min rolling window.',
-                        'dF/F0: Normalized neuropil corrected suite2p fluorescence.']
-
+    data = [F_fissa, F0, dff_fissa]
+    data_labels = ['F_fissa', 'F0', 'dff']
+    descriptions = ['F_fissa: Fissa corrected traces.',
+                    'F0: 5% percentile baseline computed over a 2 min rolling window.',
+                    'dff: Normalized fissa output, with F0 of raw traces.']
 
     # Add information about cell type (projections, ... ).
     # ####################################################
 
-    projection_folder = server_paths.get_rois_label_folder(config_file)
+    if experimenter in ['GF', 'MI']:
+        projection_folder = utils_gf.get_rois_label_folder_GF(config_file)
+    else:
+        projection_folder = server_paths.get_rois_label_folder(config_file)
 
     if not projection_folder:
         cell_type_names = None
         cell_type_codes = None
     else:
-        far_red_rois, red_rois, un_rois, info = utils_ci.get_roi_labels(projection_folder)
+        if experimenter in ['GF', 'MI']:
+            far_red_rois, red_rois, un_rois, info = utils_ci.get_roi_labels_GF(projection_folder)
+        else:
+            far_red_rois, red_rois, un_rois, info = utils_ci.get_roi_labels(projection_folder)
 
         # Code: 1: wM1, 2: wS2 and 0: unassigned.
         # Cell code list [1, 1, 2, 0, 0, 1, 2, 0, 0] same length as d_filt.

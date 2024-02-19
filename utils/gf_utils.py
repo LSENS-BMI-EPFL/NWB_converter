@@ -277,14 +277,39 @@ def get_gf_processed_ci(config_file):
         is_cell = np.load(os.path.join(folder, "iscell.npy"), allow_pickle=True)
         F = np.load(os.path.join(suite2p_folder, "F.npy"), allow_pickle=True)
         Fneu = np.load(os.path.join(suite2p_folder, "Fneu.npy"), allow_pickle=True)
-        spks = np.load(os.path.join(suite2p_folder, "spks.npy"), allow_pickle=True)
+        F0 = np.load(os.path.join(baseline_folder, "baselines.npy"), allow_pickle=True)
+        # spks = np.load(os.path.join(suite2p_folder, "spks.npy"), allow_pickle=True)
         F_fissa = np.load(os.path.join(fissa_folder, "F_fissa.npy"), allow_pickle=True)
 
-        # # Set merged cells to 0 in is_cell.
-        # if 'inmerge' in stat[0].keys():
-        #     for i, st in enumerate(stat):
-        #         # 0: no merge; -1: output of a merge; index > 0: merged cell.
-        #         if st['inmerge'] not in [0, -1]:
-        #             is_cell[i] = 0.0
+        return stat, is_cell, F, Fneu, F0[:,0], F_fissa
+    
+    
+def get_rois_label_folder_GF(config_file):
+    with open(config_file, 'r', encoding='utf8') as stream:
+        config = yaml.safe_load(stream)
+    mouse_name = config['subject_metadata']['subject_id']
+    folder = '\\\\sv-nas1.rcp.epfl.ch\\Petersen-Lab\\analysis\\Georgios_Foustoukos\\ProjectionsRois'
+    folder = os.path.join(folder, mouse_name)
+    
+    if os.path.exists(folder):
+        return folder
+    
+def get_roi_labels_GF(rois_label_folder):
+    far_red_rois = np.load(os.path.join(rois_label_folder, 'FarRedRois.npy'), allow_pickle=True)
+    red_rois = np.load(os.path.join(rois_label_folder, 'RedRois.npy'), allow_pickle=True)
+    un_rois = np.load(os.path.join(rois_label_folder, 'UNRois.npy'), allow_pickle=True)
+    info_file = '\\\\sv-nas1.rcp.epfl.ch\\Petersen-Lab\\data\\GF333\\Recordings\\ProjectionsInfo'
+    info_file = [os.path.join(info_file, file) for file in os.listdir(info_file) if 'Info' in file]
+    if len(info_file) > 1:
+        raise('More than one CTB info file for that session.')
+    else:
+        info_file = info_file[0]
 
-        return stat, is_cell, F, Fneu, spks, F_fissa,
+    info = {}
+    with open(info_file) as f:
+        for line in f:
+            key, val = line.split()
+            info[key] = val
+    info = {color: area for area, color in info.items()}
+
+    return far_red_rois, red_rois, un_rois, info    
