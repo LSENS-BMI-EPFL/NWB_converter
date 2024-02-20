@@ -11,9 +11,9 @@ import os
 import pathlib
 
 import numpy as np
-import pandas as pd
 import yaml
 
+from utils import read_sglx
 from utils.ephys_converter_misc import (build_unit_table,
                                         build_area_table,
                                         create_electrode_table,
@@ -24,7 +24,7 @@ from utils.ephys_converter_misc import (build_unit_table,
 from utils.server_paths import (get_imec_probe_folder_list,
                                 get_sync_event_times_folder)
 from utils.sglx_meta_to_coords import MetaToCoords, readMeta
-
+from pynwb.ecephys import ElectricalSeries, LFP
 
 def convert_ephys_recording(nwb_file, config_file):
     """
@@ -129,10 +129,19 @@ def convert_ephys_recording(nwb_file, config_file):
         # Add electrodes to ElectrodeTable
         # --------------------------------
 
+        # Create a list of reference electrodes for ElectricalSeries objects (raw voltage, LFP)
+        all_table_region = nwb_file.create_electrode_table_region(
+            region=list(range(electrode_counter, n_chan_total - 1)),  # exclude sync channel 768
+            description="all electrodes",
+        )
+
         for electrode_id in range(n_chan_total - 1):  # ignore reference channel 768
+
+            # For each electrode, get anatomical info accounting for two electrodes per row
             row_id = int(shank_rows[electrode_id])
-            area_info = area_table.iloc[row_id, :]
+            area_info = area_table.iloc[row_id, :] # TODO: check if this is correct
             area_info = area_info.astype(str)
+
 
             nwb_file.add_electrode(
                 id=electrode_counter,
@@ -213,7 +222,40 @@ def convert_ephys_recording(nwb_file, config_file):
             # Increment total number of neuron
             neuron_counter += 1
 
-        print('Done adding data for IMEC{}'.format(imec_id))
+        print('Done adding spike data for IMEC{}'.format(imec_id))
+
+        # ------------------------
+        # Add LFP data to NWB file
+        # ------------------------
+
+        # Read LFP data and metadata
+        lfp_meta_file = [f for f in os.listdir(imec_folder) if 'lf.meta' in f][0]
+        lfp_meta_dict = read_sglx.readMeta(pathlib.Path(lfp_meta_file))
+        num_channels = int(lfp_meta_dict['nSavedChans'])
+        lfp_data_file = [f for f in os.listdir(imec_folder) if 'lf' in f][0]
+        raw_data_lfp = read_sglx.makeMemMapRaw(pathlib.Path(imec_folder, lfp_data_file), lfp_meta_dict)
+
+        # Create ElectricalSeries object
+        lfp_electrical_series = ElectricalSeries(
+            name="ElectricalSeries",
+            data=raw_data_lfp,
+            electrodes=all_table_region, # indices of electrodes to which this data is relevant
+            starting_time=0.0,
+            rate=lfp_meta_dict['imSampRate'],
+            filtering='0.5-500Hz',
+            description='SpikeGLX-acquired  LFP data from IMEC{}'.format(imec_id)
+        )
+
+        # Store in a LFP object
+        lfp = LFP(electrical_series=lfp_electrical_series)
+
+        # Create a module for processed ecephys data
+        ecephys_module = nwb_file.create_processing_module(
+            name='ecephys',
+            description='contains processed extracellular electrophysiology data'
+        )
+        ecephys_module.add(lfp)
+
 
     print('Done ephys conversion to NWB.')
 
