@@ -4,6 +4,7 @@ import sys
 import yaml
 import importlib
 import subprocess
+import dask.array as da
 from utils.widefield_utils import *
 from pynwb.ophys import OpticalChannel, Device, OnePhotonSeries, ImageSegmentation, Fluorescence
 import utils.server_paths as server_paths
