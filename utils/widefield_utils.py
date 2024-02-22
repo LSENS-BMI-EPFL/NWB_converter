@@ -9,9 +9,9 @@ warnings.filterwarnings("ignore", category=RuntimeWarning)
 import pandas as pd
 import numpy as np
 # import dask.array as da
-# import imageio as iio
-# import gc
-# gc.collect()
+import imageio as iio
+import gc
+gc.collect()
 import matplotlib.pyplot as plt
 from utils.server_paths import get_subject_analysis_folder, get_widefield_file
 
@@ -265,7 +265,7 @@ def make_alignment_reference(mouse_id, align_to='bregma', overwrite_sesison=None
             fig, ax = plt.subplots()
             ax.imshow(image)
             ax.scatter(coord_x, coord_y, marker='+', color='red')
-            fig.show()
+            plt.show()
 
             answer = input(f"Do you want to use the previous coordinates (x: {coord_x}, y: {coord_y})? [n], y")
             while answer != 'y':
@@ -274,7 +274,7 @@ def make_alignment_reference(mouse_id, align_to='bregma', overwrite_sesison=None
                 fig, ax = plt.subplots()
                 ax.imshow(image)
                 ax.scatter(coord_x, coord_y, marker='+', color='red')
-                fig.show()
+                plt.show()
                 answer = input("Do you want to use these coordinates? [n], y")
 
             fig.savefig(os.path.join(analysis_folder, session_id, f'{align_to}_reference.png'))
@@ -286,7 +286,7 @@ def make_alignment_reference(mouse_id, align_to='bregma', overwrite_sesison=None
             image = iio.v3.imread(wf_file[0], plugin='pyav', format='gray16be', index=0)
             fig, ax = plt.subplots()
             ax.imshow(image)
-            fig.show()
+            plt.show()
 
             answer='n'
             while answer != 'y':
@@ -295,7 +295,7 @@ def make_alignment_reference(mouse_id, align_to='bregma', overwrite_sesison=None
                 fig, ax = plt.subplots()
                 ax.imshow(image)
                 ax.scatter(coord_x, coord_y, marker='+', color='red')
-                fig.show()
+                plt.show()
                 answer = input("Do you want to use these coordinates? [n], y")
 
             fig.savefig(os.path.join(analysis_folder, session_id, f'{align_to}_reference.png'))
