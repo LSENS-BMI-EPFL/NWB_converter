@@ -1,10 +1,12 @@
 import os
 import h5py
 import time
-
-import pandas as pd
+import sys
 import scipy
 import tqdm
+import warnings
+warnings.filterwarnings("ignore", category=RuntimeWarning)
+import pandas as pd
 import numpy as np
 import dask.array as da
 import imageio as iio
@@ -67,21 +69,38 @@ def compute_F0_early_percentile(F, winsize=500):
 def compute_dff0(data_folder, method='percentile'):
 
     start = time.time()
+    print("Open F file to compute F0 on full recording ... ")
     F_file = h5py.File(os.path.join(data_folder, 'F_data.h5'), 'r')
     F = F_file['F'][:]
 
-    print(" ")
-    print("Computing F0...")
+    print("Computing F0 ...")
 
     if method == 'low_pass_filter':
         F0 = compute_F0_CardinLAB(F)
     elif method == 'percentile':
         F0 = compute_F0_early_percentile(F, winsize=F.shape[0])
+    F_dims = F.shape
 
-    dff0 = (F - F0) / F0
+    F_file.close()
+    del F
+    gc.collect()
+
+    print("Computing dff0 ... ")
+    F_file = h5py.File(os.path.join(data_folder, 'F_data.h5'), 'r')
+    dff0 = np.zeros(F_dims)
+    n_chunks = 20
+    bloc_size = F_dims[0] // 20
+    for chunk in range(n_chunks):
+        if chunk == 0:
+            dff0[0: bloc_size, :, :] = (F_file['F'][0: bloc_size] - F0) / F0
+        else:
+            start_slice = chunk * bloc_size
+            stop_slice = (chunk+1) * bloc_size
+            dff0[start_slice: stop_slice, :, :] = (F_file['F'][start_slice: stop_slice] - F0) / F0
+    dff0[n_chunks * bloc_size:, :, :] = (F_file['F'][n_chunks * bloc_size:] - F0) / F0
 
     end = time.time()
-    print("dFF0 calculation and saving took %0.4f min" % ((end - start) / 60))
+    print("dFF0 calculation took %0.4f min" % ((end - start) / 60))
 
     F_file.close()
 
@@ -121,10 +140,8 @@ def concat_and_save(file, wf_frame_timestamps, output_folder):
         data = np.stack(results)
         data = data.reshape(-1, int(data.shape[1] / 2), 2, int(data.shape[2] / 2), 2).mean(axis=2).mean(axis=3)
         wf_dataset[start:start + data.shape[0]] = data
-        F = da.from_array(f['F'])
-    f.close()
 
-    return output_folder + r'\F_data.h5', F
+    return output_folder + r'\F_data.h5'
 
 
 def concat_inmemory_and_save(file, wf_frame_timestamps, output_folder, align_to='bregma'):
@@ -135,19 +152,38 @@ def concat_inmemory_and_save(file, wf_frame_timestamps, output_folder, align_to=
     print("Loading widefield calcium imaging data")
 
     vid = iio.v3.imread(file, plugin='pyav', format='gray16be')
+    print("Loaded widefield calcium imaging data")
+    vid_size = sys.getsizeof(vid)
+    print(f"Video size : {np.round(vid_size / 1000000000, 2)} Gb")
 
     session_id = file.split("\\")[-1].split(".")[0]
-
     start = get_alignment_reference(session_id, align_to=align_to)
-    dest = (175,240)
+    dest = (175, 240)
     vid = align_videos(vid, start=start, dest=dest)
+    print("Widefield calcium imaging data is aligned to reference")
 
-    vid = vid.reshape(-1, int(vid.shape[1] / 2), 2, int(vid.shape[2] / 2), 2).mean(axis=2).mean(axis=3)
+    n_frames = vid.shape[0]
+    end_frames = n_frames % 20
+    end_vid = vid[(n_frames-end_frames):, :, :]
+    vid = np.split(vid[:(n_frames-end_frames), :, :], indices_or_sections=20, axis=0)
+    new_vid = np.zeros((int(n_frames), int(vid[1].shape[1] / 2), int(vid[1].shape[2] / 2)))
+    for i in range(len(vid)):
+        tmp_vid = vid.pop(0)
+        if i == 0:
+            new_vid[0: tmp_vid.shape[0], :, :] = tmp_vid.reshape(-1, int(tmp_vid.shape[1] / 2), 2, int(tmp_vid.shape[2] / 2), 2).mean(axis=2).mean(axis=3)
+        else:
+            new_vid[i * tmp_vid.shape[0]: (i+1) * tmp_vid.shape[0], :, :] = tmp_vid.reshape(-1, int(tmp_vid.shape[1] / 2), 2, int(tmp_vid.shape[2] / 2), 2).mean(axis=2).mean(axis=3)
+        del tmp_vid
+        gc.collect()
+    del vid
+    gc.collect()
+    new_vid[20*(n_frames//20):, :, :] = end_vid.reshape(-1, int(end_vid.shape[1] / 2), 2, int(end_vid.shape[2] / 2), 2).mean(axis=2).mean(axis=3)
+    print("Widefield calcium imaging data is binned")
 
-    if vid.shape[0]>len(wf_frame_timestamps):
-        vid = vid[:len(wf_frame_timestamps), :, :]
-    elif vid.shape[0] < len(wf_frame_timestamps):
-        raise ValueError(f"Video has less frames than timestamps: Video frames = {vid.shape[0]}, timestamps = {len(wf_frame_timestamps)}")
+    if new_vid.shape[0]>len(wf_frame_timestamps):
+        new_vid = new_vid[:len(wf_frame_timestamps), :, :]
+    elif new_vid.shape[0] < len(wf_frame_timestamps):
+        raise ValueError(f"Video has less frames than timestamps: Video frames = {new_vid.shape[0]}, timestamps = {len(wf_frame_timestamps)}")
         return
     else:
         print(" ")
@@ -156,10 +192,10 @@ def concat_inmemory_and_save(file, wf_frame_timestamps, output_folder, align_to=
     print(" ")
     print("Saving widefield calcium imaging data")
     with h5py.File(output_folder + r'\F_data.h5', 'w') as f:
-        wf_dataset = f.create_dataset('F', data=vid)
+        wf_dataset = f.create_dataset('F', data=new_vid)
 
     end_time = time.time()
-    print(f"F file created with shape {vid.shape}")
+    print(f"F file created with shape {new_vid.shape}")
     print("Preprocess took %0.4f min" % ((end_time - start_time) / 60))
 
     return output_folder + r'\F_data.h5'
@@ -177,8 +213,15 @@ def concat_widefield_data(file, wf_frame_timestamps, output_folder):
     if not os.path.exists(output_folder):
         os.mkdir(output_folder)
 
-    F_file = concat_inmemory_and_save(file, wf_frame_timestamps, output_folder)
-
+    # Get widefield size to know if we process in memory or of memory
+    file_size = os.path.getsize(file)
+    print(f"WF mj2 file is {np.round(file_size/1000000000, 2)} Gb")
+    if file_size/1000000000 < 60:
+        print(f"Process data in memory ... ")
+        F_file = concat_inmemory_and_save(file, wf_frame_timestamps, output_folder)
+    else:
+        print(f"Process data off memory ... ")
+        F_file = concat_and_save(file, wf_frame_timestamps, output_folder)
 
     return F_file
 
