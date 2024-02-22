@@ -3,7 +3,7 @@ import os
 import numpy as np
 import scipy
 from scipy import ndimage
-from read_roi import read_roi_file, read_roi_zip
+# from read_roi import read_roi_file, read_roi_zip
 
 
 def set_merged_roi_to_non_cell(stat, is_cell):
