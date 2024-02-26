@@ -271,6 +271,17 @@ def filter_cameras_live_timestamps(on_off_timestamps):
     return filtered_on_off_timestamps
 
 
+def filter_wf_camera_live_timestamps(on_off_timestamps):
+    inter_frame_interval = np.diff(on_off_timestamps)
+    long_pause_idx = np.where(inter_frame_interval > 2 * np.median(inter_frame_interval))[0]
+    if len(long_pause_idx) > 0:
+        filtered_on_off_timestamps = on_off_timestamps[:long_pause_idx[0]]
+    else:
+        filtered_on_off_timestamps = on_off_timestamps
+
+    return filtered_on_off_timestamps
+
+
 def detect_ci_pause(ci_frame_times):
     iti_distribution = np.diff(ci_frame_times)
     pause_thr = np.median(iti_distribution) + 10 * np.std(iti_distribution)
@@ -284,7 +295,7 @@ def detect_ci_pause(ci_frame_times):
         return has_pause, None, None
 
 
-def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scanimage_dict=None, filter_cameras=False):
+def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scanimage_dict=None, filter_cameras=False, wf_file=False):
     """
     Extract timestamps from continuous logging data.
     Args:
@@ -396,8 +407,10 @@ def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scan
                                  range(len(on_off_timestamps))]
                 median_exposure = np.median(exposure_time)
                 last_exposure = exposure_time[-1]
-                if last_exposure < median_exposure - 2 * np.std(exposure_time):
-                    print(f"Session likely stopped during last exposure of {key} (before image acquisition)")
+                if last_exposure < median_exposure - 2 * np.std(exposure_time) or \
+                        last_exposure > median_exposure - 2 * np.std(exposure_time):
+                    print(f"Session likely stopped during last exposure of {key} (before image acquisition), "
+                          f"cut the last detected frames")
                     filtered_on_off_timestamps = on_off_timestamps[0: -1]
                     on_off_timestamps = filtered_on_off_timestamps
 
@@ -406,7 +419,7 @@ def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scan
                 iti = np.array([on_off_timestamps[i+1][0] - on_off_timestamps[i][1]
                                 for i in range(len(on_off_timestamps) - 1)])
                 early_licks = np.where(iti < 0.4)[0]  # reset trial signal in less than 0.25 s (specific to early lick)
-                print(f"{len(early_licks)} early licks")
+                print(f"{len(early_licks)} early licks detected")
 
                 if len(early_licks) > 0:
                     early_licks = list(early_licks)
@@ -416,9 +429,22 @@ def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scan
                     on_off_timestamps = filtered_on_off_timestamps
 
             if key in ["trial_TTL"] and binary_data[-1] == 1:
-                print(f"Session likely stopped before end of last {key}")
+                print(f"Session likely stopped before end of last {key}, cut the last detected trial")
                 filtered_on_off_timestamps = on_off_timestamps[0: -1]  # remove last timestamp that signals session end
                 on_off_timestamps = filtered_on_off_timestamps
+
+            if key in ["widefield"] and wf_file is not None:
+                import imageio as iio
+                props = iio.v3.improps(wf_file, plugin='pyav', format='gray16be')
+                print(f"Images in WF file: {props.shape[0]}")
+                exposure_time = [on_off_timestamps[i][1] - on_off_timestamps[i][0] for i in
+                                 range(len(on_off_timestamps))]
+                median_exposure = np.median(exposure_time)
+                last_exposure = exposure_time[-1]
+                if last_exposure > median_exposure - 2 * np.std(exposure_time):
+                    print(f"Cutting 1 extra widefield frame after stop signal")
+                    filtered_on_off_timestamps = on_off_timestamps[:-1]
+                    on_off_timestamps = filtered_on_off_timestamps
 
             timestamps_dict[key] = on_off_timestamps
             n_frames_dict[key] = len(on_off_timestamps)

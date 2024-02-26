@@ -352,18 +352,57 @@ def get_opto_config_file(config_file):
     return opto_config_file
 
 
-def get_widefield_file(mat_path):
+def get_widefield_file(config_file):
+    with open(config_file, 'r', encoding='utf8') as stream:
+        config = yaml.safe_load(stream)
 
-    if not os.path.exists(mat_path):
-        mat_file = None
-        return mat_file
+    mouse_name = config['subject_metadata']['subject_id']
+    session_name = config['session_metadata']['session_id']
+    data_folder = get_subject_data_folder(mouse_name)
+    wf_folder = os.path.join(data_folder, 'Recording', 'Imaging', session_name)
+    if not os.path.exists(wf_folder):
+        return None
+    mj2_file = [os.path.join(wf_folder, m) for m in os.listdir(wf_folder)
+                   if os.path.splitext(m)[1] in ['.mj2']]
+    
+    if not mj2_file:
+        mj2_file = None
+    else:
+        mj2_file = sorted(mj2_file)
 
-    data_file = [os.path.join(mat_path, m) for m in os.listdir(mat_path)
-                 if 'timestamps' not in m]
-    timestamps_file = [os.path.join(mat_path, m) for m in os.listdir(mat_path)
-                 if 'timestamps' in m]
+    return mj2_file
 
-    if not data_file:
-        data_file = None
 
-    return sorted(data_file), sorted(timestamps_file)
+def get_wf_fiji_rois_file(config_file):
+    with open(config_file, 'r', encoding='utf8') as stream:
+        config = yaml.safe_load(stream)
+    mouse_name = config['subject_metadata']['subject_id']
+    session_name = config['session_metadata']['session_id']
+
+    data_folder = get_subject_analysis_folder(mouse_name)
+    wf_roi_folder = os.path.join(data_folder, session_name)
+
+    if not os.path.exists(wf_roi_folder):
+        print(f"No widefield rois folder found for {session_name} session from {mouse_name}")
+        return None
+
+    roi_file = [os.path.join(wf_roi_folder, m) for m in os.listdir(wf_roi_folder)
+                if os.path.splitext(m)[1] in ['.zip']]
+
+    if not roi_file:
+        roi_file = None
+    else:
+        roi_file = sorted(roi_file)
+
+    return roi_file
+
+
+def get_rois_label_folder(config_file):
+    with open(config_file, 'r', encoding='utf8') as stream:
+        config = yaml.safe_load(stream)
+    mouse_name = config['subject_metadata']['subject_id']
+    folder = get_subject_analysis_folder(mouse_name)
+    folder = os.path.join(folder, 'projection_neurons')
+    
+    if os.path.exists(folder):
+        return folder

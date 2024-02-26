@@ -3,6 +3,8 @@
 import datetime
 import os
 
+import platform
+
 import yaml
 
 import utils.gf_utils as utils_gf
@@ -56,8 +58,8 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True):
     if config_dict.get("two_photon_metadata") is not None:
         print(" ")
         print("Convert CI movie")
-        convert_ci_movie(nwb_file=nwb_file, config_file=config_file,
-                         movie_format='link', ci_frame_timestamps=timestamps_dict['galvo_position'])
+        convert_ci_movie(nwb_file=nwb_file, config_file=config_file, movie_format='link',
+                         add_movie_data_or_link=True, ci_frame_timestamps=timestamps_dict['galvo_position'])
 
         print(" ")
         print("Convert Suite2p data")
@@ -72,7 +74,11 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True):
         convert_ephys_recording(nwb_file=nwb_file,
                                 config_file=config_file)
 
-    if config_dict.get("widefield_metadata") is not None:
+    # Check we are on WF computer
+    platform_info = platform.uname()
+    computer_name = platform_info.node
+    wf_computers = ['SV-07-082']  # Add name of WF preprocessing computers here
+    if computer_name in wf_computers and config_dict.get("widefield_metadata") is not None:
         print(" ")
         print("Convert widefield data")
 
@@ -91,10 +97,8 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True):
 if __name__ == '__main__':
 
     # Run the conversion
-    mouse_ids = [95] #85 to do
-    mouse_ids = range(68,75) #85 to do
-    mouse_ids = ['AB' + str(mouse_id).zfill(3) for mouse_id in mouse_ids]
-    experimenter = 'AB'
+    mouse_ids = ['GF333']
+    experimenter = 'GF'
 
     if experimenter == 'GF':
         # Read excel database.
@@ -102,6 +106,8 @@ if __name__ == '__main__':
         db_name = 'sessions_GF.xlsx'
         db = utils_gf.read_excel_database(db_folder, db_name)
 
+    mouse_ids = db['subject_id'].unique()
+    
     for mouse_id in mouse_ids:
         data_folder = get_subject_data_folder(mouse_id)
         if os.path.exists(data_folder):
@@ -124,6 +130,13 @@ if __name__ == '__main__':
         # Create NWB by looping over sessions.
         for isession, iday in training_days:
 
+            # # # Filter sessions to do :
+            # session_to_do = ['GF333_24012021_145617']
+            # if isession not in session_to_do:
+            #     continue
+
+            # date_to_do = '20240110'
+            # if date_to_do not in isession:
             # Filter by session ID
             #session_to_do = ["AB085_20231005_152636"]
             #if isession not in session_to_do:
@@ -142,12 +155,11 @@ if __name__ == '__main__':
             #         continue
 
             # Filter by session type
-            #if experimenter == 'AB' and iday != 'whisker_0':
-            #    continue
-
+            # if experimenter == 'AB' and iday != 'whisker_0':
+            #     continue
 
             # Find yaml config file and behavior results for this session.
-            config_yaml = os.path.join( analysis_folder, isession, f"config_{isession}.yaml")
+            config_yaml = os.path.join(analysis_folder, isession, f"config_{isession}.yaml")
 
             # Make conversion.
             print(" ------------------ ")

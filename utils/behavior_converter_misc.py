@@ -116,6 +116,7 @@ def get_trial_timestamps_dict(timestamps_dict, behavior_results_file, config_fil
         behavior_results = pd.DataFrame(perf_json['results'], columns=perf_json['headers'])
         # Remap GF columns.
         behavior_results = utils_gf.map_result_columns(behavior_results)
+        n_trials_max = len(behavior_results)
     else:
         if os.path.splitext(behavior_results_file)[1] == '.txt':
             sep = r'\s+'
@@ -229,6 +230,17 @@ def get_context_timestamps_dict(timestamps_dict, nwb_trial_table):
 
     return context_timestamps_dict, context_sound_dict
 
+
+def get_motivated_epoch_ts(timestamps_dict, nwb_trial_table):
+    motivated_timestamps_dict = dict()
+    trial_times = timestamps_dict['trial_TTL']
+    frame_times = timestamps_dict['widefield'] if 'widefield' in timestamps_dict.keys() else timestamps_dict['galvo_position']
+    n_trials = nwb_trial_table.shape[0]
+    cut_off = n_trials - 50
+    motivated_timestamps_dict['motivated'] = [(max(trial_times[0][0], frame_times[0]), trial_times[cut_off][0] - 2)]
+    motivated_timestamps_dict['unmotivated'] = [(trial_times[cut_off][0] - 2, min(trial_times[-1][1], frame_times[-1]))]
+    return motivated_timestamps_dict
+    
 
 def list_trial_type(results_table):
     """
@@ -378,7 +390,7 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
     response_window_stop_time = response_window_start_time + trial_table['response_window'] / 1000
 
     # Format absence of licks: make reaction time as NaN
-    trial_table['reaction_time'].replace(0, np.nan, inplace=True)
+    trial_table.replace({'reaction_time': 0}, np.nan, inplace=True)
 
     # Define rewards availability
     reward_available = [1 if(trial_table.loc[i].is_auditory == 1 or

@@ -14,7 +14,8 @@ from utils.behavior_converter_misc import (add_trials_standard_to_nwb,
                                            build_standard_trial_table,
                                            get_context_timestamps_dict,
                                            get_piezo_licks_timestamps_dict,
-                                           get_trial_timestamps_dict)
+                                           get_trial_timestamps_dict,
+                                           get_motivated_epoch_ts)
 
 
 def convert_behavior_data(nwb_file, timestamps_dict, config_file):
@@ -43,7 +44,7 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
                 behavior_results_file=behavior_results_file,
                 timestamps_dict=timestamps_dict
             )
-        elif config_dict.get('behaviour_metadata').get('trial_table') == 'simple': #TODO: remove?
+        elif config_dict.get('behaviour_metadata').get('trial_table') == 'simple':  # TODO: remove?
             trial_table = build_simplified_trial_table(behavior_results_file=behavior_results_file,
                                                        timestamps_dict=timestamps_dict)
     else:
@@ -54,7 +55,6 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
         add_trials_standard_to_nwb(nwb_file=nwb_file, trial_table=trial_table)
     else:
         add_trials_to_nwb(nwb_file=nwb_file, trial_table=trial_table)
-
 
     # Create NWB behaviour module (and module interfaces)
 
@@ -102,14 +102,13 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
         behavior_events.add_timeseries(trial_timeseries)
         print(f"Adding {len(data_to_store)} {trial_type} to BehavioralEvents")
 
-
     # Get piezo lick timestamps
     piezo_licks_timestamps_dict = get_piezo_licks_timestamps_dict(timestamps_dict)
 
     if piezo_licks_timestamps_dict is not None:
         timestamps_to_store = np.array(piezo_licks_timestamps_dict)
         if timestamps_to_store.any():
-            timestamps_to_store = timestamps_to_store[:,0]
+            timestamps_to_store = timestamps_to_store[:, 0]
 
         data_to_store = np.transpose(np.array(timestamps_to_store))
         lick_timeseries = TimeSeries(name='piezo_lick_times',
@@ -128,7 +127,6 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
                                      continuity='instantaneous')
         behavior_events.add_timeseries(lick_timeseries)
         print(f"Adding {len(data_to_store)} piezo lick times to BehavioralEvents")
-
 
     # Get context timestamps if they exist
     context_timestamps_dict, context_sound_dict = get_context_timestamps_dict(timestamps_dict=timestamps_dict,
@@ -157,7 +155,33 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
                                                    description=description,
                                                    control=None, control_description=None)
 
+    if config_dict.get("two_photon_metadata") is not None:
+        # Get motivated/unmotivated timestamps
+        motivated_timestamps_dict = get_motivated_epoch_ts(timestamps_dict=timestamps_dict, nwb_trial_table=trial_table)
 
+        # Add motivated epochs
+        if motivated_timestamps_dict is not None:
+            print("Adding motivated epochs to NWB file")
+            try:
+                behavior_epochs = bhv_module.get(name='BehavioralEpochs')
+            except KeyError:
+                behavior_epochs = BehavioralEpochs(name='BehavioralEpochs')
+                bhv_module.add_data_interface(behavior_epochs)
+
+            for epoch, intervals_list in motivated_timestamps_dict.items():
+                print(f"Add {len(intervals_list)} {epoch} epochs to NWB ")
+                time_stamps_to_store = []
+                data_to_store = []
+                description = epoch + '_epoch'
+                for interval in intervals_list:
+                    start_time = interval[0]
+                    stop_time = interval[1]
+                    time_stamps_to_store.extend([start_time, stop_time])
+                    data_to_store.extend([1, -1])
+                behavior_epochs.create_interval_series(name=epoch, data=data_to_store, timestamps=time_stamps_to_store,
+                                                       comments='no comments',
+                                                       description=description,
+                                                       control=None, control_description=None)
 
     # Check if behaviour video filming
     if config_dict.get('session_metadata').get('experimenter') == 'AB':
@@ -204,14 +228,11 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
 
             # Get frame timestamps
             on_off_timestamps = timestamps_dict[cam_key]
-            if len(on_off_timestamps) - video_length > 2:
-                print("Difference in number of frames ({}) vs detected frames ({}) is larger than 2, do next video".format(video_length, len(on_off_timestamps)))
-                continue
-            elif video_length - len(on_off_timestamps) > 2:
-                print("Difference in number of frames ({}) vs detected frames ({}) is larger than 2, do next video".format(video_length, len(on_off_timestamps)))
+            if np.abs(len(on_off_timestamps) - video_length) > 2:
+                print(f"Difference in number of frames ({video_length}) vs detected frames ({len(on_off_timestamps)}) "
+                      f"is {len(on_off_timestamps) - video_length} (larger than 2), do next video")
                 continue
             else:
-
                 movie_timestamps = [on_off_timestamps[i][0] for i in range(video_length)]
 
             behavior_external_file = ImageSeries(
