@@ -5,7 +5,7 @@ import yaml
 from pynwb.ophys import Fluorescence, ImageSegmentation
 
 import utils.server_paths as server_paths
-import utils.gf_utils as utils_gf
+import utils.utils_gf as utils_gf
 import utils.ci_processing as utils_ci
 
 
@@ -101,7 +101,7 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
         cell_type_codes = None
     else:
         if experimenter in ['GF', 'MI']:
-            far_red_rois, red_rois, un_rois, info = utils_ci.get_roi_labels_GF(projection_folder)
+            far_red_rois, red_rois, un_rois, info = utils_gf.get_roi_labels_GF(projection_folder)
         else:
             far_red_rois, red_rois, un_rois, info = utils_ci.get_roi_labels(projection_folder)
 

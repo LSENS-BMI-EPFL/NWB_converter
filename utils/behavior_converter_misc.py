@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import yaml
 
-import utils.gf_utils as utils_gf
+import utils.utils_gf as utils_gf
 from utils import server_paths
 
 
