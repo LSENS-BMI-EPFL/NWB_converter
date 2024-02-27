@@ -57,6 +57,10 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
         add_trials_to_nwb(nwb_file=nwb_file, trial_table=trial_table)
 
     # Create NWB behaviour module (and module interfaces)
+
+    if timestamps_dict is None:
+        return
+
     print("Creating behaviour processing module")
     if 'behavior' in nwb_file.processing:
         bhv_module = nwb_file.processing['behavior']
