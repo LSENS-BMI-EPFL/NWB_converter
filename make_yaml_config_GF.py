@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import yaml
 
-import utils.gf_utils as utils_gf
+import utils.utils_gf as utils_gf
 from utils.server_paths import (get_ref_weight_folder,
                                 get_subject_analysis_folder,
                                 get_subject_data_folder,

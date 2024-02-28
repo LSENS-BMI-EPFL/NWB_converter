@@ -184,16 +184,33 @@ def get_imaging_file(config_file):
         config = yaml.safe_load(stream)
     mouse_name = config['subject_metadata']['subject_id']
     session_name = config['session_metadata']['session_id']
-    data_folder = get_subject_data_folder(mouse_name)
-    tiff_path = os.path.join(data_folder, 'Recording', 'Imaging', session_name)
-    if not os.path.exists(tiff_path):
-        tiff_file = None
-        return tiff_file
-    tiff_file = [os.path.join(tiff_path, m) for m in os.listdir(tiff_path)
-                 if os.path.splitext(m)[1] in ['.tif', '.tiff']]
 
-    if not tiff_file:
-        tiff_file = None
+    add_raw_movie = False
+    analysis_folder = get_subject_analysis_folder(mouse_name)
+    reg_tiff_path = os.path.join(analysis_folder, session_name, 'suite2p', 'plane0', 'reg_tif')
+    if not os.path.exists(reg_tiff_path):
+        add_raw_movie = True
+    else:
+        tiff_file = [os.path.join(reg_tiff_path, m) for m in os.listdir(reg_tiff_path)
+                     if os.path.splitext(m)[1] in ['.tif', '.tiff']]
+        if not tiff_file:
+            add_raw_movie = True
+        else:
+            print("Add registered tiff")
+
+    if add_raw_movie:
+        data_folder = get_subject_data_folder(mouse_name)
+        tiff_path = os.path.join(data_folder, 'Recording', 'Imaging', session_name)
+        if not os.path.exists(tiff_path):
+            tiff_file = None
+            return tiff_file
+        tiff_file = [os.path.join(tiff_path, m) for m in os.listdir(tiff_path)
+                     if os.path.splitext(m)[1] in ['.tif', '.tiff']]
+
+        if not tiff_file:
+            tiff_file = None
+        else:
+            print("Add registered tiff")
 
     return tiff_file
 

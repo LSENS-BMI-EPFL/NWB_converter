@@ -223,8 +223,13 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
                 movie_nwb_file_name = movie
 
             else:
-                cam_key = 'cam1'
-                movie_nwb_file_name = f"{os.path.splitext(movie)[0]}_camera_{movie_index + 1}"
+                movie_nwb_file_name = f"{ os.path.split(movie)[1].split('.')[0]}_camera_{movie_index + 1}"
+                if 'side' in movie_nwb_file_name:
+                    cam_key = 'cam1'
+                if 'top' in movie_nwb_file_name:
+                    cam_key = 'cam2'
+                if ('top' not in movie_nwb_file_name) and ('side' not in movie_nwb_file_name):
+                    cam_key = 'cam1'
 
             # Get frame timestamps
             on_off_timestamps = timestamps_dict[cam_key]
