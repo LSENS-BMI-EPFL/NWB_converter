@@ -3,7 +3,7 @@ import os
 import numpy as np
 import scipy
 from scipy import ndimage
-from read_roi import read_roi_file, read_roi_zip
+# from read_roi import read_roi_file, read_roi_zip
 
 
 def set_merged_roi_to_non_cell(stat, is_cell):
@@ -100,11 +100,11 @@ def get_processed_ci(suite2p_folder):
     else:
         stat = np.load(os.path.join(suite2p_folder, "stat.npy"), allow_pickle=True)
         is_cell = np.load(os.path.join(suite2p_folder, "iscell.npy"), allow_pickle=True)
-        F = np.load(os.path.join(suite2p_folder, "F.npy"), allow_pickle=True)
-        Fneu = np.load(os.path.join(suite2p_folder, "Fneu.npy"), allow_pickle=True)
-        dcnv = np.load(os.path.join(suite2p_folder, "spks.npy"), allow_pickle=True)
+        F_raw = np.load(os.path.join(suite2p_folder, "F_raw.npy"), allow_pickle=True)
+        F_cor = np.load(os.path.join(suite2p_folder, "F_cor.npy"), allow_pickle=True)
+        F0 = np.load(os.path.join(suite2p_folder, "F0.npy"), allow_pickle=True)
 
-    return stat, is_cell, F, Fneu, dcnv
+    return stat, is_cell, F_raw, F_cor, F0
 
 
 def get_roi_labels(rois_label_folder):

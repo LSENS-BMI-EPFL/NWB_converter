@@ -53,8 +53,7 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
     # Load Suite2p data
     print('Loading suite2p data.')
     if experimenter not in ['GF', 'MI']:
-        stat, is_cell, F, Fneu, dcnv = utils_ci.get_processed_ci(suite2p_folder)
-        F_fissa = None
+        stat, is_cell, F_raw, F_cor, F0 = utils_ci.get_processed_ci(suite2p_folder)
     else:
         stat, is_cell, F, Fneu, F0, F_fissa = utils_gf.get_gf_processed_ci(config_file)
 
@@ -62,8 +61,8 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
     is_cell = utils_ci.set_merged_roi_to_non_cell(stat, is_cell)
 
     # Fissa is substracted but not normalized.
-    if F_fissa is not None:
-        dff_fissa = F_fissa / F0
+    if F_cor is not None:
+        dff = F_cor / F0
 
     # Extract image dimensions
     if image_series is not None:
@@ -82,11 +81,12 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
     rt_region = ps.create_roi_table_region('all cells', region=list(np.arange(n_cells)))
 
     # List fluorescence data to save
-    data = [F_fissa, F0, dff_fissa]
-    data_labels = ['F_fissa', 'F0', 'dff']
-    descriptions = ['F_fissa: Fissa corrected traces.',
-                    'F0: 5% percentile baseline computed over a 2 min rolling window.',
-                    'dff: Normalized fissa output, with F0 of raw traces.']
+    data = [F_cor, F_raw, F0, dff]
+    data_labels = ['F_cor', 'F_raw', 'F0', 'dff']
+    descriptions = ['F_cor: Fissa corrected traces.',
+                    'F_raw: raw fluorescence traces extracted by Fissa'
+                    'F0: 5% percentile baseline computed over a 2 min rolling window of F_raw.',
+                    'dff: Normalized fissa output, dff = F_cor / F0.']
 
     # Add information about cell type (projections, ... ).
     # ####################################################
