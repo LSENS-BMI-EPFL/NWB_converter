@@ -6,7 +6,7 @@ import matplotlib as mpl
 #mpl.use('QtAgg')
 import yaml
 
-from utils import read_sglx, server_paths, tiff_loading
+from utils import read_sglx, server_paths, tiff_loading, widefield_utils
 from utils.continuous_processing import (extract_timestamps,
                                          plot_continuous_data_dict,
                                          print_info_dict,
@@ -128,7 +128,7 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
 
         if mj2_file is not None:
             print(f"Motion JPEG 2000 file found, reading number of widefield frames")
-            read_motion_jpeg_2000_movie(mj2_file=mj2_file)
+            widefield_utils.read_motion_jpeg_2000_movie(mj2_file=mj2_file)
 
     return timestamps_dict, n_frames_dict
 
