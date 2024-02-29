@@ -194,6 +194,9 @@ def get_imaging_file(config_file):
     else:
         tiff_file = [os.path.join(reg_tiff_path, m) for m in os.listdir(reg_tiff_path)
                      if os.path.splitext(m)[1] in ['.tif', '.tiff']]
+        # Sort this list
+        f = lambda x: int(os.path.basename(x).split('_')[0][6:])
+        tiff_file = sorted(tiff_file, key=f)
         if not tiff_file:
             add_raw_movie = True
         else:
@@ -207,7 +210,9 @@ def get_imaging_file(config_file):
             return tiff_file
         tiff_file = [os.path.join(tiff_path, m) for m in os.listdir(tiff_path)
                      if os.path.splitext(m)[1] in ['.tif', '.tiff']]
-
+        # Sort this list
+        f = lambda x: int(os.path.basename(x).split('_')[0][6:])
+        tiff_file = sorted(tiff_file, key=f)
         if not tiff_file:
             tiff_file = None
         else:
