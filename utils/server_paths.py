@@ -165,14 +165,14 @@ def get_session_movie_files(config_file):
         config = yaml.safe_load(stream)
     mouse_name = config['subject_metadata']['subject_id']
     session_name = config['session_metadata']['session_id']
-    data_folder = get_subject_data_folder(mouse_name)
-    movies_path = os.path.join(data_folder, 'Recording', session_name, 'Video')
+    analysis_folder = get_subject_analysis_folder(mouse_name)
+    movies_path = os.path.join(analysis_folder, session_name, 'Video')
     if not os.path.exists(movies_path):
         movies = None
         return movies
     movies = [os.path.join(movies_path, m) for m in os.listdir(movies_path) if
               os.path.splitext(m)[1] in ['.avi', '.mp4']]
-    movies = [m for m in movies if 'converted' in m]
+    #movies = [m for m in movies if 'converted' in m]
 
     if not movies:
         movies = None
