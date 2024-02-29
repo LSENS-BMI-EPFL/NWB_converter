@@ -14,9 +14,10 @@ import numpy as np
 import pandas as pd
 import yaml
 import re
+
 from utils import server_paths
 from utils.continuous_processing import detect_piezo_lick_times
-from utils.read_sglx import readMeta
+from utils.read_sglx import readMeta, SampRate, makeMemMapRaw, GainCorrectIM, GainCorrectNI, ChannelCountsNI
 
 # MAP of (AP,ML) coordinates relative to bregma
 AREA_COORDINATES_MAP = {
@@ -117,6 +118,66 @@ def get_target_location(config_file, device_name):
 
     return location_dict
 
+def read_ephys_binary_data(bin_file, meta_file):
+    """
+    Read ephys binary data and return a dictionary with the data.
+    This only reads the analog data of these binary files.
+    Args:
+        bin_file:
+        meta_file:
+    Returns:
+    """
+    # Parameters about what data to read
+    t_start = 0
+    t_end = -1
+    channel_dict = {0: 'sync',
+                    1: 'trial_TTL',
+                    2: 'whisker_stim',
+                    3: 'auditory_stim',
+                    4: 'valve',
+                    5: 'cam1',
+                    6: 'cam2',
+                    7: 'lick_trace'}
+    channel_list = list(channel_dict.keys())
+
+    # Read metafile
+    meta_dict = readMeta(pathlib.Path(meta_file))
+
+    # Parameters common to NI and IMEC data
+    s_rate = SampRate(meta_dict)
+    first_sample = int(s_rate * t_start)
+    last_sample = int(s_rate * t_end)
+
+    # Read binary file
+    raw_data = makeMemMapRaw(pathlib.Path(bin_file), meta_dict)
+
+    # Note: this deals with analog data only
+    select_data = raw_data[channel_list, first_sample:last_sample]
+
+    # Read IMEC data
+    if meta_dict['typeThis'] == 'imec':
+        # Apply gain correction and convert to uV
+        conv_data = 1e6 * GainCorrectIM(select_data, channel_list, meta_dict)
+
+        conv_data_dict = {}
+        conv_data_dict['imec'] = conv_data
+
+    # Read NI data
+    else:
+        MN, MA, XA, DW = ChannelCountsNI(meta_dict)
+        #print("NI channel counts: %d, %d, %d, %d" % (MN, MA, XA, DW))
+        # Apply gain correction and convert to V
+        conv_data = GainCorrectNI(select_data, channel_list, meta_dict)
+
+        conv_data_dict = {}
+        for chan_idx, chan_key in channel_dict.items():
+            channel_data = conv_data[chan_idx, :]
+
+            if chan_key == 'lick_trace':
+                channel_data = np.abs(channel_data)
+            conv_data_dict[chan_key] = channel_data
+
+    return conv_data_dict
 
 def load_ephys_sync_timestamps(config_file, log_timestamps_dict):
     """
