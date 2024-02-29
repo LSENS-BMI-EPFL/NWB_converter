@@ -94,7 +94,6 @@ def find_training_days(subject_id, input_folder):
 
             # Case of several sesssions per day: update labels if dates are not increasing
             for i in range(len(label)):
-                print(increasing_dates[i], label[i], behavior_type[i])
                 # If date is not increasing, substract all labels by 1
                 if not increasing_dates[i] and label[i] >= 0:
                     # Then update all subsequent labels by -1

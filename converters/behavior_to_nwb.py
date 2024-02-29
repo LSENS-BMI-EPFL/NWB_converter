@@ -205,6 +205,7 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
             # Get information about video
             print("Check length and frame rate")
             video_length, video_frame_rate = continuous_processing.read_behavior_avi_movie(movie_file=movie)
+            print(f"Video length: {video_length}, frame rate: {video_frame_rate}")
 
             #  Check number of frames in video vs. number of timestamps
             if config_dict.get('session_metadata').get('experimenter') == 'AB':
