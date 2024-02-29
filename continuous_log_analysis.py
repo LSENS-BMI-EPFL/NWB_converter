@@ -32,6 +32,7 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
     """
 
     if __name__ == "__main__":
+        print('Standalone analysis')
         with open(config_file, 'r', encoding='utf8') as stream:
             config = yaml.safe_load(stream)
         bin_file = os.path.join(config['root_path'], "log_continuous.bin")
@@ -41,6 +42,7 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
         else:
             movie_files = None
         tiff_file = config['ci_tiff_path']
+        mj2_file = config['mj2_file_path']
 
     else:
         # Load NWB config file
@@ -137,4 +139,4 @@ if __name__ == "__main__":
     # This is a simplified config_file with only necessary to analyse quickly the continuous logging
     yaml_file = "C:/Users/rdard/Documents/test_data/log_file_config.yml"
     analyze_continuous_log(config_file=yaml_file,
-                           do_plot=False, plot_start=800, plot_stop=1000, camera_filtering=False)
+                           do_plot=True, plot_start=100, plot_stop=500, camera_filtering=False)
