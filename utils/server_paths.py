@@ -25,8 +25,6 @@ def get_subject_data_folder(subject_id):
 def get_subject_analysis_folder(subject_id):
     if subject_id == 'PB124':
         experimenter = 'Robin_Dard'
-    # elif subject_id in ['RD039', 'RD040']:
-    #     experimenter='Pol_Bech'
     else:
         # Map initials to experimenter to get analysis folder path.
         experimenter = EXPERIMENTER_MAP[subject_id[:2]]
@@ -52,16 +50,13 @@ def get_subject_mouse_number(subject_id):
 
     if initials == 'MI':
         initials = 'GF'
-    if subject_id in ['RD039', 'RD040', 'RD041']:
-        initials='PB'
+
     return mouse_number, initials
 
 
 def get_nwb_folder(subject_id):
     if subject_id in ['PB124']:
         experimenter = 'Robin_Dard'
-    # elif subject_id in ['RD039', 'RD040']:
-    #     experimenter = 'Pol_Bech'
     else:
         experimenter = EXPERIMENTER_MAP[subject_id[:2]]
     nwb_folder = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis',
@@ -170,14 +165,15 @@ def get_session_movie_files(config_file):
         config = yaml.safe_load(stream)
     mouse_name = config['subject_metadata']['subject_id']
     session_name = config['session_metadata']['session_id']
-    data_folder = get_subject_data_folder(mouse_name)
-    movies_path = os.path.join(data_folder, 'Recording', session_name, 'Video')
+    analysis_folder = get_subject_analysis_folder(mouse_name)
+    movies_path = os.path.join(analysis_folder, session_name, 'Video')
     if not os.path.exists(movies_path):
         movies = None
         return movies
-        #os.makedirs(movies_path)
     movies = [os.path.join(movies_path, m) for m in os.listdir(movies_path) if
               os.path.splitext(m)[1] in ['.avi', '.mp4']]
+    #movies = [m for m in movies if 'converted' in m]
+
     if not movies:
         movies = None
 
@@ -189,16 +185,38 @@ def get_imaging_file(config_file):
         config = yaml.safe_load(stream)
     mouse_name = config['subject_metadata']['subject_id']
     session_name = config['session_metadata']['session_id']
-    data_folder = get_subject_data_folder(mouse_name)
-    tiff_path = os.path.join(data_folder, 'Recording', 'Imaging', session_name)
-    if not os.path.exists(tiff_path):
-        tiff_file = None
-        return tiff_file
-    tiff_file = [os.path.join(tiff_path, m) for m in os.listdir(tiff_path)
-                 if os.path.splitext(m)[1] in ['.tif', '.tiff']]
 
-    if not tiff_file:
-        tiff_file = None
+    add_raw_movie = False
+    analysis_folder = get_subject_analysis_folder(mouse_name)
+    reg_tiff_path = os.path.join(analysis_folder, session_name, 'suite2p', 'plane0', 'reg_tif')
+    if not os.path.exists(reg_tiff_path):
+        add_raw_movie = True
+    else:
+        tiff_file = [os.path.join(reg_tiff_path, m) for m in os.listdir(reg_tiff_path)
+                     if os.path.splitext(m)[1] in ['.tif', '.tiff']]
+        # Sort this list
+        f = lambda x: int(os.path.basename(x).split('_')[0][6:])
+        tiff_file = sorted(tiff_file, key=f)
+        if not tiff_file:
+            add_raw_movie = True
+        else:
+            print("Add registered tiff")
+
+    if add_raw_movie:
+        data_folder = get_subject_data_folder(mouse_name)
+        tiff_path = os.path.join(data_folder, 'Recording', 'Imaging', session_name)
+        if not os.path.exists(tiff_path):
+            tiff_file = None
+            return tiff_file
+        tiff_file = [os.path.join(tiff_path, m) for m in os.listdir(tiff_path)
+                     if os.path.splitext(m)[1] in ['.tif', '.tiff']]
+        # Sort this list
+        f = lambda x: int(os.path.basename(x).split('_')[0][6:])
+        tiff_file = sorted(tiff_file, key=f)
+        if not tiff_file:
+            tiff_file = None
+        else:
+            print("Add registered tiff")
 
     return tiff_file
 

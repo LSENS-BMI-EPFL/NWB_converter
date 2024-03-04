@@ -6,13 +6,13 @@ import matplotlib as mpl
 #mpl.use('QtAgg')
 import yaml
 
-from utils import read_sglx, server_paths, tiff_loading
+from utils import read_sglx, server_paths, tiff_loading, widefield_utils
 from utils.continuous_processing import (extract_timestamps,
                                          plot_continuous_data_dict,
                                          print_info_dict,
                                          read_behavior_avi_movie,
                                          read_binary_continuous_log)
-from utils.ephys_converter_misc import extract_ephys_timestamps
+from utils.ephys_converter_misc import extract_ephys_timestamps, read_ephys_binary_data
 
 
 def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_stop=None, camera_filtering=False):
@@ -32,6 +32,7 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
     """
 
     if __name__ == "__main__":
+        print('Standalone analysis')
         with open(config_file, 'r', encoding='utf8') as stream:
             config = yaml.safe_load(stream)
         bin_file = os.path.join(config['root_path'], "log_continuous.bin")
@@ -41,6 +42,7 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
         else:
             movie_files = None
         tiff_file = config['ci_tiff_path']
+        mj2_file = config['mj2_file_path']
 
     else:
         # Load NWB config file
@@ -106,7 +108,7 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
 
     if 'ephys_metadata' in config:
         ephys_nidq_meta, ephys_nidq_bin = server_paths.get_raw_ephys_nidq_files(config_file)
-        ephys_cont_data_dict = read_sglx.read_ephys_binary_data(ephys_nidq_bin, ephys_nidq_meta)
+        ephys_cont_data_dict = read_ephys_binary_data(ephys_nidq_bin, ephys_nidq_meta)
         ephys_timestamps_dict, n_frames_dict = extract_ephys_timestamps(config_file=config_file,
                                                                         continuous_data_dict=ephys_cont_data_dict,
                                                                         threshold_dict=threshold_dict,
@@ -128,7 +130,7 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
 
         if mj2_file is not None:
             print(f"Motion JPEG 2000 file found, reading number of widefield frames")
-            read_motion_jpeg_2000_movie(mj2_file=mj2_file)
+            widefield_utils.read_motion_jpeg_2000_movie(mj2_file=mj2_file)
 
     return timestamps_dict, n_frames_dict
 
@@ -137,4 +139,4 @@ if __name__ == "__main__":
     # This is a simplified config_file with only necessary to analyse quickly the continuous logging
     yaml_file = "C:/Users/rdard/Documents/test_data/log_file_config.yml"
     analyze_continuous_log(config_file=yaml_file,
-                           do_plot=False, plot_start=800, plot_stop=1000, camera_filtering=False)
+                           do_plot=True, plot_start=100, plot_stop=500, camera_filtering=False)

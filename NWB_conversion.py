@@ -2,10 +2,11 @@
 """
 import datetime
 import os
+import platform
 
 import yaml
 
-import utils.gf_utils as utils_gf
+import utils.utils_gf as utils_gf
 from continuous_log_analysis import analyze_continuous_log
 from converters.behavior_to_nwb import convert_behavior_data
 from converters.ci_movie_to_nwb import convert_ci_movie
@@ -72,7 +73,11 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True):
         convert_ephys_recording(nwb_file=nwb_file,
                                 config_file=config_file)
 
-    if config_dict.get("widefield_metadata") is not None:
+    # Check we are on WF computer
+    platform_info = platform.uname()
+    computer_name = platform_info.node
+    wf_computers = ['SV-07-082']  # Add name of WF preprocessing computers here
+    if computer_name in wf_computers and config_dict.get("widefield_metadata") is not None:
         print(" ")
         print("Convert widefield data")
 
@@ -91,12 +96,8 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True):
 if __name__ == '__main__':
 
     # Run the conversion
-    mouse_ids = [000]#[93,94,95] #74 to do
-    mouse_ids = ['PB' + str(mouse_id).zfill(3) for mouse_id in mouse_ids]
-    experimenter = 'PB'
-    mouse_ids = range(68,75) #85 to do
-    mouse_ids = ['AB' + str(mouse_id).zfill(3) for mouse_id in mouse_ids]
-    experimenter = 'AB'
+    mouse_ids = ['GF333']
+    experimenter = 'GF'
 
     if experimenter == 'GF':
         # Read excel database.
@@ -104,6 +105,8 @@ if __name__ == '__main__':
         db_name = 'sessions_GF.xlsx'
         db = utils_gf.read_excel_database(db_folder, db_name)
 
+    mouse_ids = db['subject_id'].unique()
+    
     for mouse_id in mouse_ids:
         data_folder = get_subject_data_folder(mouse_id)
         if os.path.exists(data_folder):
@@ -126,10 +129,10 @@ if __name__ == '__main__':
         # Create NWB by looping over sessions.
         for isession, iday in training_days:
 
-            # # Filter sessions to do :
-            session_to_do = ["RD039_20240124_142334", "RD039_20240125_142517", "RD039_20240205_150044", "RD040_20240125_151535", "PB000_20240205_181158"]
-            if isession not in session_to_do:
-                continue
+            # # # Filter sessions to do :
+            # session_to_do = ['GF333_24012021_145617']
+            # if isession not in session_to_do:
+            #     continue
 
             # date_to_do = '20240110'
             # if date_to_do not in isession:
@@ -151,12 +154,11 @@ if __name__ == '__main__':
             #         continue
 
             # Filter by session type
-            #if experimenter == 'AB' and iday != 'whisker_0':
-            #    continue
-
+            # if experimenter == 'AB' and iday != 'whisker_0':
+            #     continue
 
             # Find yaml config file and behavior results for this session.
-            config_yaml = os.path.join( analysis_folder, isession, f"config_{isession}.yaml")
+            config_yaml = os.path.join(analysis_folder, isession, f"config_{isession}.yaml")
 
             # Make conversion.
             print(" ------------------ ")

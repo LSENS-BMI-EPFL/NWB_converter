@@ -4,6 +4,7 @@ import sys
 import yaml
 import importlib
 import subprocess
+import dask.array as da
 from utils.widefield_utils import *
 from pynwb.ophys import OpticalChannel, Device, OnePhotonSeries, ImageSegmentation, Fluorescence
 import utils.server_paths as server_paths
@@ -84,7 +85,7 @@ def convert_widefield_recording(nwb_file, config_file, wf_frame_timestamps):
         name="F",
         binning=64,
         dimension=F_data.shape,
-        external_file=[os.path.join(analysis_folder, session_name, "F_data", 'F_data.h5')],
+        external_file=[os.path.join(analysis_folder, session_name, 'F_data.h5')],
         imaging_plane=imaging_plane,
         starting_frame=[0],
         format="external",
@@ -159,4 +160,6 @@ def convert_widefield_recording(nwb_file, config_file, wf_frame_timestamps):
                                             description="dff0 traces", control=[cell for cell in range(n_cells)],
                                             control_description=area_names)
         print(f"Creating Roi Response Series with dff0 traces of shape: {(np.transpose(dff0_traces)).shape}")
+
+    gc.collect()
 

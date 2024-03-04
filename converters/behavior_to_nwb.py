@@ -44,7 +44,7 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
                 behavior_results_file=behavior_results_file,
                 timestamps_dict=timestamps_dict
             )
-        elif config_dict.get('behaviour_metadata').get('trial_table') == 'simple': #TODO: remove?
+        elif config_dict.get('behaviour_metadata').get('trial_table') == 'simple':  # TODO: remove?
             trial_table = build_simplified_trial_table(behavior_results_file=behavior_results_file,
                                                        timestamps_dict=timestamps_dict)
     else:
@@ -56,8 +56,11 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
     else:
         add_trials_to_nwb(nwb_file=nwb_file, trial_table=trial_table)
 
-
     # Create NWB behaviour module (and module interfaces)
+
+    if timestamps_dict is None:
+        return
+
     print("Creating behaviour processing module")
     if 'behavior' in nwb_file.processing:
         bhv_module = nwb_file.processing['behavior']
@@ -99,14 +102,13 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
         behavior_events.add_timeseries(trial_timeseries)
         print(f"Adding {len(data_to_store)} {trial_type} to BehavioralEvents")
 
-
     # Get piezo lick timestamps
     piezo_licks_timestamps_dict = get_piezo_licks_timestamps_dict(timestamps_dict)
 
     if piezo_licks_timestamps_dict is not None:
         timestamps_to_store = np.array(piezo_licks_timestamps_dict)
         if timestamps_to_store.any():
-            timestamps_to_store = timestamps_to_store[:,0]
+            timestamps_to_store = timestamps_to_store[:, 0]
 
         data_to_store = np.transpose(np.array(timestamps_to_store))
         lick_timeseries = TimeSeries(name='piezo_lick_times',
@@ -125,7 +127,6 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
                                      continuity='instantaneous')
         behavior_events.add_timeseries(lick_timeseries)
         print(f"Adding {len(data_to_store)} piezo lick times to BehavioralEvents")
-
 
     # Get context timestamps if they exist
     context_timestamps_dict, context_sound_dict = get_context_timestamps_dict(timestamps_dict=timestamps_dict,
@@ -182,7 +183,6 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
                                                        description=description,
                                                        control=None, control_description=None)
 
-
     # Check if behaviour video filming
     if config_dict.get('session_metadata').get('experimenter') == 'AB':
         movie_files = server_paths.get_session_movie_files(config_file)
@@ -205,6 +205,7 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
             # Get information about video
             print("Check length and frame rate")
             video_length, video_frame_rate = continuous_processing.read_behavior_avi_movie(movie_file=movie)
+            print(f"Video length: {video_length}, frame rate: {video_frame_rate}")
 
             #  Check number of frames in video vs. number of timestamps
             if config_dict.get('session_metadata').get('experimenter') == 'AB':
@@ -223,19 +224,21 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
                 movie_nwb_file_name = movie
 
             else:
-                cam_key = 'cam1'
-                movie_nwb_file_name = f"{os.path.splitext(movie)[0]}_camera_{movie_index + 1}"
+                movie_nwb_file_name = f"{ os.path.split(movie)[1].split('.')[0]}_camera_{movie_index + 1}"
+                if 'side' in movie_nwb_file_name:
+                    cam_key = 'cam1'
+                if 'top' in movie_nwb_file_name:
+                    cam_key = 'cam2'
+                if ('top' not in movie_nwb_file_name) and ('side' not in movie_nwb_file_name):
+                    cam_key = 'cam1'
 
             # Get frame timestamps
             on_off_timestamps = timestamps_dict[cam_key]
-            if len(on_off_timestamps) - video_length > 2:
-                print("Difference in number of frames ({}) vs detected frames ({}) is larger than 2, do next video".format(video_length, len(on_off_timestamps)))
-                continue
-            elif video_length - len(on_off_timestamps) > 2:
-                print("Difference in number of frames ({}) vs detected frames ({}) is larger than 2, do next video".format(video_length, len(on_off_timestamps)))
+            if np.abs(len(on_off_timestamps) - video_length) > 2:
+                print(f"Difference in number of frames ({video_length}) vs detected frames ({len(on_off_timestamps)}) "
+                      f"is {len(on_off_timestamps) - video_length} (larger than 2), do next video")
                 continue
             else:
-
                 movie_timestamps = [on_off_timestamps[i][0] for i in range(video_length)]
 
             behavior_external_file = ImageSeries(

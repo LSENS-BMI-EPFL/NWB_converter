@@ -1,35 +1,40 @@
 import json
 import os
+from collections import defaultdict
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
 import yaml
 
-import utils.gf_utils as utils_gf
+import utils.utils_gf as utils_gf
 from utils import server_paths
 
 
-def find_training_days(subject_id, input_folder): #TODO: make this more general OR customable?
+def find_training_days(subject_id, input_folder):
 
     """
     Find days of behavioural training, excluding other test/dummy sessions.
+    Make labels for each session based on the type of behaviour for NWB files and analysis.
     Args:
         subject_id:
         input_folder:
 
-    Returns:
+    Returns: list of tuples (session_id, behaviour_type)
 
     """
     print('Finding training days for subject {}:'.format(subject_id))
-
     sessions_list = os.listdir(os.path.join(input_folder, 'Training'))
     sessions_list = [s for s in sessions_list if os.path.isdir(os.path.join(input_folder, 'Training', s))]
 
     # Ordering in time with lexicographic ordering assumes %Y%m%d data format in session id
     sessions_list = sorted(sessions_list)
 
-    # Find session type (auditory or whisker day) and label days with integer relative to first whisker training day
+    # ------------------------------------------------
+    # Get session type (e.g. auditory or whisker day)
+    # ------------------------------------------------
     behavior_type = []
+    sessions_to_remove = []
     for isession in sessions_list:
         if 'calibration' in isession:
             continue
@@ -37,21 +42,27 @@ def find_training_days(subject_id, input_folder): #TODO: make this more general 
         with open(json_path, 'r') as f:
             json_config = json.load(f)
 
-        if json_config['dummy_session_flag']:
-            print('Ignoring dummy session found: {}'.format(isession))
-            continue
-
-        # Add to list of behaviours
+        # Correct typos in behaviour names
         if json_config['behaviour_type'] == 'whisker_off':
             json_config['behaviour_type'] = 'whisker_off_1' # ensures correct string parsing
-        behavior_type.append(json_config['behaviour_type'])
+
+        if json_config['behaviour_type'] in ['fl', 'free licking']:
+            json_config['behaviour_type'] = 'free_licking'
+
+        if json_config['dummy_session_flag']:
+            print('Ignoring dummy session found: {}, {}'.format(isession, json_config['behaviour_type']))
+            sessions_to_remove.append(isession)
+        else:
+            # Add to list of behaviours
+            behavior_type.append(json_config['behaviour_type'])
 
     print('Found the following sessions behaviors from raw data: {}'.format(behavior_type))
+    sessions_list = [s for s in sessions_list if s not in sessions_to_remove]
 
-    # Fixing typo in behavior type
-    behavior_type = ['free_licking' if behavior == 'free licking' else behavior for behavior in behavior_type]
-
-    # Format behavior type for NWB
+    # ---------------------------------------
+    # Count sessions based on list of laboratory-defined behaviours
+    # Note: after agreement with rest of lab, add your "behaviour_type" label in this section
+    # ---------------------------------------
     pretraining_behaviours = ['free_licking',
                               'auditory']
     n_aud = len([s for s in behavior_type if s in pretraining_behaviours])
@@ -67,13 +78,58 @@ def find_training_days(subject_id, input_folder): #TODO: make this more general 
                           'whisker_on_2']
     n_ctrl = len([s for s in behavior_type if s in control_behaviours])
 
-    # Create behaviour-day/session index labels  aligned to first whisker day
-    label = list(range(-n_aud, 0)) + list(range(0, n_wh + n_ctrl))
+    # ------------------------------
+    # Format behaviour label for NWB
+    # ------------------------------
+    if subject_id[0:2] == 'AB':
+        # List of boolean if consecutive dates are increasing
+        dates = [datetime.strptime(s.split('_')[1], '%Y%m%d') for s in sessions_list]
+        increasing_dates = [dates[i] > dates[i - 1] for i in range(1, len(dates))]
+        increasing_dates = [True] + increasing_dates  # first date is always increasing
 
-    label = [f"+{d}" if d > 0 else str(d) for d in label]
-    behavior_type = [f"{t}_{l}" for t, l in zip(behavior_type, label)]
+        # If whisker sessions, label sessions aligned to first whisker day
+        whisker_session_ids = [i for i, s in enumerate(behavior_type) if s in whisker_behaviours]
+        if whisker_session_ids:
+            label = list(range(-n_aud, 0)) + list(range(0, n_wh + n_ctrl))
 
-    # Create list of training days
+            # Case of several sesssions per day: update labels if dates are not increasing
+            for i in range(len(label)):
+                # If date is not increasing, substract all labels by 1
+                if not increasing_dates[i] and label[i] >= 0:
+                    # Then update all subsequent labels by -1
+                    label[i:] = [l-1 for l in label[i:]]
+
+            label = [f"+{d}" if d > 0 else str(d) for d in label]
+            behavior_type = [f"{t}_{l}" for t, l in zip(behavior_type, label)]
+
+        # Else, label sessions in chronological order, by day
+        else:
+            label = np.cumsum(increasing_dates) - 1
+            behavior_type = [f"{t}_{l}" for t, l in zip(behavior_type, label)]
+
+        # Case several identical behaviours per day: add suffix for identical session labels on the same date
+        sess_date_counts = defaultdict(int)
+        beh_date_list = list(zip(behavior_type, dates))
+        for i, (string, date) in enumerate(beh_date_list):
+            # Increment count for this string and date combination
+            sess_date_counts[(string, date)] += 1
+
+            # If there are more than one occurrence of this string with the same date
+            if sess_date_counts[(string, date)] > 1:
+                # Add a suffix to the current occurrence
+                suffix = "_" + str(sess_date_counts[(string, date)] - 1)
+                beh_date_list[i] = (string + suffix, date)
+
+    else:
+        # Create behaviour-day/session index labels  aligned to first whisker day
+        label = list(range(-n_aud, 0)) + list(range(0, n_wh + n_ctrl))
+        label = [f"+{d}" if d > 0 else str(d) for d in label]
+        behavior_type = [f"{t}_{l}" for t, l in zip(behavior_type, label)]
+
+    # --------------------------------------
+    # Create list of labels for each session
+    # --------------------------------------
+
     training_days = list(zip(sessions_list, behavior_type))
 
     return training_days
@@ -106,6 +162,7 @@ def get_trial_timestamps_dict(timestamps_dict, behavior_results_file, config_fil
         behavior_results = pd.DataFrame(perf_json['results'], columns=perf_json['headers'])
         # Remap GF columns.
         behavior_results = utils_gf.map_result_columns(behavior_results)
+        n_trials_max = len(behavior_results)
     else:
         if os.path.splitext(behavior_results_file)[1] == '.txt':
             sep = r'\s+'
