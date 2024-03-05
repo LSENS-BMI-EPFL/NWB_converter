@@ -76,7 +76,7 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True):
     # Check we are on WF computer
     platform_info = platform.uname()
     computer_name = platform_info.node
-    wf_computers = ['SV-07-082']  # Add name of WF preprocessing computers here
+    wf_computers = ['SV-07-082', 'SV-07-097']  # Add name of WF preprocessing computers here
     if computer_name in wf_computers and config_dict.get("widefield_metadata") is not None:
         print(" ")
         print("Convert widefield data")
@@ -96,8 +96,8 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True):
 if __name__ == '__main__':
 
     # Run the conversion
-    mouse_ids = ['GF333']
-    experimenter = 'GF'
+    mouse_ids = ["PB170", "PB171", "PB172", "PB173", "PB174", "PB175"]
+    experimenter = 'PB'
 
     if experimenter == 'GF':
         # Read excel database.
@@ -105,7 +105,7 @@ if __name__ == '__main__':
         db_name = 'sessions_GF.xlsx'
         db = utils_gf.read_excel_database(db_folder, db_name)
 
-    mouse_ids = db['subject_id'].unique()
+        mouse_ids = db['subject_id'].unique()
     
     for mouse_id in mouse_ids:
         data_folder = get_subject_data_folder(mouse_id)
@@ -130,7 +130,7 @@ if __name__ == '__main__':
         for isession, iday in training_days:
 
             # # # Filter sessions to do :
-            # session_to_do = ['GF333_24012021_145617']
+            # session_to_do = ['PB170_20240221_140222']
             # if isession not in session_to_do:
             #     continue
 

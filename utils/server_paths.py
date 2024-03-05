@@ -365,7 +365,7 @@ def get_opto_config_file(config_file):
         config = yaml.safe_load(stream)
     mouse_name = config['subject_metadata']['subject_id']
     session_name = config['session_metadata']['session_id']
-    data_folder = get_subject_analysis_folder(mouse_name)
+    data_folder = get_subject_data_folder(mouse_name)
     opto_config_file = os.path.join(data_folder, 'Training', session_name, 'opto_config.json')
 
     if not os.path.exists(opto_config_file):
