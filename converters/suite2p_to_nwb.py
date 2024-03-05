@@ -84,7 +84,7 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
     data = [F_cor, F_raw, F0, dff]
     data_labels = ['F_cor', 'F_raw', 'F0', 'dff']
     descriptions = ['F_cor: Fissa corrected traces.',
-                    'F_raw: raw fluorescence traces extracted by Fissa'
+                    'F_raw: raw fluorescence traces extracted by Fissa',
                     'F0: 5% percentile baseline computed over a 2 min rolling window of F_raw.',
                     'dff: Normalized fissa output, dff = F_cor / F0.']
 
