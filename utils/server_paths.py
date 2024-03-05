@@ -10,7 +10,7 @@ EXPERIMENTER_MAP = {
     'MP': 'Mauro_Pulin',
     'PB': 'Pol_Bech',
     'MM': 'Meriam_Malekzadeh',
-    'LS': 'Lana_Smith',
+    'MS': 'Lana_Smith',
     'GF': 'Anthony_Renard',
     'MI': 'Anthony_Renard',
 }
