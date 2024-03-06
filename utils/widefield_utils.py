@@ -65,7 +65,6 @@ def compute_F0_early_percentile(F, winsize=500):
     return np.nanpercentile(F[:winsize], 5, axis=0)
 
 
-
 def compute_dff0(data_folder, method='percentile'):
 
     start = time.time()
@@ -84,6 +83,9 @@ def compute_dff0(data_folder, method='percentile'):
     F_file.close()
     del F
     gc.collect()
+
+    print("Saving F0 ... ")
+    iio.imwrite(os.path.join(data_folder, 'F0.tiff'), F0)
 
     print("Computing dff0 ... ")
     F_file = h5py.File(os.path.join(data_folder, 'F_data.h5'), 'r')
