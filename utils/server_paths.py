@@ -180,6 +180,21 @@ def get_session_movie_files(config_file):
     return movies
 
 
+def get_imaging_folder(config_file):
+    with open(config_file, 'r', encoding='utf8') as stream:
+        config = yaml.safe_load(stream)
+    mouse_name = config['subject_metadata']['subject_id']
+    session_name = config['session_metadata']['session_id']
+
+    analysis_folder = get_subject_analysis_folder(mouse_name)
+    tiff_path = os.path.join(analysis_folder, session_name, 'suite2p', 'plane0', 'reg_tif')
+    if not os.path.exists(tiff_path):
+        data_folder = get_subject_data_folder(mouse_name)
+        tiff_path = os.path.join(data_folder, 'Recording', 'Imaging', session_name)
+
+    return tiff_path
+
+
 def get_imaging_file(config_file):
     with open(config_file, 'r', encoding='utf8') as stream:
         config = yaml.safe_load(stream)

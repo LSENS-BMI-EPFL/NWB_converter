@@ -1,8 +1,9 @@
 import numpy as np
 import yaml
+import os
 from pynwb.ophys import Device, OpticalChannel, TwoPhotonSeries
 
-from utils.server_paths import get_imaging_file
+from utils.server_paths import get_imaging_file, get_imaging_folder
 from utils.tiff_loading import get_tiff_movie_shape, load_tiff_movie_in_memory
 
 
@@ -77,8 +78,24 @@ def convert_ci_movie(nwb_file, config_file, movie_format, add_movie_data_or_link
         elif movie_format == 'link':
             print('Add link to imaging data')
             print("Extract tiff movie shape:")
-            n_frames, n_lines, n_cols, starting_frames = get_tiff_movie_shape(motion_corrected_file_name)
-            print(f"Movie dimensions n_frames, n_lines, n_cols :{n_frames, n_lines, n_cols}")
+            movie_spec_yaml_file = os.path.join(get_imaging_folder(config_file), f"movie_specs.yaml")
+            if os.path.exists(movie_spec_yaml_file):
+                print(f"Read movie info (shape, starting frames) from {movie_spec_yaml_file}:")
+                with open(movie_spec_yaml_file, 'r', encoding='utf8') as stream:
+                    movie_spec = yaml.safe_load(stream)
+                n_frames = movie_spec['movie shape']['n_frames']
+                n_lines = movie_spec['movie shape']['n_lines']
+                n_cols = movie_spec['movie shape']['n_cols']
+                starting_frames = movie_spec['starting frames']
+            else:
+                print(f"Count number of frames :")
+                n_frames, n_lines, n_cols, starting_frames = get_tiff_movie_shape(motion_corrected_file_name)
+                print(f"Movie dimensions n_frames, n_lines, n_cols :{n_frames, n_lines, n_cols}")
+                movie_shape_dict = {'n_frames': n_frames, 'n_lines': n_lines, 'n_cols': n_cols}
+                movie_info_dict = {'movie shape': movie_shape_dict, 'starting frames': starting_frames}
+                with open(os.path.join(get_imaging_folder(config_file), f"movie_specs.yaml"), 'w') as stream:
+                    yaml.dump(movie_info_dict, stream, default_flow_style=False, explicit_start=False)
+                print("Save .yaml file with movie shape and starting frames")
 
             motion_corrected_img_series = TwoPhotonSeries(name='motion_corrected_ci_movie',
                                                           dimension=[n_frames, n_lines, n_cols],
