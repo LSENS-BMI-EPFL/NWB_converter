@@ -139,4 +139,4 @@ if __name__ == "__main__":
     # This is a simplified config_file with only necessary to analyse quickly the continuous logging
     yaml_file = "C:/Users/rdard/Documents/test_data/log_file_config.yml"
     analyze_continuous_log(config_file=yaml_file,
-                           do_plot=True, plot_start=100, plot_stop=500, camera_filtering=False)
+                           do_plot=False, plot_start=100, plot_stop=500, camera_filtering=False)

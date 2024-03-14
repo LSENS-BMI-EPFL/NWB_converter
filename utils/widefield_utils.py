@@ -65,7 +65,6 @@ def compute_F0_early_percentile(F, winsize=500):
     return np.nanpercentile(F[:winsize], 5, axis=0)
 
 
-
 def compute_dff0(data_folder, method='percentile'):
 
     start = time.time()
@@ -84,6 +83,9 @@ def compute_dff0(data_folder, method='percentile'):
     F_file.close()
     del F
     gc.collect()
+
+    print("Saving F0 ... ")
+    iio.imwrite(os.path.join(data_folder, 'F0.tiff'), F0)
 
     print("Computing dff0 ... ")
     F_file = h5py.File(os.path.join(data_folder, 'F_data.h5'), 'r')
@@ -238,7 +240,7 @@ def prompt_overwrite(folder_path, file):
 
 
 def make_alignment_reference(mouse_id, align_to='bregma', overwrite_sesison=None):
-
+    sessions_to_skip = ['PB175_20240308_140045']
     analysis_folder = get_subject_analysis_folder(mouse_id)
     ref_file = os.path.join(analysis_folder, 'alignment_ref.csv')
     sessions = os.listdir(analysis_folder)
@@ -247,6 +249,9 @@ def make_alignment_reference(mouse_id, align_to='bregma', overwrite_sesison=None
             continue
 
         if not os.path.isdir(os.path.join(analysis_folder, session_id)):
+            continue
+
+        if session_id in sessions_to_skip:
             continue
 
         wf_file = get_widefield_file(os.path.join(analysis_folder, session_id, f"config_{session_id}.yaml"))

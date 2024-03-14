@@ -169,6 +169,9 @@ def get_trial_timestamps_dict(timestamps_dict, behavior_results_file, config_fil
         else:
             sep = ','
         behavior_results = pd.read_csv(behavior_results_file, sep=sep, engine='python')
+        # Because stitching tables manually with excel changes sep character.
+        if behavior_results.columns.shape[0] == 1:
+            behavior_results = pd.read_csv(behavior_results_file, sep=';', engine='python')
         n_trials_max = len(behavior_results)
 
         # TODO: get max number of trials possible
@@ -391,14 +394,18 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
         else:
             sep = ','
         trial_table = pd.read_csv(behavior_results_file, sep=sep, engine='python')
-    trial_table = utils_gf.map_result_columns(trial_table)
+        # Because stitching tables manually with excel changes sep character.
+        if trial_table.columns.shape[0] == 1:
+            trial_table = pd.read_csv(behavior_results_file, sep=';', engine='python')
+    if experimenter in ['GF', 'MI']:
+        trial_table = utils_gf.map_result_columns(trial_table)
 
     trial_type_list = list_standard_trial_type(results_table=trial_table)
     n_trials = trial_table['perf'].size
     print(f"Read '.csv' file to build trial NWB trial table ({n_trials} trials)")
 
     # Get logged timestamps
-    if (timestamps_dict is not None) and (timestamps_dict['trial_TTL'] !=[]):
+    if (timestamps_dict is not None) and (timestamps_dict['trial_TTL'] != []):
         trial_timestamps = np.array(timestamps_dict['trial_TTL'])
 
     # Case when sessions were acquired before continuous logging of behavioral data

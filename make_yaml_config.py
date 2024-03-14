@@ -50,7 +50,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     # Select most recent metadata export from SLIMS folder.
     try:
         slims_csv = sorted(os.listdir(os.path.join(input_folder, 'SLIMS')))[
-            -1]  # post-euthanasia SLIMS file has more information
+            0]  # post-euthanasia SLIMS file has more information
         slims_csv_path = os.path.join(input_folder, 'SLIMS', slims_csv)
         slims = pd.read_csv(slims_csv_path, sep=';', engine='python')
     except IndexError:
@@ -321,7 +321,7 @@ def create_channels_threshold_dict(experimenter, json_config, session_type):
             },
         }
 
-    elif json_config['wf_session']:
+    elif json_config['wf_session'] or (session_type in ['opto_session', 'wf_opto_session']):
         channels_dict = {
             'trial_TTL': 2,
             'lick_trace': 0,
@@ -457,8 +457,8 @@ def create_wf_metadata(config_path):
 
 if __name__ == '__main__':
     # Select mouse IDs.
-    mouse_ids = [95]
-    mouse_ids = ['AB' + str(mouse_id).zfill(3) for mouse_id in mouse_ids]
+    mouse_ids = ["PB170", "PB171", "PB172", "PB173", "PB174", "PB175"]
+    # mouse_ids = ['AB' + str(mouse_id).zfill(3) for mouse_id in mouse_ids]
 
     last_done_day = None
 
