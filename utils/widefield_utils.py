@@ -240,7 +240,7 @@ def prompt_overwrite(folder_path, file):
 
 
 def make_alignment_reference(mouse_id, align_to='bregma', overwrite_sesison=None):
-
+    sessions_to_skip = ['PB175_20240308_140045']
     analysis_folder = get_subject_analysis_folder(mouse_id)
     ref_file = os.path.join(analysis_folder, 'alignment_ref.csv')
     sessions = os.listdir(analysis_folder)
@@ -249,6 +249,9 @@ def make_alignment_reference(mouse_id, align_to='bregma', overwrite_sesison=None
             continue
 
         if not os.path.isdir(os.path.join(analysis_folder, session_id)):
+            continue
+
+        if session_id in sessions_to_skip:
             continue
 
         wf_file = get_widefield_file(os.path.join(analysis_folder, session_id, f"config_{session_id}.yaml"))
