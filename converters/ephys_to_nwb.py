@@ -167,7 +167,6 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
             electrode_counter += 1
 
         # Create a list of reference electrodes for ElectricalSeries objects (raw voltage, LFP)
-        print('elec region', len_table, electrode_counter, 'total elec', n_chan_total)
         all_table_region = nwb_file.create_electrode_table_region(
             region=list(range(len_table, electrode_counter)),  # exclude sync channel 768
             description="all electrodes",

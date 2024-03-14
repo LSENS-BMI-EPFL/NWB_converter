@@ -304,11 +304,21 @@ def format_ephys_timestamps(config_file, ephys_timestamps_dict):
                 timestamps_dict[event] = []
             else:
                 ts_on = timestamps
+
+                # Remove first/last pulses due to camera being turned ON or OFF
+                # These pulse are several seconds long
+                diff_ts_on = np.diff(ts_on)
+                if diff_ts_on[0] > 1:
+                    ts_on = ts_on[1:]
+                if diff_ts_on[-1] > 1:
+                    ts_on = ts_on[:-1]
+
                 # Get exposure time
                 exposure_time = float(config['behaviour_metadata']['camera_exposure_time']) / 1000
                 ts_off = ts_on + exposure_time
                 timestamps = list(zip(ts_on, ts_off))
                 timestamps_dict[event] = timestamps
+
 
         elif event == 'reward_times':
             timestamps = list(zip(timestamps, itertools.repeat(np.nan)))
