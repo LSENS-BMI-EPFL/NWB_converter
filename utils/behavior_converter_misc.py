@@ -446,9 +446,15 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
     trial_table.replace({'reaction_time': 0}, np.nan, inplace=True)
 
     # Define rewards availability
-    reward_available = [1 if(trial_table.loc[i].is_auditory == 1 or
-                             (trial_table.loc[i].is_whisker == 1 and trial_table.loc[i].wh_reward == 1)) else 0
-                        for i in range(n_trials)]
+    if 'partial_reward_flag' in session_config.keys():
+        reward_available = [1 if(trial_table.loc[i].is_auditory == 1 or
+                                    (trial_table.loc[i].is_whisker == 1 and trial_table.loc[i].is_reward == 1)) else 0
+                                for i in range(n_trials)]
+    else:
+        reward_available = [1 if (trial_table.loc[i].is_auditory == 1 or
+                                  (trial_table.loc[i].is_whisker == 1 and trial_table.loc[i].wh_reward == 1)) else 0
+                            for i in range(n_trials)]
+
 
     # Build trial table
     standard_trial_table['id'] = trial_table['trial_number'] - 1  # zero-indexed
