@@ -492,5 +492,5 @@ if __name__ == '__main__':
             make_yaml_config(mouse_id, session_id, day, data_folder, analysis_folder,
                              mouse_line='C57BL/6', gmo=False)
 
-            add_metadata_to_config(yaml_file, experimenter)
+            add_metadata_to_config(mouse_id, session_id, 'AR')
 
