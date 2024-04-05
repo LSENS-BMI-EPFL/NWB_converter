@@ -494,7 +494,7 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
             standard_trial_table['context'] = trial_table['wh_reward']
             standard_trial_table['context_background'] = trial_table['context_block']
         else:
-            standard_trial_table['context'] = np.nan
+            standard_trial_table['context'] = trial_table['context_block']
             standard_trial_table['context_background'] = np.nan
     else:
         standard_trial_table['context'] = np.nan
