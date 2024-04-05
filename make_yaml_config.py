@@ -138,6 +138,8 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     else:
         session_type = 'behaviour_only_session'
 
+    session_type = 'behaviour_only_session'
+
     session_experiment_metadata = {
         'reference_weight': ref_weight,  # reference weight before water-restriction
         'session_type': session_type,
@@ -248,7 +250,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     if json_config['twophoton_session']:
         main_dict.update({'two_photon_metadata': two_photon_metadata})
 
-    elif json_config['ephys_session']:
+    elif json_config['ephys_session'] and ephys_metadata['processed'] == 1:
         main_dict.update({'ephys_metadata': ephys_metadata})
 
     elif json_config['wf_session']:
