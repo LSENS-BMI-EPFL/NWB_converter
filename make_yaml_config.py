@@ -13,6 +13,7 @@ from utils.server_paths import (get_ref_weight_folder,
                                 get_subject_analysis_folder,
                                 get_subject_data_folder,
                                 get_subject_mouse_number)
+from metadata_to_yaml import add_metadata_to_config
 
 # Update your keywords
 GENERAL_KEYWORDS = ['neurophysiology', 'behaviour', 'mouse']
@@ -459,10 +460,10 @@ def create_wf_metadata(config_path):
 
 if __name__ == '__main__':
     # Select mouse IDs.
-    mouse_ids = [108]
-    mouse_ids = ['AB' + str(mouse_id).zfill(3) for mouse_id in mouse_ids]
-
-    last_done_day = None
+    # mouse_ids = ['RD039', 'RD040', 'RD041']
+    # mouse_ids = ['RD042', 'RD043', 'RD044', 'RD045']
+    mouse_ids = ['RD039']
+    last_done_day = '20240307'
 
     for mouse_id in mouse_ids:
 
@@ -479,16 +480,19 @@ if __name__ == '__main__':
         training_days = find_training_days(mouse_id, data_folder)
 
         for session_id, day in training_days:
+
             session_date = session_id.split('_')[1]
             session_date = datetime.datetime.strptime(session_date, "%Y%m%d")
-
             if last_done_day is not None:
                 if session_date <= datetime.datetime.strptime(last_done_day, "%Y%m%d"):
                     continue
 
-            #sessions_to_do = ["PB124_20230404_141456"]
-            #if session_id not in sessions_to_do:
-            #    continue
+            # sessions_to_do = ["PB124_20230404_141456"]
+            # if session_id not in sessions_to_do:
+            #     continue
 
             make_yaml_config(mouse_id, session_id, day, data_folder, analysis_folder,
                              mouse_line='C57BL/6', gmo=False)
+
+            add_metadata_to_config(mouse_id, session_id, 'AR')
+
