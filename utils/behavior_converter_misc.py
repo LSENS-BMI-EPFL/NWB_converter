@@ -411,8 +411,8 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
     # Case when sessions were acquired before continuous logging of behavioral data
     else:
         trial_timestamps = np.zeros((n_trials, 2))
-        trial_timestamps[:, 0] = trial_table['trial_time'] # use results table information instead
-        trial_timestamps[:, 1] = trial_table['trial_time'] + 1.0 # response window
+        trial_timestamps[:, 0] = trial_table['trial_time']  # use results table information instead
+        trial_timestamps[:, 1] = trial_table['trial_time'] + 1.0  # response window
         if session_config['mouse_name'][0:2] == 'AB' and int(session_config['mouse_name'][2:-1]) < 68:
             trial_table = check_trial_table_content(trial_table=trial_table)
 
@@ -454,7 +454,6 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
         reward_available = [1 if (trial_table.loc[i].is_auditory == 1 or
                                   (trial_table.loc[i].is_whisker == 1 and trial_table.loc[i].wh_reward == 1)) else 0
                             for i in range(n_trials)]
-
 
     # Build trial table
     standard_trial_table['id'] = trial_table['trial_number'] - 1  # zero-indexed
