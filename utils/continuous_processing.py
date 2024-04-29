@@ -229,6 +229,8 @@ def plot_continuous_data_dict(continuous_data_dict, timestamps_dict, ni_session_
                         if t_stop is not None and x_pos[0] > t_stop:
                             continue
                         ax.axvline(x=x_pos[0], color="green")
+                elif channel_name == 'empty':
+                    continue
                 else:
                     for x_pos in list(on_off_times):
                         if t_start is not None and x_pos < t_start:
@@ -318,7 +320,6 @@ def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scan
 
         # Do not extract timestamps for these keys
         if key in ["timestamps", 'empty_1', 'empty_2']:
-
             continue
 
         if key == "lick_trace":

@@ -437,7 +437,7 @@ def create_simplified_unit_table(nwb_file):
     Returns:
 
     """
-    default_cols = ['id', 'spike_times']
+
     # Create Units table (default columns are id and spike_times)
     dict_columns_to_add = {
         'cluster_id': 'cluster index, from KS(probe-wise)',
@@ -450,7 +450,6 @@ def create_simplified_unit_table(nwb_file):
         'sampling_rate': 'sampling rate used for that probe, in Hz',
         'duration': 'spike duration, in ms, from trough to peak',
         'pt_ratio': 'peak-to-trough ratio',
-        # 'unit_type': '“rsu” or “fsu” classification',
     }
     for col_key, col_desc in dict_columns_to_add.items():
         nwb_file.add_unit_column(name=col_key, description=col_desc)
@@ -458,7 +457,7 @@ def create_simplified_unit_table(nwb_file):
     return
 
 
-def create_unit_table(nwb_file):
+def create_unit_table_bis(nwb_file):
     """
     Create units table in nwb file.
     Args:
@@ -467,7 +466,7 @@ def create_unit_table(nwb_file):
     Returns:
 
     """
-    default_cols = ['id', 'spike_times']
+
     # Create Units table (default columns are id and spike_times)
     dict_columns_to_add = {
         'cluster_id': 'cluster index, from KS(probe-wise)',
@@ -475,12 +474,31 @@ def create_unit_table(nwb_file):
         'electrode_group': 'ElectrodeGroup object (i.e. probe) recording the unit',
         'depth': 'depth of peak electrode, in probe space, from KS',
         'ks_label': 'unit quality label, form Kilosort and curation (Phy): “good”, “mua”',
+        'bc_label': 'unit quality label, from Bombcell: "good","mua","non-soma"',
         'firing_rate': 'total firing rate in session, in Hz',
-        'waveform_mean': 'mean spike waveform (a vector), in uV',
+        'maxChannels': 'channel of max waveform amplitude',
+        'bc_cluster_id': 'bombcell-based cluster ID',
+        'useTheseTimesStart': 'start time for quality metric calculation',
+        'useTheseTimesStop': 'stop time for quality metric calculation',
+        'RPV_tauR_estimate': 'desc',
+        'percentageSpikesMissing_gaussian': 'esimated percentage of spikes missing',
+        'percentageSpikesMissing_symmetric': 'estimated percentage of spikes missing symmetrically',
+        'ksTest_pValue': 'p-value of a Kolmogorov-Smirnov test',
+        'presenceRatio': 'number of time chunks of specific size containing at least one spike over total number of time chunks',
+        'nSpikes': 'number of spikes',
+        'nPeaks': 'number of template waveform peaks on peak channel',
+        'nTroughs': 'number of template waveform troughs on peak channel',
+        'isSomatic': 'waveforms classified as somatic (Deligkaris et al., 2016)',
+        'waveformDuration_peakTrough': 'peak-to-trough template waveform duration, in us',
+        'spatialDecaySlope': 'slope of spatial decay of template waveform amplitude across channels up to 100 um away, in (a.u.)/um',
+        'waveformBaselineFlatness': 'ratio of max. value in baseline window vs. max. value in waveform window',
+        'rawAmplitude': 'raw mean waveform maximum amplitude, in uV',
+        'signalToNoiseRatio': 'maximum waveform value (peak channel) divided by the variance across its raw extracted waveform baselines ',
+        'fractionRPVs_estimatedTauR': 'estimated percent of refractory period violations (Hill et al., 2011)',
+        'waveform_mean': 'mean spike waveform from actual data, in uV',
         'sampling_rate': 'sampling rate used for that probe, in Hz',
         'duration': 'spike duration, in ms, from trough to peak',
         'pt_ratio': 'peak-to-trough ratio',
-        # 'unit_type': '“rsu” or “fsu” classification',
         'ccf_ml': 'ccf peak channel coordinate in ml axis',
         'ccf_ap': 'ccf peak channel coordinate in ap axis',
         'ccf_dv': 'ccf peak channel coordinate in dv axis',
@@ -494,8 +512,180 @@ def create_unit_table(nwb_file):
     for col_key, col_desc in dict_columns_to_add.items():
         nwb_file.add_unit_column(name=col_key, description=col_desc)
 
+    return
+
+def create_unit_table(nwb_file):
+    """
+    Create units table in nwb file.
+    Args:
+        nwb_file: NWB file object
+
+    Returns:
+
+    """
+
+    # Create Units table (default columns are id and spike_times)
+    dict_columns_to_add = {
+        'cluster_id': 'cluster index, from KS(probe-wise)',
+        'peak_channel': 'electrode with max waveform amplitude, from KS',
+        'electrode_group': 'ElectrodeGroup object (i.e. probe) recording the unit',
+        'depth': 'depth of peak electrode, in probe space, from KS',
+        'ks_label': 'unit quality label, form Kilosort and curation (Phy): “good”, “mua”',
+        'firing_rate': 'total firing rate in session, in Hz',
+        'waveform_mean': 'mean spike waveform (a vector), in uV',
+        'sampling_rate': 'sampling rate used for that probe, in Hz',
+        'duration': 'spike duration, in ms, from trough to peak',
+        'pt_ratio': 'peak-to-trough ratio',
+        'ccf_ml': 'ccf peak channel coordinate in ml axis',
+        'ccf_ap': 'ccf peak channel coordinate in ap axis',
+        'ccf_dv': 'ccf peak channel coordinate in dv axis',
+        'ccf_id': 'ccf region ID',
+        'ccf_acronym': 'ccf region acronym',
+        'ccf_name': 'ccf region name',
+        'ccf_parent_id': 'ccf parent region ID',
+        'ccf_parent_acronym': 'ccf parent region acronym',
+        'ccf_parent_name': 'ccf parent region name',
+    }
+    for col_key, col_desc in dict_columns_to_add.items():
+        nwb_file.add_unit_column(name=col_key, description=col_desc)
+
+    return
+
+def build_unit_table_bis(imec_folder, sync_spike_times_path):
+    """
+    Build unit table from spike sorting/curation output.
+    Args:
+        imec_folder:
+        sync_spike_times_path:
+
+    Returns:
+
+    """
+
+    # Init. table
+    unit_table = pd.DataFrame()
+
+    # ----------------------------
+    # Load Kilosort cluster table
+    # ----------------------------
+
+    cluster_info_path = pathlib.Path(imec_folder, 'kilosort2', 'cluster_info.tsv')
+    try:
+        cluster_info_df = pd.read_csv(cluster_info_path, sep='\t')
+    except FileNotFoundError:
+        print('No spike sorting at: {}'.format(cluster_info_path))
+        return
+
+    cluster_info_df.rename(columns={'KSLabel': 'ks_label',
+                                    'Amplitude': 'amplitude',
+                                    'ContamPct': 'contam_pct',
+                                    'bc_unitType': 'bc_label'}, inplace=True)
+
+    # Find if cluster had a curated label
+    cluster_info_df['curated'] = cluster_info_df.apply(lambda x: 0 if pd.isnull(x.group) else 1, axis=1)
+
+    # Phy-based new clusters/ new splits have no ks_label: convert NaN to None
+    cluster_info_df.fillna(value='', inplace=True)  # returns None
+
+    # Format columns
+    cluster_info_df = cluster_info_df['bc_label'].str.lower()
+
+    # Get valid cluster indices
+    #valid_cluster_ids = cluster_info_df[cluster_info_df.group.isin(['good', 'mua'])].index  # dataframe indices
+    valid_cluster_ids = cluster_info_df[cluster_info_df.bc_label.isin(['good', 'mua', 'non-soma'])].index  # dataframe indices
+    cluster_info_df_sub = cluster_info_df.loc[valid_cluster_ids, :]
+
+    # Add cluster information
+    unit_table['cluster_id'] = cluster_info_df_sub['cluster_id']
+    unit_table['peak_channel'] = cluster_info_df_sub['ch']
+    unit_table['depth'] = cluster_info_df_sub['depth']
+    unit_table['ks_label'] = cluster_info_df_sub['group']  # "group" is the Phy-curated label, "KSLabel" is the KS raw label
+    unit_table['bc_label'] = cluster_info_df_sub['bc_label']  # automatic curation from bombcell
+    unit_table['firing_rate'] = cluster_info_df_sub['fr']
+
+    # Load spikes times
+    spike_times_sync = np.load(sync_spike_times_path)
+    spike_times_sync_df = pd.DataFrame(data=spike_times_sync, columns=['spike_times'])
+    spike_times_sync_df.index.name = 'spike_id'
+    spike_times_per_cluster = []
+
+    # Load spike cluster assignments
+    spike_clusters = np.load(os.path.join(imec_folder, 'spike_clusters.npy'))
+    spike_clusters_df = pd.DataFrame(data=spike_clusters, columns=['cluster_id'])
+    spike_clusters_df.index.name = 'spike_id'
+
+    # Note: Iterate over selected good cluster only !
+    for c_id in cluster_info_df.cluster_id.values:
+        spike_ids = spike_clusters_df[spike_clusters_df.cluster_id == c_id].index
+        spike_times_per_cluster.append(np.array(spike_times_sync_df.iloc[spike_ids].spike_times))
+    cluster_info_df['spike_times'] = spike_times_per_cluster
+
+    unit_table['spike_times'] = cluster_info_df.loc[valid_cluster_ids].spike_times
+
+    # -----------------------------------------
+    # Load bombcell quality metrics
+    # -----------------------------------------
+
+    bc_file_path = pathlib.Path(imec_folder, 'kilosort2', 'qMetrics', 'templates._bc_qMetrics.parquet')
+    bc_info_df = pd.read_parquet(bc_file_path)
+
+    # Rename columns
+    old_to_new_columns = {
+        'phy_clusterID': 'cluster_id',  # kilosort/phy cluster ID
+        'clusterID': 'bc_cluster_id',  # bombcell cluster ID (indexed at 1)
+    }
+    bc_info_df.rename(columns=old_to_new_columns, inplace=True)
+
+    # Add bombcell quality metrics
+    unit_table['maxChannels'] = bc_info_df['maxChannels']
+    unit_table['bc_cluster_id'] = bc_info_df['bc_cluster_id']
+    unit_table['useTheseTimesStart'] = bc_info_df['useTheseTimesStart']
+    unit_table['useTheseTimesStop'] = bc_info_df['useTheseTimesStop']
+    unit_table['RPV_tauR_estimate'] = bc_info_df['RPV_tauR_estimate']
+    unit_table['percentageSpikesMissing_gaussian'] = bc_info_df['percentageSpikesMissing_gaussian']
+    unit_table['percentageSpikesMissing_symmetric'] = bc_info_df['percentageSpikesMissing_symmetric']
+    unit_table['ksTest_pValue'] = bc_info_df['ksTest_pValue']
+    unit_table['presenceRatio'] = bc_info_df['presenceRatio']
+    unit_table['nSpikes'] = bc_info_df['nSpikes']
+    unit_table['nPeaks'] = bc_info_df['nPeaks']
+    unit_table['nTroughs'] = bc_info_df['nTroughs']
+    unit_table['isSomatic'] = bc_info_df['isSomatic']
+    unit_table['waveformDuration_peakTrough'] = bc_info_df['waveformDuration_peakTrough']
+    unit_table['spatialDecaySlope'] = bc_info_df['spatialDecaySlope']
+    unit_table['waveformBaselineFlatness'] = bc_info_df['waveformBaselineFlatness']
+    unit_table['rawAmplitude'] = bc_info_df['rawAmplitude']
+    unit_table['signalToNoiseRatio'] = bc_info_df['signalToNoiseRatio']
+    unit_table['fractionRPVs_estimatedTauR'] = bc_info_df['fractionRPVs_estimatedTauR']
+
+
+    # -----------------------------------------------------
+    # Load mean waveforms and waveform metrics from C_Waves
+    # -----------------------------------------------------
+
+    mean_wfs = np.load(os.path.join(imec_folder, 'cwaves', 'mean_waveforms.npy'))
+    peak_channels = cluster_info_df_sub.loc[valid_cluster_ids, 'ch'].values
+    mean_wfs = mean_wfs[valid_cluster_ids, peak_channels, :]  # note: keep only valid clusters and peak channels
+    unit_table['waveform_mean'] = pd.DataFrame(mean_wfs).to_numpy().tolist()
+
+    # Load mean waveform metrics
+    mean_wf_metrics = pd.read_csv(os.path.join(imec_folder, 'cwaves', 'waveform_metrics.csv'))
+    unit_table['duration'] = mean_wf_metrics.loc[valid_cluster_ids].duration.values
+    unit_table['pt_ratio'] = mean_wf_metrics.loc[valid_cluster_ids].pt_ratio.values
+
+    # Filter final table to remove noise clusters based on bombcell output
+    unit_table = unit_table[~unit_table.bc_unit_typ=='noise']
+
+    # Save unit table as intermediate file
+    file_name = '{}_unit_table.parquet'.format(imec_folder, 'kilosort2')
+    unit_table.to_parquet(os.path.join(imec_folder, file_name))
+
+    return unit_table
+
+
 
 def build_unit_table(imec_folder, sync_spike_times_path):
+    # TODO: update with bombcell output
+    # TODO: replace ElectrodeGroup with probe information as dictionary + udpate downstream
     """
     Build unit table from spike sorting/curation output.
     Args:
@@ -518,9 +708,10 @@ def build_unit_table(imec_folder, sync_spike_times_path):
 
     cluster_info_df.rename(columns={'KSLabel': 'ks_label',
                                     'Amplitude': 'amplitude',
-                                    'ContamPct': 'contam_pct'}, inplace=True)
+                                    'ContamPct': 'contam_pct',
+                                    'bc_unitType': 'bc_label'}, inplace=True)
 
-    # Find if cluster had a curated label
+    # Find if cluster had a curated label from Phy
     cluster_info_df['curated'] = cluster_info_df.apply(lambda x: 0 if pd.isnull(x.group) else 1, axis=1)
 
     # Phy-based new clusters/ new splits have no ks_label: convert NaN to None
@@ -567,6 +758,10 @@ def build_unit_table(imec_folder, sync_spike_times_path):
     unit_table['duration'] = mean_wf_metrics.loc[valid_cluster_ids].duration.values
     unit_table['pt_ratio'] = mean_wf_metrics.loc[valid_cluster_ids].pt_ratio.values
 
+    # Save unit table as intermediate file
+    file_name = '{}_unit_table.parquet'.format(imec_folder)
+    unit_table.to_parquet(os.path.join(imec_folder, file_name))
+
     return unit_table
 
 
@@ -586,10 +781,17 @@ def build_area_table(imec_folder):
 
     imec_id = imec_folder[-1]
     mouse_name = imec_folder.split('\\')[7]
-    #path_to_proc_anat = imec_folder.replace('Ephys', 'Anatomy')  # TODO: confirm location and update
+
+    # TODO: confirm location and update
+    #path_to_proc_anat = imec_folder.replace('Ephys', 'Anatomy')
     #path_to_proc_anat = path_to_proc_anat.replace(imec_folder.partition('Ephys')[-1], '\\brainreg\\manual_segmentation\\')
     path_to_proc_anat = r'M:\analysis\Axel_Bisi\ImagedBrains\{}\brainreg\manual_segmentation'.format(mouse_name)
+
     area_table = pd.read_csv(os.path.join(path_to_proc_anat, 'sample_space\\tracks', 'imec{}.csv'.format(imec_id)))
+
+    # -------------------------------------------------------
+    # Format table content and match electrodes to table rows
+    # -------------------------------------------------------
 
     # Format table for future shank row matching
     area_table.rename(columns={'Position': 'shank_row',
@@ -602,18 +804,27 @@ def build_area_table(imec_folder):
     area_table.loc[area_table['ccf_acronym'] == 'Not found in brain', 'ccf_acronym'] = 'root'
     area_table.loc[area_table['ccf_name'] == 'Not found in brain', 'ccf_name'] = 'root'
 
+    # Reverse order of rows (from probe tip upwards)
     area_table = area_table.iloc[::-1]  # reverse order (from probe tip upwards)
-    area_table = area_table.iloc[9:, :]  # remove first 9 rows (probe tip)
+
+    # Remove first 9 rows (probe tip without electrodes)
+    if int(mouse_name[2:]) < 100: # TODO: remove for future mice (also see below)
+        area_table = area_table.iloc[9:, :]  # remove first 9 rows (probe tip)
+
     max_position = np.max(area_table['shank_row'].values)
     area_table['shank_row'] = max_position - area_table['shank_row'].values  # make values start at 0
 
     # Add atlas metadata
-    path_to_atlas = r'C:\Users\bisi\.brainglobe\allen_mouse_25um_v1.2' #TODO: hard-coded path
+    path_to_atlas = r'C:\Users\bisi\.brainglobe\allen_mouse_25um_v1.2' #TODO: hard-coded path to change
     with open(os.path.join(path_to_atlas, 'metadata.json')) as f:
         atlas_metadata = json.load(f)
     area_table['atlas_metadata'] = str(atlas_metadata)
 
+    # ------------------------------------------------------------
     # Simplify CCF hierarchical nomenclature with parent structure
+    # Relevant for cortical layers <-> cortical area
+    # ------------------------------------------------------------
+
     with open(os.path.join(path_to_atlas, 'structures.json')) as f:
         structures_dict_list = json.load(f)
 
@@ -646,16 +857,10 @@ def build_area_table(imec_folder):
 
     coords = np.load(os.path.join(path_to_proc_anat, 'standard_space\\tracks', 'imec{}.npy'.format(imec_id)))
     coords = coords[::-1]
-    coords = coords[9:, :]
+    if int(mouse_name[2:]) < 100: # TOTO: remove for future mice
+        coords = coords[9:, :]
     area_table['ccf_ap'] = coords[:, 0]
     area_table['ccf_ml'] = coords[:, 1]
     area_table['ccf_dv'] = coords[:, 2]
-
-    # import matplotlib.pyplot as plt
-    # fig = plt.figure()
-    # ax = fig.add_subplot(111, projection='3d')
-    # ax.scatter(coords[:, 0], coords[:, 1], coords[:, 2])
-    # plt.show()
-
 
     return area_table
