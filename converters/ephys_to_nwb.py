@@ -64,7 +64,7 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
     for imec_id, imec_folder in enumerate(imec_probe_list):
         print('Probe IMEC{}'.format(imec_id), imec_folder)
 
-        # Check if recording is valid (otherwise skip) #TODO: a function to check if recording is valid
+        # Check if recording is valid (otherwise skip)
         probe_info_df = get_probe_insertion_info(config_file=config_file)
         mouse_name = config.get('subject_metadata').get('subject_id')
         probe_row = probe_info_df[(probe_info_df['mouse_name'] == mouse_name)
@@ -136,7 +136,7 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
 
             # For each electrode, get anatomical info accounting for two electrodes per row
             row_id = int(shank_rows[electrode_id])
-            area_info = area_table.iloc[row_id, :] # TODO: check if this is correct
+            area_info = area_table.iloc[row_id, :] 
             area_info = area_info.astype(str)
 
 
