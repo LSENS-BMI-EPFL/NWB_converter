@@ -138,23 +138,25 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     else:
         session_type = 'behaviour_only_session'
 
+    session_type = 'behaviour_only_session'
+
     session_experiment_metadata = {
-        'reference_weight': ref_weight,  # reference weight before water-restriction
-        'session_type': session_type,
-        'wh_reward': json_config['wh_reward'],
-        'aud_reward': json_config['aud_reward'],
-        'reward_proba': json_config['reward_proba'],
-        'lick_threshold': json_config['lick_threshold'],
-        'no_stim_weight': json_config['no_stim_weight'],
-        'wh_stim_weight': sum([v for k, v in json_config.items() if 'wh_stim_weight' in k]),
-        'aud_stim_weight': sum([v for k, v in json_config.items() if 'aud_stim_weight' in k]),
-        'camera_flag': json_config['camera_flag'],
-        'camera_freq': json_config['camera_freq'],
-        'camera_exposure_time':
+        "reference_weight": str(ref_weight),  # reference weight before water-restriction
+        "session_type": session_type,
+        "wh_reward": json_config['wh_reward'],
+        "aud_reward": json_config['aud_reward'],
+        "reward_proba": json_config['reward_proba'],
+        "lick_threshold": json_config['lick_threshold'],
+        "no_stim_weight": json_config['no_stim_weight'],
+        "wh_stim_weight": sum([v for k, v in json_config.items() if 'wh_stim_weight' in k]),
+        "aud_stim_weight": sum([v for k, v in json_config.items() if 'aud_stim_weight' in k]),
+        "camera_flag": json_config['camera_flag'],
+        "camera_freq": json_config['camera_freq'],
+        "camera_exposure_time":
             [json_config['camera_exposure_time'] if 'camera_exposure_time' in json_config.keys() else 'na'][0],
-        'camera_start_delay':
+        "camera_start_delay":
             [json_config['camera_start_delay'] if 'camera_start_delay' in json_config.keys() else 'na'][0],
-        'artifact_window': json_config['artifact_window'],
+        "artifact_window": json_config['artifact_window'],
 
     }
 
@@ -248,7 +250,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     if json_config['twophoton_session']:
         main_dict.update({'two_photon_metadata': two_photon_metadata})
 
-    elif json_config['ephys_session']:
+    elif json_config['ephys_session'] and ephys_metadata['processed'] == 1:
         main_dict.update({'ephys_metadata': ephys_metadata})
 
     elif json_config['wf_session']:
@@ -460,8 +462,8 @@ if __name__ == '__main__':
     # Select mouse IDs.
     # mouse_ids = ['RD039', 'RD040', 'RD041']
     # mouse_ids = ['RD042', 'RD043', 'RD044', 'RD045']
-    mouse_ids = ['RD039']
-    last_done_day = '20240307'
+    mouse_ids = ['PB173']
+    # last_done_day = '20240307'
 
     for mouse_id in mouse_ids:
 
@@ -481,16 +483,16 @@ if __name__ == '__main__':
 
             session_date = session_id.split('_')[1]
             session_date = datetime.datetime.strptime(session_date, "%Y%m%d")
-            if last_done_day is not None:
-                if session_date <= datetime.datetime.strptime(last_done_day, "%Y%m%d"):
-                    continue
+            # if last_done_day is not None:
+            #     if session_date <= datetime.datetime.strptime(last_done_day, "%Y%m%d"):
+            #         continue
 
-            # sessions_to_do = ["PB124_20230404_141456"]
-            # if session_id not in sessions_to_do:
-            #     continue
+            sessions_to_do = ["PB173_20240220_113617"]
+            if session_id not in sessions_to_do:
+                continue
 
             make_yaml_config(mouse_id, session_id, day, data_folder, analysis_folder,
                              mouse_line='C57BL/6', gmo=False)
 
-            add_metadata_to_config(mouse_id, session_id, 'AR')
+            add_metadata_to_config(mouse_id, session_id, 'PB')
 

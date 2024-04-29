@@ -443,3 +443,28 @@ def get_rois_label_folder(config_file):
     
     if os.path.exists(folder):
         return folder
+
+
+def get_dlc_file_path(config_file):
+    with open(config_file, 'r', encoding='utf8') as stream:
+        config = yaml.safe_load(stream)
+
+    initials = config['session_metadata']['experimenter']
+    session_id = config['session_metadata']['identifier']
+
+    if initials == 'PB':
+        experimenter = "Pol_Bech"
+        dlc_folder = os.path.join(r"\\sv-nas1.rcp.epfl.ch\Petersen-Lab", "analysis", experimenter, "data", session_id.split("_")[0], session_id).replace("\\", "/")
+        dlc_file = [os.path.join(dlc_folder, m) for m in os.listdir(dlc_folder)
+                    if os.path.splitext(m)[1] in ['.csv']]
+
+    elif initials == 'RD':
+        experimenter = "Pol_Bech"
+        dlc_folder = os.path.join(r"\\sv-nas1.rcp.epfl.ch\Petersen-Lab", "analysis", experimenter, "data", session_id.split("_")[0], session_id).replace("\\", "/")
+        dlc_file = [os.path.join(dlc_folder, m) for m in os.listdir(dlc_folder)
+                    if os.path.splitext(m)[1] in ['.csv']]
+
+    if len(dlc_file) == 0:
+        dlc_file = None
+
+    return dlc_file

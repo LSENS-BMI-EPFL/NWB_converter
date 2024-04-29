@@ -1,5 +1,5 @@
 import os
-
+import cv2
 import numpy as np
 import scipy
 from scipy import ndimage
@@ -125,46 +125,89 @@ def get_roi_labels(rois_label_folder):
 
 def get_wf_roi_pixel_mask(roi_file, img_shape):
     roi_file = roi_file[0] if roi_file is not None else None
+    dim_y, dim_x = img_shape
+
+    # Variables to return
+    pix_masks = []
+    image_masks = []
+    area_names = []
+
     if roi_file.endswith("zip"):
         zip_data = read_roi_zip(roi_file)
-        area_names = list(zip_data.keys())
-        coords_loaded = []
-        for roi_index, roi in enumerate(zip_data.values()):
+        for area, roi_data in zip_data.items():
+            # Skip bregma or add area name and keep going
+            if area == 'bregma':
+                continue
+            area_names.append(area)
+
+            # Check for ROI drawing type
+            if roi_data['type'] == 'oval':
+                circle_radius = int(roi_data['width'] / 2)
+                circle_center = (int(roi_data['left'] + circle_radius), int(roi_data['top'] + circle_radius))
+                black_image = np.zeros((dim_y, dim_x), dtype=np.uint8)
+                image = cv2.circle(black_image, circle_center, circle_radius, (255, 255, 255), 1)
+                image_mask = ndimage.binary_fill_holes(image).astype(int)
+                pix_mask = np.argwhere(image_mask)
+                pix_mask = [(pix[0], pix[1], 1) for pix in pix_mask]
+
+                pix_masks.append(pix_mask)
+                image_masks.append(image_mask)
+
+            if roi_data['type'] == 'polygon':
+                n_points = len(roi_data['x'])
+                contours = np.zeros((2, n_points), dtype="int16")
+                contours[0] = roi_data['x']
+                contours[1] = roi_data['y']
+                if len(contours[0]) == 0:
+                    print(f'Error: {area} contours length {len(contours[0]), len(contours[1])}')
+                    continue
+                image_mask = np.zeros((dim_y, dim_x), dtype=np.uint8)
+                contours_to_draw = np.array([(contours[1][i], contours[0][i]) for i in range(n_points)]).astype(int)
+                image_mask = cv2.drawContours(image_mask, [contours_to_draw], 0, (255, 255, 255), 1)
+                # we  use morphology.binary_fill_holes to build pixel_mask from coord
+                image_mask = ndimage.binary_fill_holes(image_mask).astype(int)
+                pix_mask = np.argwhere(image_mask)
+                pix_mask = [(pix[0], pix[1], 1) for pix in pix_mask]
+
+                pix_masks.append(pix_mask)
+                image_masks.append(image_mask)
+
+    elif roi_file.endswith("roi"):
+        roi = read_roi_file(roi_file)
+        area_names.append(os.path.basename(roi_file).split('.')[0])
+
+        if roi['type'] == 'oval':
+            circle_radius = int(roi['width'] / 2)
+            circle_center = (int(roi['left'] + circle_radius), int(roi['top'] + circle_radius))
+            black_image = np.zeros((dim_y, dim_x), dtype=np.uint8)
+            image = cv2.circle(black_image, circle_center, circle_radius, (255, 255, 255), 1)
+            image_mask = ndimage.binary_fill_holes(image).astype(int)
+            pix_mask = np.argwhere(image_mask)
+            pix_mask = [(pix[0], pix[1], 1) for pix in pix_mask]
+
+            pix_masks.append(pix_mask)
+            image_masks.append(image_mask)
+
+        elif roi['type'] == 'polygon':
+            roi = roi[list(roi.keys())[0]]
             n_points = len(roi['x'])
             contours = np.zeros((2, n_points), dtype="int16")
             contours[0] = roi['x']
             contours[1] = roi['y']
-            coords_loaded.append(contours)
-    elif roi_file.endswith("roi"):
-        roi = read_roi_file(roi_file)
-        area_names = os.path.basename(roi_file).split('.')[0]
-        coords_loaded = []
-        roi = roi[list(roi.keys())[0]]
-        n_points = len(roi['x'])
-        contours = np.zeros((2, n_points), dtype="int16")
-        contours[0] = roi['x']
-        contours[1] = roi['y']
-        coords_loaded.append(contours)
+
+            image_mask = np.zeros((dim_y, dim_x), dtype=np.uint8)
+            contours_to_draw = np.array([(contours[1][i], contours[0][i]) for i in range(n_points)]).astype(int)
+            image_mask = cv2.drawContours(image_mask, [contours_to_draw], 0, (255, 255, 255), 1)
+            # we  use morphology.binary_fill_holes to build pixel_mask from coord
+            image_mask = ndimage.binary_fill_holes(image_mask).astype(int)
+            pix_mask = np.argwhere(image_mask)
+            pix_mask = [(pix[0], pix[1], 1) for pix in pix_mask]
+
+            pix_masks.append(pix_mask)
+            image_masks.append(image_mask)
+
     else:
-        return None
-
-    dim_y, dim_x = img_shape
-    pix_masks = []
-    image_masks = []
-    for cell, coord in enumerate(coords_loaded):
-        if coord.shape[0] == 0:
-            print(f'Error: {cell} coord.shape {coord.shape}')
-            continue
-
-        image_mask = np.zeros((dim_y, dim_x))
-        image_mask[coord[1, :] - 1, coord[0, :] - 1] = 1
-        # we  use morphology.binary_fill_holes to build pixel_mask from coord
-        image_mask = ndimage.binary_fill_holes(image_mask).astype(int)
-        pix_mask = np.argwhere(image_mask)
-        pix_mask = [(pix[0], pix[1], 1) for pix in pix_mask]
-
-        pix_masks.append(pix_mask)
-        image_masks.append(image_mask)
+        return None, None, None
 
     return area_names, pix_masks, image_masks
 
