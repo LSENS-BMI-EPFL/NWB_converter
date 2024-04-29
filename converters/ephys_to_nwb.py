@@ -205,6 +205,7 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
                 electrode_group=electrode_group,
                 depth=unit_table['depth'].values[neuron_id],
                 ks_label=unit_table['ks_label'].values[neuron_id],
+                bc_label=unit_table['bc_label'].values[neuron_id],
                 firing_rate=unit_table['firing_rate'].values[neuron_id],
                 spike_times=unit_table['spike_times'].values[neuron_id],
                 waveform_mean=unit_table['waveform_mean'].values[neuron_id],
@@ -220,6 +221,24 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
                 ccf_parent_id=unit_table['ccf_parent_id'].values[neuron_id],
                 ccf_parent_acronym=unit_table['ccf_parent_acronym'].values[neuron_id],
                 ccf_parent_name=unit_table['ccf_parent_name'].values[neuron_id],
+                maxChannels=unit_table['maxChannels'].values[neuron_id],
+                bc_cluster_id=unit_table['bc_cluster_id'].values[neuron_id],
+                useTheseTimesStart=unit_table['useTheseTimesStart'].values[neuron_id],
+                useTheseTimesStop=unit_table['useTheseTimesStop'].values[neuron_id],
+                percentageSpikesMissing_gaussian=unit_table['percentageSpikesMissing_gaussian'].values[neuron_id],
+                percentageSpikesMissing_symmetric=unit_table['percentageSpikesMissing_symmetric'].values[neuron_id],
+                presenceRatio=unit_table['presenceRatio'].values[neuron_id],
+                nSpikes=unit_table['nSpikes'].values[neuron_id],
+                nPeaks=unit_table['nPeaks'].values[neuron_id],
+                nTroughs=unit_table['nTroughs'].values[neuron_id],
+                isSomatic=unit_table['isSomatic'].values[neuron_id],
+                waveformDuration_peakTrough=unit_table['waveformDuration_peakTrough'].values[neuron_id],
+                spatialDecaySlope=unit_table['spatialDecaySlope'].values[neuron_id],
+                waveformBaselineFlatness=unit_table['waveformBaselineFlatness'].values[neuron_id],
+                rawAmplitude=unit_table['rawAmplitude'].values[neuron_id],
+                signalToNoiseRatio=unit_table['signalToNoiseRatio'].values[neuron_id],
+                fractionRPVs_estimatedTauR=unit_table['fractionRPVs_estimatedTauR'].values[neuron_id],
+
             )
 
             # Increment total number of neuron
