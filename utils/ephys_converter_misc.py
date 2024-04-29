@@ -457,7 +457,7 @@ def create_simplified_unit_table(nwb_file):
     return
 
 
-def create_unit_table_bis(nwb_file):
+def create_unit_table(nwb_file):
     """
     Create units table in nwb file.
     Args:
@@ -480,10 +480,8 @@ def create_unit_table_bis(nwb_file):
         'bc_cluster_id': 'bombcell-based cluster ID',
         'useTheseTimesStart': 'start time for quality metric calculation',
         'useTheseTimesStop': 'stop time for quality metric calculation',
-        'RPV_tauR_estimate': 'desc',
         'percentageSpikesMissing_gaussian': 'esimated percentage of spikes missing',
         'percentageSpikesMissing_symmetric': 'estimated percentage of spikes missing symmetrically',
-        'ksTest_pValue': 'p-value of a Kolmogorov-Smirnov test',
         'presenceRatio': 'number of time chunks of specific size containing at least one spike over total number of time chunks',
         'nSpikes': 'number of spikes',
         'nPeaks': 'number of template waveform peaks on peak channel',
@@ -514,7 +512,7 @@ def create_unit_table_bis(nwb_file):
 
     return
 
-def create_unit_table(nwb_file):
+def create_unit_table_old(nwb_file):
     """
     Create units table in nwb file.
     Args:
@@ -551,7 +549,7 @@ def create_unit_table(nwb_file):
 
     return
 
-def build_unit_table_bis(imec_folder, sync_spike_times_path):
+def build_unit_table(imec_folder, sync_spike_times_path):
     """
     Build unit table from spike sorting/curation output.
     Args:
@@ -588,7 +586,7 @@ def build_unit_table_bis(imec_folder, sync_spike_times_path):
     cluster_info_df.fillna(value='', inplace=True)  # returns None
 
     # Format columns
-    cluster_info_df = cluster_info_df['bc_label'].str.lower()
+    cluster_info_df['bc_label'] = cluster_info_df['bc_label'].str.lower()
 
     # Get valid cluster indices
     #valid_cluster_ids = cluster_info_df[cluster_info_df.group.isin(['good', 'mua'])].index  # dataframe indices
@@ -610,7 +608,7 @@ def build_unit_table_bis(imec_folder, sync_spike_times_path):
     spike_times_per_cluster = []
 
     # Load spike cluster assignments
-    spike_clusters = np.load(os.path.join(imec_folder, 'spike_clusters.npy'))
+    spike_clusters = np.load(os.path.join(imec_folder, 'kilosort2', 'spike_clusters.npy'))
     spike_clusters_df = pd.DataFrame(data=spike_clusters, columns=['cluster_id'])
     spike_clusters_df.index.name = 'spike_id'
 
@@ -635,55 +633,56 @@ def build_unit_table_bis(imec_folder, sync_spike_times_path):
         'clusterID': 'bc_cluster_id',  # bombcell cluster ID (indexed at 1)
     }
     bc_info_df.rename(columns=old_to_new_columns, inplace=True)
+    bc_info_df_sub = bc_info_df.loc[valid_cluster_ids, :]
 
     # Add bombcell quality metrics
-    unit_table['maxChannels'] = bc_info_df['maxChannels']
-    unit_table['bc_cluster_id'] = bc_info_df['bc_cluster_id']
-    unit_table['useTheseTimesStart'] = bc_info_df['useTheseTimesStart']
-    unit_table['useTheseTimesStop'] = bc_info_df['useTheseTimesStop']
-    unit_table['RPV_tauR_estimate'] = bc_info_df['RPV_tauR_estimate']
-    unit_table['percentageSpikesMissing_gaussian'] = bc_info_df['percentageSpikesMissing_gaussian']
-    unit_table['percentageSpikesMissing_symmetric'] = bc_info_df['percentageSpikesMissing_symmetric']
-    unit_table['ksTest_pValue'] = bc_info_df['ksTest_pValue']
-    unit_table['presenceRatio'] = bc_info_df['presenceRatio']
-    unit_table['nSpikes'] = bc_info_df['nSpikes']
-    unit_table['nPeaks'] = bc_info_df['nPeaks']
-    unit_table['nTroughs'] = bc_info_df['nTroughs']
-    unit_table['isSomatic'] = bc_info_df['isSomatic']
-    unit_table['waveformDuration_peakTrough'] = bc_info_df['waveformDuration_peakTrough']
-    unit_table['spatialDecaySlope'] = bc_info_df['spatialDecaySlope']
-    unit_table['waveformBaselineFlatness'] = bc_info_df['waveformBaselineFlatness']
-    unit_table['rawAmplitude'] = bc_info_df['rawAmplitude']
-    unit_table['signalToNoiseRatio'] = bc_info_df['signalToNoiseRatio']
-    unit_table['fractionRPVs_estimatedTauR'] = bc_info_df['fractionRPVs_estimatedTauR']
+    unit_table['maxChannels'] = bc_info_df_sub['maxChannels']
+    unit_table['bc_cluster_id'] = bc_info_df_sub['bc_cluster_id']
+    unit_table['useTheseTimesStart'] = bc_info_df_sub['useTheseTimesStart']
+    unit_table['useTheseTimesStop'] = bc_info_df_sub['useTheseTimesStop']
+    unit_table['RPV_tauR_estimate'] = bc_info_df_sub['RPV_tauR_estimate']
+    unit_table['percentageSpikesMissing_gaussian'] = bc_info_df_sub['percentageSpikesMissing_gaussian']
+    unit_table['percentageSpikesMissing_symmetric'] = bc_info_df_sub['percentageSpikesMissing_symmetric']
+    unit_table['ksTest_pValue'] = bc_info_df_sub['ksTest_pValue']
+    unit_table['presenceRatio'] = bc_info_df_sub['presenceRatio']
+    unit_table['nSpikes'] = bc_info_df_sub['nSpikes']
+    unit_table['nPeaks'] = bc_info_df_sub['nPeaks']
+    unit_table['nTroughs'] = bc_info_df_sub['nTroughs']
+    unit_table['isSomatic'] = bc_info_df_sub['isSomatic']
+    unit_table['waveformDuration_peakTrough'] = bc_info_df_sub['waveformDuration_peakTrough']
+    unit_table['spatialDecaySlope'] = bc_info_df_sub['spatialDecaySlope']
+    unit_table['waveformBaselineFlatness'] = bc_info_df_sub['waveformBaselineFlatness']
+    unit_table['rawAmplitude'] = bc_info_df_sub['rawAmplitude']
+    unit_table['signalToNoiseRatio'] = bc_info_df_sub['signalToNoiseRatio']
+    unit_table['fractionRPVs_estimatedTauR'] = bc_info_df_sub['fractionRPVs_estimatedTauR']
 
 
     # -----------------------------------------------------
     # Load mean waveforms and waveform metrics from C_Waves
     # -----------------------------------------------------
 
-    mean_wfs = np.load(os.path.join(imec_folder, 'cwaves', 'mean_waveforms.npy'))
+    mean_wfs = np.load(os.path.join(imec_folder, 'kilosort2', 'cwaves', 'mean_waveforms.npy'))
     peak_channels = cluster_info_df_sub.loc[valid_cluster_ids, 'ch'].values
     mean_wfs = mean_wfs[valid_cluster_ids, peak_channels, :]  # note: keep only valid clusters and peak channels
     unit_table['waveform_mean'] = pd.DataFrame(mean_wfs).to_numpy().tolist()
 
     # Load mean waveform metrics
-    mean_wf_metrics = pd.read_csv(os.path.join(imec_folder, 'cwaves', 'waveform_metrics.csv'))
+    mean_wf_metrics = pd.read_csv(os.path.join(imec_folder, 'kilosort2', 'cwaves', 'waveform_metrics.csv'))
     unit_table['duration'] = mean_wf_metrics.loc[valid_cluster_ids].duration.values
     unit_table['pt_ratio'] = mean_wf_metrics.loc[valid_cluster_ids].pt_ratio.values
 
     # Filter final table to remove noise clusters based on bombcell output
-    unit_table = unit_table[~unit_table.bc_unit_typ=='noise']
+    unit_table = unit_table[~unit_table.bc_label.isin(['noise'])]
 
     # Save unit table as intermediate file
-    file_name = '{}_unit_table.parquet'.format(imec_folder, 'kilosort2')
-    unit_table.to_parquet(os.path.join(imec_folder, file_name))
+    #file_name = '{}_unit_table.parquet'.format(imec_folder, 'kilosort2')
+    # unit_table.to_parquet(os.path.join(imec_folder, 'kilosort2', file_name))
 
     return unit_table
 
 
 
-def build_unit_table(imec_folder, sync_spike_times_path):
+def build_unit_table_old(imec_folder, sync_spike_times_path):
     # TODO: update with bombcell output
     # TODO: replace ElectrodeGroup with probe information as dictionary + udpate downstream
     """
