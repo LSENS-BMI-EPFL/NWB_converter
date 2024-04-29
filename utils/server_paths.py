@@ -172,7 +172,6 @@ def get_session_movie_files(config_file):
         return movies
     movies = [os.path.join(movies_path, m) for m in os.listdir(movies_path) if
               os.path.splitext(m)[1] in ['.avi', '.mp4']]
-    #movies = [m for m in movies if 'converted' in m]
 
     if not movies:
         movies = None
