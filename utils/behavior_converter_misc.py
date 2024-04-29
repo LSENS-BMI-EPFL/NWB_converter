@@ -238,6 +238,9 @@ def get_context_timestamps_dict(timestamps_dict, nwb_trial_table):
     if len(np.unique(nwb_trial_table['context'].values[:])) == 1:
         print(f"Found only 1 value in 'context' column from csv file : {nwb_trial_table['context'].values[0]}")
         return None, None
+    if 'active' in np.unique(nwb_trial_table['context'].values[:]) or 'passive' in np.unique(nwb_trial_table['context'].values[:]):
+        print(f"Ignoring 'active' or 'passive' in 'context' column from csv file")
+        return None, None
 
     # Get context timestamps
     context_on_off = timestamps_dict.get('context')
@@ -395,8 +398,8 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
             sep = ','
         trial_table = pd.read_csv(behavior_results_file, sep=sep, engine='python')
         # Because stitching tables manually with excel changes sep character.
-        if trial_table.columns.shape[0] == 1:
-            trial_table = pd.read_csv(behavior_results_file, sep=';', engine='python')
+        #if trial_table.columns.shape[0] == 1:
+        #    trial_table = pd.read_csv(behavior_results_file, sep=';', engine='python')
     if experimenter in ['GF', 'MI']:
         trial_table = utils_gf.map_result_columns(trial_table)
 
@@ -430,7 +433,7 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
         trial_type_list = trial_type_list[0:n_trials]
 
 
-    # Format timestamps for specific events #TODO: confirm that this is correct
+    # Format timestamps for specific events
     whisker_stim_time = [t + trial_table['baseline_window'][i] / 1000 if trial_table.loc[i].is_whisker == 1 else np.nan
                          for i, t in enumerate(trial_timestamps[:, 0])]
     auditory_stim_time = [t + trial_table['baseline_window'][i] / 1000 if trial_table.loc[i].is_auditory == 1 else np.nan
@@ -494,7 +497,7 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
             standard_trial_table['context'] = trial_table['wh_reward']
             standard_trial_table['context_background'] = trial_table['context_block']
         else:
-            standard_trial_table['context'] = np.nan
+            standard_trial_table['context'] = trial_table['context_block']
             standard_trial_table['context_background'] = np.nan
     else:
         standard_trial_table['context'] = np.nan
