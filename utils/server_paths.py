@@ -464,7 +464,13 @@ def get_dlc_file_path(config_file):
         dlc_file = [os.path.join(dlc_folder, m) for m in os.listdir(dlc_folder)
                     if os.path.splitext(m)[1] in ['.csv']]
 
-    if len(dlc_file) == 0:
+    elif initials == 'AB':
+        dlc_file = None
+
+    else:
+        dlc_file = None
+
+    if dlc_file is not None and len(dlc_file) == 0:
         dlc_file = None
 
     return dlc_file

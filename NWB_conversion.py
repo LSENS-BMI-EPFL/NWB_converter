@@ -68,13 +68,13 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True):
                              config_file=config_file,
                              ci_frame_timestamps=timestamps_dict['galvo_position'])
 
-    # if config_dict.get("ephys_metadata") is not None and config_dict.get("ephys_metadata").get("processed") == 1:
-    #     print(" ")
-    #     print("Convert extracellular electrophysiology data")
-    #
-    #     convert_ephys_recording(nwb_file=nwb_file,
-    #                             config_file=config_file)
-    #
+    if config_dict.get("ephys_metadata") is not None:
+        if config_dict.get("ephys_metadata").get("processed") == 1:
+             print(" ")
+             print("Convert extracellular electrophysiology data")
+             convert_ephys_recording(nwb_file=nwb_file,
+                                     config_file=config_file)
+
     # # Check we are on WF computer
     # platform_info = platform.uname()
     # computer_name = platform_info.node
@@ -82,22 +82,22 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True):
     # if computer_name in wf_computers and config_dict.get("widefield_metadata") is not None:
     #     print(" ")
     #     print("Convert widefield data")
-    #
     #     convert_widefield_recording(nwb_file=nwb_file,
     #                                 config_file=config_file,
     #                                 wf_frame_timestamps=timestamps_dict["widefield"])
-    # Check if we have Video data and DeepLabCut
-    if json.loads(config_dict.get('session_metadata').get('experiment_description').replace("'", '"'))['camera_flag'] == 1:
+
+    if config_dict.get('behaviour_metadata')['camera_flag'] == 1:
         dlc_file = get_dlc_file_path(config_file)
         if dlc_file is not None:
+            print(" ")
+            print("Convert DeepLabCut data")
             convert_dlc_data(nwb_file=nwb_file,
                              config_file=config_file,
                              video_timestamps={k: timestamps_dict[k] for k in ("cam1", "cam2")})
 
     print(" ")
     print("Saving NWB file")
-    # save_nwb_file(nwb_file=nwb_file, output_folder=output_folder,
-    #               with_time_string=with_time_string)
+    save_nwb_file(nwb_file=nwb_file, output_folder=output_folder, with_time_string=with_time_string)
 
     return
 
@@ -105,8 +105,8 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True):
 if __name__ == '__main__':
 
     # Run the conversion
-    mouse_ids = ["PB173", "PB174", "PB175"]
-    experimenter = 'PB'
+    mouse_ids = ['AB107']
+    experimenter = 'AB'
 
     if experimenter == 'GF':
         # Read excel database.
@@ -138,31 +138,24 @@ if __name__ == '__main__':
         # Create NWB by looping over sessions.
         for isession, iday in training_days:
 
-            # # # Filter sessions to do :
-            session_to_do = ['PB173_20240220_113617']
+            # Filter session ID to do.
+            session_to_do = ['AB107_20240318_121423']
             if isession not in session_to_do:
                 continue
 
-            # date_to_do = '20240110'
-            # if date_to_do not in isession:
-            # Filter by session ID
-            #session_to_do = ["AB085_20231005_152636"]
-            #if isession not in session_to_do:
-            #    continue
-
-            # Filter by date
-            #date_to_do = '20231219'
+            # Filter by date.
+            #date_to_do = '20240110'
             #if date_to_do not in isession:
             #   continue
 
-            # Filter by time since date
+            # Filter by time since date.
             # session_date = isession.split('_')[1]
             # session_date = datetime.datetime.strptime(session_date, "%Y%m%d")
             # if last_done_day is not None:
             #     if session_date <= datetime.datetime.strptime(last_done_day, "%Y%m%d"):
             #         continue
 
-            # Filter by session type
+            # Filter by session type.
             # if experimenter == 'AB' and iday != 'whisker_0':
             #     continue
 
