@@ -71,10 +71,10 @@ def convert_dlc_data(nwb_file, config_file, video_timestamps):
                                          continuity='continuous')
 
         behavior_t_series.add_timeseries(timeseries)
-        print(f"Adding {name} to BehavioralTimeSeries")
+        # print(f"Adding {name} to BehavioralTimeSeries")
 
     for name, data in top_dlc.items():
-        if 'nose' in name:
+        if 'nose' in name or 'particle' in name:
             name = 'top_' + name
 
         # Add times series for bodybarts
@@ -94,11 +94,11 @@ def convert_dlc_data(nwb_file, config_file, video_timestamps):
                                          continuity='continuous')
 
         behavior_t_series.add_timeseries(timeseries)
-        print(f"Adding {name} to BehavioralTimeSeries")
+        # print(f"Adding {name} to BehavioralTimeSeries")
 
     # Add lick times counted as the peaks of tongue distance
     tongue_licks, _ = find_peaks(np.where(side_dlc['tongue_likelihood']>0.8, side_dlc['tongue_distance'], np.nan), distance= 20)
-    print(f"Found {len(tongue_licks)} lick events from the DLC traces")
+    # print(f"Found {len(tongue_licks)} lick events from the DLC traces")
 
     data_to_store = np.arange(len(tongue_licks))  # data would be lick index
     timestamps_to_store = tongue_licks  # same length as n_licks absolute times of licks
@@ -118,11 +118,11 @@ def convert_dlc_data(nwb_file, config_file, video_timestamps):
                                   continuity='instantaneous')
 
     behavior_events.add_timeseries(lick_timeseries)
-    print(f"Adding {len(data_to_store)} DLC lick times to BehavioralEvents")
+    # print(f"Adding {len(data_to_store)} DLC lick times to BehavioralEvents")
 
     # Add movement times as peaks of jaw angle
     jaw_licks, _ = find_peaks(np.where(side_dlc['jaw_likelihood'] > 0.8, side_dlc['jaw_angle'], np.nan), prominence=side_dlc['jaw_angle'].std() * 1.8)
-    print(f"Found {len(jaw_licks)} lick events from the DLC traces")
+    # print(f"Found {len(jaw_licks)} lick events from the DLC traces")
 
     data_to_store = np.arange(len(jaw_licks))  # data would be lick index
     timestamps_to_store = jaw_licks  # same length as n_licks absolute times of licks
@@ -142,7 +142,7 @@ def convert_dlc_data(nwb_file, config_file, video_timestamps):
                                   continuity='instantaneous')
 
     behavior_events.add_timeseries(lick_timeseries)
-    print(f"Adding {len(data_to_store)} DLC lick times to BehavioralEvents")
+    # print(f"Adding {len(data_to_store)} DLC lick times to BehavioralEvents")
 
     # Add epochs of jaw movement computed by 1.8*std of the filtered jaw signal
     print("Adding jaw movement epochs to NWB file")
@@ -175,8 +175,13 @@ def convert_dlc_data(nwb_file, config_file, video_timestamps):
                                            description="Periods where jaw movement surpasses 1.8 times the std",
                                            control=None, control_description=None)
 
+    print("Adding whisker movement epochs to NWB file")
     whisker_movement = compute_whisker_movement_epoch(top_dlc)
-    whisker_onset = np.vstack((np.where(np.diff(whisker_movement) > 0), np.where(np.diff(whisker_movement) < 0))).T.flatten()
+    whisker_starts = np.where(np.diff(whisker_movement) > 0)[0]
+    whisker_stops = np.where(np.diff(whisker_movement) < 0)[0]
+    if len(whisker_stops) > len(whisker_starts):
+        whisker_stops = whisker_stops[:-1]
+    whisker_onset = np.vstack((whisker_starts, whisker_stops)).T.flatten()
     ends = [item for item in np.where(np.diff(whisker_onset) < 100)[0] if item % 2 == 1] # Merge when separation between licks is less than 0.5 s
     ends += [item + 1 for item in ends]
     whisker_onset = [item for i, item in enumerate(whisker_onset) if i not in ends]
@@ -193,8 +198,8 @@ def convert_dlc_data(nwb_file, config_file, video_timestamps):
         time_stamps_to_store.extend([start_time, stop_time])
         data_to_store.extend([1, -1])
 
-    behavior_epochs.create_interval_series(name="jaw_opening", data=data_to_store, timestamps=time_stamps_to_store,
+    behavior_epochs.create_interval_series(name="whisking_epochs", data=data_to_store, timestamps=time_stamps_to_store,
                                            comments='no comments',
-                                           description="Periods where jaw movement surpasses 1.8 times the std",
+                                           description="Periods where whiskers are moving",
                                            control=None, control_description=None)
 
