@@ -462,8 +462,9 @@ if __name__ == '__main__':
     # Select mouse IDs.
     # mouse_ids = ['RD039', 'RD040', 'RD041']
     # mouse_ids = ['RD042', 'RD043', 'RD044', 'RD045']
-    mouse_ids = ['PB173']
-    # last_done_day = '20240307'
+    # mouse_ids = ['RD039']
+    mouse_ids = ['RD043', 'RD045']
+    last_done_day = '20240305'
 
     for mouse_id in mouse_ids:
 

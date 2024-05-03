@@ -75,16 +75,16 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True):
              convert_ephys_recording(nwb_file=nwb_file,
                                      config_file=config_file)
 
-    # # Check we are on WF computer
-    # platform_info = platform.uname()
-    # computer_name = platform_info.node
-    # wf_computers = ['SV-07-082', 'SV-07-097']  # Add name of WF preprocessing computers here
-    # if computer_name in wf_computers and config_dict.get("widefield_metadata") is not None:
-    #     print(" ")
-    #     print("Convert widefield data")
-    #     convert_widefield_recording(nwb_file=nwb_file,
-    #                                 config_file=config_file,
-    #                                 wf_frame_timestamps=timestamps_dict["widefield"])
+    # Check we are on WF computer
+    platform_info = platform.uname()
+    computer_name = platform_info.node
+    wf_computers = ['SV-07-082', 'SV-07-097']  # Add name of WF preprocessing computers here
+    if computer_name in wf_computers and config_dict.get("widefield_metadata") is not None:
+        print(" ")
+        print("Convert widefield data")
+        convert_widefield_recording(nwb_file=nwb_file,
+                                    config_file=config_file,
+                                    wf_frame_timestamps=timestamps_dict["widefield"])
 
     if config_dict.get('behaviour_metadata')['camera_flag'] == 1:
         dlc_file = get_dlc_file_path(config_file)
