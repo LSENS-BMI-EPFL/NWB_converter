@@ -1,5 +1,5 @@
 import os
-
+import glob
 import yaml
 
 
@@ -455,14 +455,12 @@ def get_dlc_file_path(config_file):
     if initials == 'PB':
         experimenter = "Pol_Bech"
         dlc_folder = os.path.join(r"\\sv-nas1.rcp.epfl.ch\Petersen-Lab", "analysis", experimenter, "data", session_id.split("_")[0], session_id).replace("\\", "/")
-        dlc_file = [os.path.join(dlc_folder, m) for m in os.listdir(dlc_folder)
-                    if os.path.splitext(m)[1] in ['.csv']]
+        dlc_file = glob.glob(dlc_folder + "/**/*.csv")
 
     elif initials == 'RD':
-        experimenter = "Pol_Bech"
+        experimenter = "Robin_Dard"
         dlc_folder = os.path.join(r"\\sv-nas1.rcp.epfl.ch\Petersen-Lab", "analysis", experimenter, "data", session_id.split("_")[0], session_id).replace("\\", "/")
-        dlc_file = [os.path.join(dlc_folder, m) for m in os.listdir(dlc_folder)
-                    if os.path.splitext(m)[1] in ['.csv']]
+        dlc_file = glob.glob(dlc_folder + "/**/*.csv")
 
     elif initials == 'AB':
         dlc_file = None

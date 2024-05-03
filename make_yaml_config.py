@@ -138,8 +138,6 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     else:
         session_type = 'behaviour_only_session'
 
-    session_type = 'behaviour_only_session'
-
     session_experiment_metadata = {
         "reference_weight": str(ref_weight),  # reference weight before water-restriction
         "session_type": session_type,
@@ -460,9 +458,9 @@ def create_wf_metadata(config_path):
 
 if __name__ == '__main__':
     # Select mouse IDs.
-    # mouse_ids = ['RD039', 'RD040', 'RD041']
+    mouse_ids = ['PB176', 'PB177', 'PB178', 'PB179', 'PB180', 'PB181']
     # mouse_ids = ['RD042', 'RD043', 'RD044', 'RD045']
-    mouse_ids = ['PB173']
+    # mouse_ids = ['PB173']
     # last_done_day = '20240307'
 
     for mouse_id in mouse_ids:
@@ -487,9 +485,9 @@ if __name__ == '__main__':
             #     if session_date <= datetime.datetime.strptime(last_done_day, "%Y%m%d"):
             #         continue
 
-            sessions_to_do = ["PB173_20240220_113617"]
-            if session_id not in sessions_to_do:
-                continue
+            # sessions_to_do = ["PB176_20240501_111647"]
+            # if session_id not in sessions_to_do:
+            #     continue
 
             make_yaml_config(mouse_id, session_id, day, data_folder, analysis_folder,
                              mouse_line='C57BL/6', gmo=False)

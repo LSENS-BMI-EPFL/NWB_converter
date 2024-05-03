@@ -105,8 +105,8 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True):
 if __name__ == '__main__':
 
     # Run the conversion
-    mouse_ids = ['AB107']
-    experimenter = 'AB'
+    mouse_ids = ['PB173']
+    experimenter = 'PB'
 
     if experimenter == 'GF':
         # Read excel database.
@@ -139,14 +139,14 @@ if __name__ == '__main__':
         for isession, iday in training_days:
 
             # Filter session ID to do.
-            session_to_do = ['AB107_20240318_121423']
-            if isession not in session_to_do:
-                continue
+            # session_to_do = ['AB107_20240318_121423']
+            # if isession not in session_to_do:
+            #     continue
 
             # Filter by date.
-            #date_to_do = '20240110'
-            #if date_to_do not in isession:
-            #   continue
+            date_to_do = '20240217'
+            if date_to_do not in isession:
+              continue
 
             # Filter by time since date.
             # session_date = isession.split('_')[1]
