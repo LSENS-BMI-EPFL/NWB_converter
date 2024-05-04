@@ -179,8 +179,8 @@ def convert_dlc_data(nwb_file, config_file, video_timestamps):
     whisker_movement = compute_whisker_movement_epoch(top_dlc)
     whisker_starts = np.where(np.diff(whisker_movement) > 0)[0]
     whisker_stops = np.where(np.diff(whisker_movement) < 0)[0]
-    if len(whisker_stops) > len(whisker_starts):
-        whisker_stops = whisker_stops[:-1]
+    if len(whisker_stops) < len(whisker_starts):
+        whisker_starts = whisker_starts[:-1]
     whisker_onset = np.vstack((whisker_starts, whisker_stops)).T.flatten()
     ends = [item for item in np.where(np.diff(whisker_onset) < 100)[0] if item % 2 == 1] # Merge when separation between licks is less than 0.5 s
     ends += [item + 1 for item in ends]
