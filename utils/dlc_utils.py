@@ -133,30 +133,3 @@ def compute_kinematics(df, view):
         df.loc[1:, 'nose_velocity'] = np.diff(df['nose_distance'])
 
     return df
-
-
-def compute_jaw_opening_epoch(df):
-    nfilt = 100  # Number of taps to use in FIR filter
-    fw_base = 5  # Cut-off frequency for lowpass filter, in Hz
-    nyq_rate = 200 / 2.0
-    cutoff = min(1.0, fw_base / nyq_rate)
-    b = firwin(nfilt, cutoff=cutoff, window='hamming')
-    padlen = 3 * nfilt
-    filtered_jaw = filtfilt(b, [1.0], df['jaw_angle'], axis=0,
-                            padlen=padlen)
-    jaw_opening = np.where(filtered_jaw < 1.8*filtered_jaw.std(), np.zeros_like(filtered_jaw), 1)
-
-    return jaw_opening
-
-
-def compute_whisker_movement_epoch(df): ## TODO: revisit combination of parameters
-    nfilt = 100  # Number of taps to use in FIR filter
-    fw_base = 0.25  # Cut-off frequency for lowpass filter, in Hz
-    nyq_rate = 200 / 2.0
-    cutoff = min(1.0, fw_base / nyq_rate)
-    b = firwin(nfilt, cutoff=cutoff, window='hamming')
-    padlen = 3 * nfilt
-    filtered_wh = filtfilt(b, [1.0], df['whisker_velocity'].abs(), axis=0,
-                            padlen=padlen)
-
-    return np.where(filtered_wh < 1.8*filtered_wh.std(), np.zeros_like(filtered_wh), 1)

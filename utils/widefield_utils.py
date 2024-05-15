@@ -218,7 +218,7 @@ def concat_widefield_data(file, wf_frame_timestamps, output_folder):
     # Get widefield size to know if we process in memory or of memory
     file_size = os.path.getsize(file)
     print(f"WF mj2 file is {np.round(file_size/1000000000, 2)} Gb")
-    if file_size/1000000000 < 60:
+    if file_size/1000000000 < 70:
         print(f"Process data in memory ... ")
         F_file = concat_inmemory_and_save(file, wf_frame_timestamps, output_folder)
     else:
@@ -239,13 +239,13 @@ def prompt_overwrite(folder_path, file):
         return True
 
 
-def make_alignment_reference(mouse_id, align_to='bregma', overwrite_sesison=None):
+def make_alignment_reference(mouse_id, align_to='bregma', overwrite_session=None):
     sessions_to_skip = ['PB175_20240308_140045']
     analysis_folder = get_subject_analysis_folder(mouse_id)
     ref_file = os.path.join(analysis_folder, 'alignment_ref.csv')
     sessions = os.listdir(analysis_folder)
     for session_id in sessions:
-        if overwrite_sesison is not None and session_id != overwrite_sesison:
+        if overwrite_session is not None and session_id != overwrite_session:
             continue
 
         if not os.path.isdir(os.path.join(analysis_folder, session_id)):
@@ -268,6 +268,7 @@ def make_alignment_reference(mouse_id, align_to='bregma', overwrite_sesison=None
             coord_x, coord_y = reference_list.loc[reference_list.index[-1], [f'{align_to}_x', f'{align_to}_y']]
             image = iio.v3.imread(wf_file[0], plugin='pyav', format='gray16be', index=0)
             fig, ax = plt.subplots()
+            fig.suptitle(f"{session_id}")
             ax.imshow(image)
             ax.scatter(coord_x, coord_y, marker='+', color='red')
             plt.show()
@@ -277,6 +278,7 @@ def make_alignment_reference(mouse_id, align_to='bregma', overwrite_sesison=None
                 coords = input('Enter space separated ref coords: x y')
                 coord_x, coord_y = tuple(int(item) for item in coords.split())
                 fig, ax = plt.subplots()
+                fig.suptitle(f"{session_id}")
                 ax.imshow(image)
                 ax.scatter(coord_x, coord_y, marker='+', color='red')
                 plt.show()
@@ -290,6 +292,7 @@ def make_alignment_reference(mouse_id, align_to='bregma', overwrite_sesison=None
 
             image = iio.v3.imread(wf_file[0], plugin='pyav', format='gray16be', index=0)
             fig, ax = plt.subplots()
+            fig.suptitle(f"{session_id}")
             ax.imshow(image)
             plt.show()
 
@@ -298,6 +301,7 @@ def make_alignment_reference(mouse_id, align_to='bregma', overwrite_sesison=None
                 coords = input('Enter space separated ref coords: x y')
                 coord_x, coord_y = tuple(int(item) for item in coords.split())
                 fig, ax = plt.subplots()
+                fig.suptitle(f"{session_id}")
                 ax.imshow(image)
                 ax.scatter(coord_x, coord_y, marker='+', color='red')
                 plt.show()
