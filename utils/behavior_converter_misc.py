@@ -401,9 +401,6 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
         #    trial_table = pd.read_csv(behavior_results_file, sep=';', engine='python')
     if experimenter in ['GF', 'MI']:
         trial_table = utils_gf.map_result_columns(trial_table)
-        # Remove early licks.
-        trial_table = trial_table.loc[trial_table.perf != 6]
-        trial_table = trial_table.reset_index(drop=True)
 
     trial_type_list = list_standard_trial_type(results_table=trial_table)
     n_trials = trial_table['perf'].size
@@ -433,7 +430,6 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
         n_trials = len(trial_timestamps)
         trial_table = trial_table.iloc[0:n_trials, :]
         trial_type_list = trial_type_list[0:n_trials]
-
 
     # Format timestamps for specific events
     whisker_stim_time = [t + trial_table['baseline_window'][i] / 1000 if trial_table.loc[i].is_whisker == 1 else np.nan
@@ -551,6 +547,12 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
         standard_trial_table['opto_stim_amplitude'] = np.nan
         standard_trial_table['opto_stim_frequency'] = np.nan
 
+    if experimenter in ['GF', 'MI']:
+        # Remove early licks.
+        standard_trial_table = standard_trial_table.loc[standard_trial_table.perf != 6]
+        standard_trial_table['id'] = np.arange(0,standard_trial_table.shape[0])
+        standard_trial_table = standard_trial_table.reset_index(drop=True)
+
     return standard_trial_table
 
 
@@ -619,11 +621,11 @@ def add_trials_standard_to_nwb(nwb_file, trial_table):
 
     column_names = trial_table.columns
     columns_to_add = [c for c in column_names if c not in ['id', 'start_time', 'stop_time']]
-    columns_to_add.append('trial_id')  # To repeat 'id'.
+    columns_to_add.append('trial_id')  # To have trial id's as a column.
 
     for column in columns_to_add:
         nwb_file.add_trial_column(name=column, description="None")
-
+    
     n_trials = trial_table['trial_type'].size
     for trial in range(n_trials):
         nwb_file.add_trial(id=trial_table['id'].values[trial],

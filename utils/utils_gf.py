@@ -70,7 +70,7 @@ def infer_timestamps_dict(config_file):
 
     # Check that trial and calcium imaging time point numbers match across processed files.
     # #####################################################################################
-
+    
     performance_json = f'\\\\sv-nas1.rcp.epfl.ch\\Petersen-Lab\\analysis\\Anthony_Renard\\data\\{imouse}\\Recordings\\BehaviourData\\{isession}\\performanceResults.json'
     with open(performance_json, 'r') as f:
         performance = json.load(f)
@@ -281,8 +281,13 @@ def get_gf_processed_ci(config_file):
         # spks = np.load(os.path.join(suite2p_folder, "spks.npy"), allow_pickle=True)
         F_cor = np.load(os.path.join(fissa_folder, "F_fissa.npy"), allow_pickle=True)
 
+        # Substract the F_raw baseline like GF was doing.
+        # This baseline was computed on the traces after Fissa seperation
+        # so it is mostly as 0.
+        F_cor = F_cor - F0[:,0]
+
         return stat, is_cell, F_raw, F_cor, F0[:,1]
-    
+
     
 def get_rois_label_folder_GF(config_file):
     with open(config_file, 'r', encoding='utf8') as stream:
@@ -293,7 +298,7 @@ def get_rois_label_folder_GF(config_file):
     
     if os.path.exists(folder):
         return folder
-    
+
 
 def get_roi_labels_GF(config_file, rois_label_folder):
     far_red_rois = np.load(os.path.join(rois_label_folder, 'FarRedRois.npy'), allow_pickle=True)
@@ -302,9 +307,9 @@ def get_roi_labels_GF(config_file, rois_label_folder):
     
     with open(config_file, 'r', encoding='utf8') as stream:
         config = yaml.safe_load(stream)
-    mouse_id = config['subject_metadata']['subject_id']    
+    mouse_id = config['subject_metadata']['subject_id'] 
     info_file = f'\\\\sv-nas1.rcp.epfl.ch\\Petersen-Lab\\data\\{mouse_id}\\Recordings\\ProjectionsInfo'
-    info_file = [os.path.join(info_file, file) for file in os.listdir(info_file) if 'Info' in file]
+    info_file = [os.path.join(info_file, file) for file in os.listdir(info_file) if 'CTBInjectionsInfo' in file]
     info_file = info_file[-1]
 
     info = {}
@@ -314,4 +319,4 @@ def get_roi_labels_GF(config_file, rois_label_folder):
             info[key] = val
     info = {color: area for area, color in info.items()}
 
-    return far_red_rois, red_rois, un_rois, info    
+    return far_red_rois, red_rois, un_rois, info
