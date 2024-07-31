@@ -105,8 +105,12 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True):
 if __name__ == '__main__':
 
     # Run the conversion
-    mouse_ids = ['AB107']
+    #mouse_ids = ['AB087', 'AB092', 'AB093', 'AB094', 'AB095']
+    mouse_ids = ['AB112', 'AB114', 'AB115']
+    mouse_ids = ['AB104']
     experimenter = 'AB'
+    last_done_day = '20240506'
+    last_done_day = None
 
     if experimenter == 'GF':
         # Read excel database.
@@ -139,9 +143,9 @@ if __name__ == '__main__':
         for isession, iday in training_days:
 
             # Filter session ID to do.
-            session_to_do = ['AB107_20240318_121423']
-            if isession not in session_to_do:
-                continue
+            #session_to_do = ['AB105_20240314_115206']
+            #if isession not in session_to_do:
+            #    continue
 
             # Filter by date.
             #date_to_do = '20240110'
@@ -149,15 +153,20 @@ if __name__ == '__main__':
             #   continue
 
             # Filter by time since date.
-            # session_date = isession.split('_')[1]
-            # session_date = datetime.datetime.strptime(session_date, "%Y%m%d")
-            # if last_done_day is not None:
-            #     if session_date <= datetime.datetime.strptime(last_done_day, "%Y%m%d"):
-            #         continue
+            session_date = isession.split('_')[1]
+            session_date = datetime.datetime.strptime(session_date, "%Y%m%d")
+            if last_done_day is not None:
+                if session_date <= datetime.datetime.strptime(last_done_day, "%Y%m%d"):
+                     continue
+                else:
+                    print('Converting', isession)
+
 
             # Filter by session type.
-            # if experimenter == 'AB' and iday != 'whisker_0':
-            #     continue
+            if experimenter == 'AB' and iday != 'whisker_0':
+                continue
+            # print('Converting', isession)
+
 
             # Find yaml config file and behavior results for this session.
             config_yaml = os.path.join(analysis_folder, isession, f"config_{isession}.yaml")
