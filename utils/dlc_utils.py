@@ -103,12 +103,12 @@ def compute_kinematics(df, view):
                                              (df.loc[:, 'pupil_bottom_likelihood'] > 0.9) & \
                                              (df.loc[:, 'pupil_left_likelihood'] > 0.9)
 
-    elif view == 'top' and len(df) != 0:
+    elif view == 'topview' and len(df) != 0:
         ## TODO: to be tested
         ## Whisker kinematics
 
         dot_prod = (df['whisker_tip_x'] - df['whisker_base_x']) * (df['nose_tip_x'].median() - df['nose_base_x'].median()) + (
-                    df['whisker_tip_y'] - df['whisker_base_y']) * (df['nose_tip_y'].median() - df['nose_base_y'].median())
+                    df['whisker_base_y'] - df['whisker_tip_y']) * (df['nose_tip_y'].median() - df['nose_base_y'].median())
 
         magnitude1 = np.sqrt((df['whisker_tip_x'] - df['whisker_base_x']) ** 2 + (
                     df['whisker_tip_y'] - df['whisker_base_y']) ** 2)
@@ -121,42 +121,15 @@ def compute_kinematics(df, view):
 
         ## Nose_top kinematics
 
-        ref_x = np.where(df['nose_tip_likelihood'] > 0.8, df['nose_tip_x'], 0).median()
-        ref_y = np.where(df['nose_tip_likelihood'] > 0.8, df['nose_tip_y'], 0).median()
+        ref_x = np.median(np.where(df['nose_tip_likelihood'] > 0.8, df['nose_tip_x'], 0))
+        ref_y = np.median(np.where(df['nose_tip_likelihood'] > 0.8, df['nose_tip_y'], 0))
 
-        df.loc[:, 'nose_top_angle'] = np.degrees(np.arcsin((df['nose_tip_x'] - ref_y) /
-                                                           (np.sqrt((df['nose_tip_x'] - ref_x) ** 2 + (
-                                                                   df['nose_tip_y'] - df['nose_base_y'].median()) ** 2))))
+        df.loc[:, 'nose_angle'] = np.degrees(np.arcsin((ref_x - df['nose_tip_x']) /
+                                                           (np.sqrt((ref_x - df['nose_tip_x']) ** 2 + (
+                                                                   ref_y - df['nose_base_y'].median()) ** 2))))
 
-        df.loc[:, 'nose_top_distance'] = np.sqrt((df['nose_tip_y'] - ref_y) ** 2 + (df['nose_tip_x'] - ref_x) ** 2)
-        df.loc[:, 'nose_top_velocity'] = np.zeros_like(df['nose_tip_distance'])
-        df.loc[1:, 'nose_top_velocity'] = np.diff(df['nose_tip_distance'])
+        df.loc[:, 'nose_distance'] = np.sqrt((df['nose_tip_y'] - ref_y) ** 2 + (df['nose_tip_x'] - ref_x) ** 2)
+        df.loc[:, 'nose_velocity'] = np.zeros_like(df['nose_distance'])
+        df.loc[1:, 'nose_velocity'] = np.diff(df['nose_distance'])
 
     return df
-
-
-def compute_jaw_opening_epoch(df):
-    nfilt = 100  # Number of taps to use in FIR filter
-    fw_base = 5  # Cut-off frequency for lowpass filter, in Hz
-    nyq_rate = 200 / 2.0
-    cutoff = min(1.0, fw_base / nyq_rate)
-    b = firwin(nfilt, cutoff=cutoff, window='hamming')
-    padlen = 3 * nfilt
-    filtered_jaw = filtfilt(b, [1.0], df['jaw_angle'], axis=0,
-                            padlen=padlen)
-    jaw_opening = np.where(filtered_jaw < 1.8*filtered_jaw.std(), np.zeros_like(filtered_jaw), 1)
-
-    return jaw_opening
-
-
-def compute_whisker_movement_epoch(df): ## TODO: revisit combination of parameters
-    nfilt = 100  # Number of taps to use in FIR filter
-    fw_base = 5  # Cut-off frequency for lowpass filter, in Hz
-    nyq_rate = 200 / 2.0
-    cutoff = min(1.0, fw_base / nyq_rate)
-    b = firwin(nfilt, cutoff=cutoff, window='hamming')
-    padlen = 3 * nfilt
-    filtered_wh = filtfilt(b, [1.0], df['whisker_angle'], axis=0,
-                            padlen=padlen)
-
-    return np.where(filtered_wh < 1.8*filtered_wh.std(), np.zeros_like(filtered_wh), 1)

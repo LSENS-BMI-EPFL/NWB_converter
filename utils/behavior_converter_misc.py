@@ -377,7 +377,6 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
             opto = 1
         session_config = {
             'mouse_name': config['subject_metadata']['subject_id'],
-            'context_flag': 0,
             'opto_session': opto,
         }
     else:
@@ -432,7 +431,6 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
         trial_table = trial_table.iloc[0:n_trials, :]
         trial_type_list = trial_type_list[0:n_trials]
 
-
     # Format timestamps for specific events
     whisker_stim_time = [t + trial_table['baseline_window'][i] / 1000 if trial_table.loc[i].is_whisker == 1 else np.nan
                          for i, t in enumerate(trial_timestamps[:, 0])]
@@ -479,6 +477,11 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
 
     standard_trial_table['no_stim'] = (~trial_table['is_stim'].astype(bool)).astype(int)
     standard_trial_table['no_stim_time'] = no_stim_time
+    
+    # Combine the stim time of all stim types in one vector. 
+    standard_trial_table['stim_onset'] = np.nanmax([no_stim_time,
+                                                   auditory_stim_time,
+                                                   whisker_stim_time], axis=0)
 
     standard_trial_table['reward_available'] = reward_available
     standard_trial_table['response_window_start_time'] = response_window_start_time
@@ -543,6 +546,12 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
         standard_trial_table['opto_stim_stop_time'] = np.nan
         standard_trial_table['opto_stim_amplitude'] = np.nan
         standard_trial_table['opto_stim_frequency'] = np.nan
+
+    if experimenter in ['GF', 'MI']:
+        # Remove early licks.
+        standard_trial_table = standard_trial_table.loc[standard_trial_table.perf != 6]
+        standard_trial_table['id'] = np.arange(0,standard_trial_table.shape[0])
+        standard_trial_table = standard_trial_table.reset_index(drop=True)
 
     return standard_trial_table
 
@@ -612,13 +621,15 @@ def add_trials_standard_to_nwb(nwb_file, trial_table):
 
     column_names = trial_table.columns
     columns_to_add = [c for c in column_names if c not in ['id', 'start_time', 'stop_time']]
+    columns_to_add.append('trial_id')  # To have trial id's as a column.
 
     for column in columns_to_add:
         nwb_file.add_trial_column(name=column, description="None")
-
+    
     n_trials = trial_table['trial_type'].size
     for trial in range(n_trials):
         nwb_file.add_trial(id=trial_table['id'].values[trial],
+                           trial_id=trial_table['id'].values[trial],
                            start_time=trial_table['start_time'].values[trial],
                            stop_time=trial_table['stop_time'].values[trial],
                            trial_type=trial_table['trial_type'].values[trial],
@@ -637,6 +648,8 @@ def add_trials_standard_to_nwb(nwb_file, trial_table):
 
                            no_stim=trial_table['no_stim'].values[trial],
                            no_stim_time=trial_table['no_stim_time'].values[trial],
+                           
+                           stim_onset=trial_table['stim_onset'].values[trial],
 
                            reward_available=trial_table['reward_available'].values[trial],
                            response_window_start_time=trial_table['response_window_start_time'].values[trial],

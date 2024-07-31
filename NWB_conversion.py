@@ -75,16 +75,16 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True):
              convert_ephys_recording(nwb_file=nwb_file,
                                      config_file=config_file)
 
-    # # Check we are on WF computer
-    # platform_info = platform.uname()
-    # computer_name = platform_info.node
-    # wf_computers = ['SV-07-082', 'SV-07-097']  # Add name of WF preprocessing computers here
-    # if computer_name in wf_computers and config_dict.get("widefield_metadata") is not None:
-    #     print(" ")
-    #     print("Convert widefield data")
-    #     convert_widefield_recording(nwb_file=nwb_file,
-    #                                 config_file=config_file,
-    #                                 wf_frame_timestamps=timestamps_dict["widefield"])
+    # Check we are on WF computer
+    platform_info = platform.uname()
+    computer_name = platform_info.node
+    wf_computers = ['SV-07-082', 'SV-07-097']  # Add name of WF preprocessing computers here
+    if computer_name in wf_computers and config_dict.get("widefield_metadata") is not None:
+        print(" ")
+        print("Convert widefield data")
+        convert_widefield_recording(nwb_file=nwb_file,
+                                    config_file=config_file,
+                                    wf_frame_timestamps=timestamps_dict["widefield"])
 
     if config_dict.get('behaviour_metadata')['camera_flag'] == 1:
         dlc_file = get_dlc_file_path(config_file)
@@ -105,12 +105,11 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True):
 if __name__ == '__main__':
 
     # Run the conversion
-    #mouse_ids = ['AB087', 'AB092', 'AB093', 'AB094', 'AB095']
-    mouse_ids = ['AB112', 'AB114', 'AB115']
     mouse_ids = ['AB104']
     experimenter = 'AB'
     last_done_day = '20240506'
     last_done_day = None
+
 
     if experimenter == 'GF':
         # Read excel database.
@@ -147,10 +146,11 @@ if __name__ == '__main__':
             #if isession not in session_to_do:
             #    continue
 
+
             # Filter by date.
-            #date_to_do = '20240110'
-            #if date_to_do not in isession:
-            #   continue
+            date_to_do = '20240217'
+            if date_to_do not in isession:
+              continue
 
             # Filter by time since date.
             session_date = isession.split('_')[1]

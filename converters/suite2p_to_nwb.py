@@ -55,14 +55,14 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
     if experimenter not in ['GF', 'MI']:
         stat, is_cell, F_raw, F_cor, F0 = utils_ci.get_processed_ci(suite2p_folder)
     else:
-        stat, is_cell, F, Fneu, F0, F_fissa = utils_gf.get_gf_processed_ci(config_file)
+        stat, is_cell, F_raw, F_cor, F0 = utils_gf.get_gf_processed_ci(config_file)
 
     # Correct is_cell for merges.
     is_cell = utils_ci.set_merged_roi_to_non_cell(stat, is_cell)
 
-    # Fissa is substracted but not normalized.
-    if F_cor is not None:
-        dff = F_cor / F0
+    # Fissa substracts baseline but do not normalized.
+    # Normalizing with baseline of the raw signal.
+    dff = F_cor / F0
 
     # Extract image dimensions
     if image_series is not None:
@@ -101,9 +101,9 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
         cell_type_codes = None
     else:
         if experimenter in ['GF', 'MI']:
-            far_red_rois, red_rois, un_rois, info = utils_gf.get_roi_labels_GF(projection_folder)
+            far_red_rois, red_rois, na_rois, info = utils_gf.get_roi_labels_GF(config_file, projection_folder)
         else:
-            far_red_rois, red_rois, un_rois, info = utils_ci.get_roi_labels(projection_folder)
+            far_red_rois, red_rois, na_rois, info = utils_ci.get_roi_labels(projection_folder)
 
         # Code: 1: wM1, 2: wS2 and 0: unassigned.
         # Cell code list [1, 1, 2, 0, 0, 1, 2, 0, 0] same length as d_filt.
