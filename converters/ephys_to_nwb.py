@@ -205,6 +205,7 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
                 electrode_group=electrode_group,
                 depth=unit_table['depth'].values[neuron_id],
                 ks_label=unit_table['ks_label'].values[neuron_id],
+                group=unit_table['group'].values[neuron_id],
                 bc_label=unit_table['bc_label'].values[neuron_id],
                 firing_rate=unit_table['firing_rate'].values[neuron_id],
                 spike_times=unit_table['spike_times'].values[neuron_id],
