@@ -20,6 +20,7 @@ from utils.continuous_processing import detect_piezo_lick_times
 from utils.read_sglx import readMeta, SampRate, makeMemMapRaw, GainCorrectIM, GainCorrectNI, ChannelCountsNI
 
 # MAP of (AP,ML) coordinates relative to bregma
+# Update this for new target areas
 AREA_COORDINATES_MAP = {
     'wS1': 'IOS',
     'wS2': 'IOS',
@@ -31,7 +32,8 @@ AREA_COORDINATES_MAP = {
     'PPC': (-2, 1.75),
     'dCA1': (-2.7, 2),
     'tjM1': (2, 2),
-    'DLS': (0, 3.5)
+    'DLS': (0, 3.5),
+    'SC':  (-3.8, 0.5)
 }
 
 
@@ -306,11 +308,12 @@ def format_ephys_timestamps(config_file, ephys_timestamps_dict):
                 ts_on = timestamps
 
                 # Remove first/last pulses due to camera being turned ON or OFF
-                # These pulse are several seconds long
+                # These pulse are several tens of ms long >>> 2ms exposure time
                 diff_ts_on = np.diff(ts_on)
-                if diff_ts_on[0] > 1:
+                startup_pulse_thresh = 0.05 # 50 ms
+                if diff_ts_on[0] > startup_pulse_thresh:
                     ts_on = ts_on[1:]
-                if diff_ts_on[-1] > 1:
+                if diff_ts_on[-1] > startup_pulse_thresh:
                     ts_on = ts_on[:-1]
 
                 # Get exposure time
@@ -473,7 +476,8 @@ def create_unit_table(nwb_file):
         'peak_channel': 'electrode with max waveform amplitude, from KS',
         'electrode_group': 'ElectrodeGroup object (i.e. probe) recording the unit',
         'depth': 'depth of peak electrode, in probe space, from KS',
-        'ks_label': 'unit quality label, form Kilosort and curation (Phy): “good”, “mua”',
+        'ks_label': 'unit quality label, from Kilosort: “good”, “mua”',
+        'group': 'unit quality label, after Phy curation: “good”, “mua”, "noise"',
         'bc_label': 'unit quality label, from Bombcell: "good","mua","non-soma"',
         'firing_rate': 'total firing rate in session, in Hz',
         'maxChannels': 'channel of max waveform amplitude',
@@ -597,7 +601,8 @@ def build_unit_table(imec_folder, sync_spike_times_path):
     unit_table['cluster_id'] = cluster_info_df_sub['cluster_id']
     unit_table['peak_channel'] = cluster_info_df_sub['ch']
     unit_table['depth'] = cluster_info_df_sub['depth']
-    unit_table['ks_label'] = cluster_info_df_sub['group']  # "group" is the Phy-curated label, "KSLabel" is the KS raw label
+    unit_table['ks_label'] = cluster_info_df_sub['ks_label']  # "group" is the Phy-curated label, "KSLabel" is the KS raw label
+    unit_table['group'] = cluster_info_df_sub['group']  # "group" is the Phy-curated label, "KSLabel" is the KS raw label
     unit_table['bc_label'] = cluster_info_df_sub['bc_label']  # automatic curation from bombcell
     unit_table['firing_rate'] = cluster_info_df_sub['fr']
 
@@ -819,6 +824,8 @@ def build_area_table(imec_folder):
         atlas_metadata = json.load(f)
     area_table['atlas_metadata'] = str(atlas_metadata)
 
+    print('Length of area table:', len(area_table))
+
     # ------------------------------------------------------------
     # Simplify CCF hierarchical nomenclature with parent structure
     # Relevant for cortical layers <-> cortical area
@@ -856,6 +863,7 @@ def build_area_table(imec_folder):
 
     coords = np.load(os.path.join(path_to_proc_anat, 'standard_space\\tracks', 'imec{}.npy'.format(imec_id)))
     coords = coords[::-1]
+    print('Probe track coordinates shape:', coords.shape)
     if int(mouse_name[2:]) < 100: # TOTO: remove for future mice
         coords = coords[9:, :]
     area_table['ccf_ap'] = coords[:, 0]
