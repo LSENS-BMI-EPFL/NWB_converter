@@ -235,12 +235,13 @@ def get_context_timestamps_dict(timestamps_dict, nwb_trial_table):
         return None, None
     if 'context' not in list(timestamps_dict.keys()):
         return None, None
+    if 'active' in nwb_trial_table['context'].unique() or 'passive' in nwb_trial_table['context'].unique():
+        print(f"Ignoring 'active' or 'passive' in 'context' column from csv file as a behavioral epoch")
+        return None, None
     if len(np.unique(nwb_trial_table['context'].values[:])) == 1:
         print(f"Found only 1 value in 'context' column from csv file : {nwb_trial_table['context'].values[0]}")
         return None, None
-    if 'active' in np.unique(nwb_trial_table['context'].values[:]) or 'passive' in np.unique(nwb_trial_table['context'].values[:]):
-        print(f"Ignoring 'active' or 'passive' in 'context' column from csv file")
-        return None, None
+
 
     # Get context timestamps
     context_on_off = timestamps_dict.get('context')
@@ -499,9 +500,24 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
             standard_trial_table['context'] = trial_table['wh_reward']
             standard_trial_table['context_background'] = trial_table['context_block']
         else:
-            standard_trial_table['context'] = trial_table['context_block']
+
+            standard_trial_table['context'] = trial_table['context_block'] #active or passive
             standard_trial_table['context_background'] = np.nan
-    else:
+
+            # If 'active' and some nan values, replace all by np.nan
+            if set(trial_table['context_block'].unique()) == set([np.nan, 'active']):
+                standard_trial_table['context'] = np.nan
+                standard_trial_table['context_background'] = np.nan
+            # If 'passive' and some nan values, replace all by np.nan
+            if set(trial_table['context_block'].unique()) == set([np.nan, 'passive']):
+                standard_trial_table['context'] = np.nan
+                standard_trial_table['context_background'] = np.nan
+            if set(trial_table['context_block'].unique()) == set(['passive', 'active']):
+                standard_trial_table['context'] = trial_table['context_block'] #'active' or 'passive'
+                standard_trial_table['context_background'] = np.nan
+
+
+    else: # case if context_flag is absence from session_config.json i.e. older sessions prior 2023
         standard_trial_table['context'] = np.nan
         standard_trial_table['context_background'] = np.nan
 

@@ -249,6 +249,7 @@ def format_ephys_timestamps(config_file, ephys_timestamps_dict):
 
     if config.get('behaviour_metadata').get('camera_flag'):
         movie_files = server_paths.get_session_movie_files(config_file)
+        print('Movie files during ephys:', movie_files)
         if movie_files is not None:
             movie_file_names = [os.path.basename(f) for f in movie_files]
             movie_file_suffix = [f.split('-')[0] for f in movie_file_names]
