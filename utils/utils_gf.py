@@ -281,11 +281,6 @@ def get_gf_processed_ci(config_file):
         # spks = np.load(os.path.join(suite2p_folder, "spks.npy"), allow_pickle=True)
         F_cor = np.load(os.path.join(fissa_folder, "F_fissa.npy"), allow_pickle=True)
 
-        # Substract the F_raw baseline like GF was doing.
-        # This baseline was computed on the traces after Fissa seperation
-        # so it is mostly as 0.
-        F_cor = F_cor - F0[:,0]
-
         return stat, is_cell, F_raw, F_cor, F0[:,1]
 
     
