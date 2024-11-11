@@ -42,6 +42,9 @@ def find_training_days(subject_id, input_folder):
         with open(json_path, 'r') as f:
             json_config = json.load(f)
 
+        if isession == 'AB131_20240904_123728':
+            json_config['behaviour_type'] = 'auditory'
+
         # Correct typos in behaviour names
         if json_config['behaviour_type'] == 'whisker_off':
             json_config['behaviour_type'] = 'whisker_off_1' # ensures correct string parsing

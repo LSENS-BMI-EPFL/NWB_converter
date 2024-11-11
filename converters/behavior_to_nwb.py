@@ -186,11 +186,15 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
     # Check if behaviour video filming
     if config_dict.get('session_metadata').get('experimenter') == 'AB':
         movie_files = server_paths.get_session_movie_files(config_file)
+        if config_dict.get('behaviour_metadata').get('behaviour_type') == 'auditory':
+            print('Ignoring videos for auditory sessions')
+            movie_files = None
     else:
         movie_files = server_paths.get_movie_files(config_file)
 
     # If there is a behaviour video, add camera frame timestamps to NWB file
     if config_dict.get('behaviour_metadata').get('camera_flag') == 0:
+        print('Camera flag is set to 0, ignoring any video files data')
         movie_files = None
 
     if movie_files is not None:
@@ -209,19 +213,13 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
 
             #  Check number of frames in video vs. number of timestamps
             if config_dict.get('session_metadata').get('experimenter') == 'AB':
-                key_view_mapper = {
-                    'top': 'cam1',
-                    'side': 'cam2',
-                    'lateral': 'cam2'
-                }
-                movie_file_name = os.path.basename(movie)
-                movie_file_name = movie_file_name.replace('-', '_')
-                movie_file_name = movie_file_name.replace(' ', '_')
-                move_file_parts = movie_file_name.split('_')
-                movie_file_suffix = [part for part in move_file_parts if part in key_view_mapper.keys()][0]
-                cam_key = key_view_mapper[movie_file_suffix]
-
-                movie_nwb_file_name = movie
+                key_view_mapper = {'top': 'cam1', 'side': 'cam2', 'lateral': 'cam2'}
+                movie_file_suffix = next(
+                    (part for part in os.path.basename(movie).replace('-', '_').replace(' ', '_').split('_')
+                     if part in key_view_mapper), None) # replaces spaces with underscores
+                cam_key = key_view_mapper.get(movie_file_suffix)
+                # Replace suffix with camera key
+                movie_nwb_file_name = movie.replace(movie_file_suffix, f'{movie_file_suffix}_{cam_key}')
 
             else:
                 movie_nwb_file_name = f"{ os.path.split(movie)[1].split('.')[0]}_camera_{movie_index + 1}"

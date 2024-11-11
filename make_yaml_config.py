@@ -93,7 +93,9 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
         subject_metadata['genotype'] = 'WT'
 
     # Add weight at the beginning of the session from json config file.
-    session_config_json_path = os.path.join(input_folder, 'Training', session_id, 'session_config.json')
+    sess_folder = os.path.join(input_folder, 'Training', session_id)
+    session_config_file = 'session_config_corrected.json' if 'session_config_corrected.json' in os.listdir(sess_folder) else 'session_config.json' # seek any corrected file if it exists, default to GUI output otherwise
+    session_config_json_path = os.path.join(sess_folder, session_config_file)
     with open(session_config_json_path, 'r') as f:
         json_config = json.load(f)
 
@@ -402,7 +404,7 @@ def create_ephys_metadata(subject_id):
     else:
         setup = 'Neuropixels setup 2 AI3209'
 
-    if initials == 'AB' and int(mouse_number) > 95:
+    if initials == 'AB' and int(mouse_number) > 131:
         processed = 0
     else:
         processed = 1
@@ -458,9 +460,9 @@ def create_wf_metadata(config_path):
 
 if __name__ == '__main__':
     # Select mouse IDs.
-    mouse_ids = ['PB176', 'PB177', 'PB178', 'PB179', 'PB180', 'PB181']
-    # mouse_ids = ['RD042', 'RD043', 'RD044', 'RD045']
-    # mouse_ids = ['PB173']
+    experimenter = 'AB'
+    mouse_ids = ['AB116','AB117','AB119','AB120','AB121','AB122','AB123','AB124','AB126','AB127','AB128','AB129','AB130'] # do AB131
+    mouse_ids = ['AB121']
     # last_done_day = '20240307'
 
     for mouse_id in mouse_ids:
@@ -492,5 +494,5 @@ if __name__ == '__main__':
             make_yaml_config(mouse_id, session_id, day, data_folder, analysis_folder,
                              mouse_line='C57BL/6', gmo=False)
 
-            add_metadata_to_config(mouse_id, session_id, 'PB')
+            add_metadata_to_config(mouse_id, session_id, experimenter)
 

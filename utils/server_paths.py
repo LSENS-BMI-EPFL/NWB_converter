@@ -165,8 +165,10 @@ def get_session_movie_files(config_file):
         config = yaml.safe_load(stream)
     mouse_name = config['subject_metadata']['subject_id']
     session_name = config['session_metadata']['session_id']
-    analysis_folder = get_subject_analysis_folder(mouse_name)
-    movies_path = os.path.join(analysis_folder, session_name, 'Video')
+    #analysis_folder = get_subject_analysis_folder(mouse_name)
+    #movies_path = os.path.join(analysis_folder, session_name, 'Video')
+    data_folder = get_subject_data_folder(mouse_name)
+    movies_path = os.path.join(data_folder, 'Recording', session_name, 'Video')
     if not os.path.exists(movies_path):
         movies = None
         return movies
