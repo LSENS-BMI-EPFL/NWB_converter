@@ -20,6 +20,7 @@ from utils.continuous_processing import detect_piezo_lick_times
 from utils.read_sglx import readMeta, SampRate, makeMemMapRaw, GainCorrectIM, GainCorrectNI, ChannelCountsNI
 
 # MAP of (AP,ML) coordinates relative to bregma
+# Update this for new target areas
 AREA_COORDINATES_MAP = {
     'wS1': 'IOS',
     'wS2': 'IOS',
@@ -31,7 +32,8 @@ AREA_COORDINATES_MAP = {
     'PPC': (-2, 1.75),
     'dCA1': (-2.7, 2),
     'tjM1': (2, 2),
-    'DLS': (0, 3.5)
+    'DLS': (0, 3.5),
+    'SC':  (-3.8, 0.5)
 }
 
 
@@ -247,6 +249,7 @@ def format_ephys_timestamps(config_file, ephys_timestamps_dict):
 
     if config.get('behaviour_metadata').get('camera_flag'):
         movie_files = server_paths.get_session_movie_files(config_file)
+        print('Movie files during ephys:', movie_files)
         if movie_files is not None:
             movie_file_names = [os.path.basename(f) for f in movie_files]
             movie_file_suffix = [f.split('-')[0] for f in movie_file_names]
@@ -306,11 +309,12 @@ def format_ephys_timestamps(config_file, ephys_timestamps_dict):
                 ts_on = timestamps
 
                 # Remove first/last pulses due to camera being turned ON or OFF
-                # These pulse are several seconds long
+                # These pulse are several tens of ms long >>> 2ms exposure time
                 diff_ts_on = np.diff(ts_on)
-                if diff_ts_on[0] > 1:
+                startup_pulse_thresh = 0.05 # 50 ms
+                if diff_ts_on[0] > startup_pulse_thresh:
                     ts_on = ts_on[1:]
-                if diff_ts_on[-1] > 1:
+                if diff_ts_on[-1] > startup_pulse_thresh:
                     ts_on = ts_on[:-1]
 
                 # Get exposure time
@@ -473,7 +477,8 @@ def create_unit_table(nwb_file):
         'peak_channel': 'electrode with max waveform amplitude, from KS',
         'electrode_group': 'ElectrodeGroup object (i.e. probe) recording the unit',
         'depth': 'depth of peak electrode, in probe space, from KS',
-        'ks_label': 'unit quality label, form Kilosort and curation (Phy): “good”, “mua”',
+        'ks_label': 'unit quality label, from Kilosort: “good”, “mua”',
+        'group': 'unit quality label, after Phy curation: “good”, “mua”, "noise"',
         'bc_label': 'unit quality label, from Bombcell: "good","mua","non-soma"',
         'firing_rate': 'total firing rate in session, in Hz',
         'maxChannels': 'channel of max waveform amplitude',
@@ -597,7 +602,8 @@ def build_unit_table(imec_folder, sync_spike_times_path):
     unit_table['cluster_id'] = cluster_info_df_sub['cluster_id']
     unit_table['peak_channel'] = cluster_info_df_sub['ch']
     unit_table['depth'] = cluster_info_df_sub['depth']
-    unit_table['ks_label'] = cluster_info_df_sub['group']  # "group" is the Phy-curated label, "KSLabel" is the KS raw label
+    unit_table['ks_label'] = cluster_info_df_sub['ks_label']  # "group" is the Phy-curated label, "KSLabel" is the KS raw label
+    unit_table['group'] = cluster_info_df_sub['group']  # "group" is the Phy-curated label, "KSLabel" is the KS raw label
     unit_table['bc_label'] = cluster_info_df_sub['bc_label']  # automatic curation from bombcell
     unit_table['firing_rate'] = cluster_info_df_sub['fr']
 
@@ -633,7 +639,14 @@ def build_unit_table(imec_folder, sync_spike_times_path):
         'clusterID': 'bc_cluster_id',  # bombcell cluster ID (indexed at 1)
     }
     bc_info_df.rename(columns=old_to_new_columns, inplace=True)
-    bc_info_df_sub = bc_info_df.loc[valid_cluster_ids, :]
+
+    try: # TODO: make sure this does not happen, fix for mouse AB126
+        bc_info_df_sub = bc_info_df.loc[valid_cluster_ids, :]
+    except KeyError:
+        print('Error with valid cluster indices - check kilosort/bomcell output.')
+        valid_cluster_ids_temp = [idx for idx in valid_cluster_ids if idx in bc_info_df.index]
+        bc_info_df_sub = bc_info_df.loc[valid_cluster_ids_temp, :]
+
 
     # Add bombcell quality metrics
     unit_table['maxChannels'] = bc_info_df_sub['maxChannels']
@@ -656,7 +669,6 @@ def build_unit_table(imec_folder, sync_spike_times_path):
     unit_table['signalToNoiseRatio'] = bc_info_df_sub['signalToNoiseRatio']
     unit_table['fractionRPVs_estimatedTauR'] = bc_info_df_sub['fractionRPVs_estimatedTauR']
 
-
     # -----------------------------------------------------
     # Load mean waveforms and waveform metrics from C_Waves
     # -----------------------------------------------------
@@ -673,93 +685,6 @@ def build_unit_table(imec_folder, sync_spike_times_path):
 
     # Filter final table to remove noise clusters based on bombcell output
     unit_table = unit_table[~unit_table.bc_label.isin(['noise'])]
-
-    # Save unit table as intermediate file
-    #file_name = '{}_unit_table.parquet'.format(imec_folder, 'kilosort2')
-    # unit_table.to_parquet(os.path.join(imec_folder, 'kilosort2', file_name))
-
-    return unit_table
-
-
-
-def build_unit_table_old(imec_folder, sync_spike_times_path):
-    # TODO: update with bombcell output
-    # TODO: replace ElectrodeGroup with probe information as dictionary + udpate downstream
-    """
-    Build unit table from spike sorting/curation output.
-    Args:
-        imec_folder: path to imec folder
-        sync_spike_times_path:  path to sync spike times
-
-    Returns:
-
-    """
-    # Init. table
-    unit_table = pd.DataFrame()
-
-    # Load cluster table
-    cluster_info_path = pathlib.Path(imec_folder, 'cluster_info.tsv')
-    try:
-        cluster_info_df = pd.read_csv(cluster_info_path, sep='\t')
-    except FileNotFoundError:
-        print('No spike sorting at: {}'.format(cluster_info_path))
-        return
-
-    cluster_info_df.rename(columns={'KSLabel': 'ks_label',
-                                    'Amplitude': 'amplitude',
-                                    'ContamPct': 'contam_pct',
-                                    'bc_unitType': 'bc_label'}, inplace=True)
-
-    # Find if cluster had a curated label from Phy
-    cluster_info_df['curated'] = cluster_info_df.apply(lambda x: 0 if pd.isnull(x.group) else 1, axis=1)
-
-    # Phy-based new clusters/ new splits have no ks_label: convert NaN to None
-    cluster_info_df.fillna(value='', inplace=True)  # returns None
-
-    # Get valid cluster indices
-    valid_cluster_ids = cluster_info_df[cluster_info_df.group.isin(['good', 'mua'])].index  # dataframe indices
-    cluster_info_df_sub = cluster_info_df.loc[valid_cluster_ids, :]
-
-    # Add cluster information
-    unit_table['cluster_id'] = cluster_info_df_sub['cluster_id']
-    unit_table['peak_channel'] = cluster_info_df_sub['ch']
-    unit_table['depth'] = cluster_info_df_sub['depth']
-    unit_table['ks_label'] = cluster_info_df_sub['group']  # "group" is the curated label, "KSLabel" is the KS label
-    unit_table['firing_rate'] = cluster_info_df_sub['fr']
-
-    # Load spikes times
-    spike_times_sync = np.load(sync_spike_times_path)
-    spike_times_sync_df = pd.DataFrame(data=spike_times_sync, columns=['spike_times'])
-    spike_times_sync_df.index.name = 'spike_id'
-    spike_times_per_cluster = []
-
-    # Load spike cluster assignments
-    spike_clusters = np.load(os.path.join(imec_folder, 'spike_clusters.npy'))
-    spike_clusters_df = pd.DataFrame(data=spike_clusters, columns=['cluster_id'])
-    spike_clusters_df.index.name = 'spike_id'
-
-    # Note: Iterate over selected good cluster only !
-    for c_id in cluster_info_df.cluster_id.values:
-        spike_ids = spike_clusters_df[spike_clusters_df.cluster_id == c_id].index
-        spike_times_per_cluster.append(np.array(spike_times_sync_df.iloc[spike_ids].spike_times))
-    cluster_info_df['spike_times'] = spike_times_per_cluster
-
-    unit_table['spike_times'] = cluster_info_df.loc[valid_cluster_ids].spike_times
-
-    # Load mean waveform data
-    mean_wfs = np.load(os.path.join(imec_folder, 'cwaves', 'mean_waveforms.npy'))
-    peak_channels = cluster_info_df_sub.loc[valid_cluster_ids, 'ch'].values
-    mean_wfs = mean_wfs[valid_cluster_ids, peak_channels, :]  # note: keep only valid clusters and peak channels
-    unit_table['waveform_mean'] = pd.DataFrame(mean_wfs).to_numpy().tolist()
-
-    # Load mean waveform metrics
-    mean_wf_metrics = pd.read_csv(os.path.join(imec_folder, 'cwaves', 'waveform_metrics.csv'))
-    unit_table['duration'] = mean_wf_metrics.loc[valid_cluster_ids].duration.values
-    unit_table['pt_ratio'] = mean_wf_metrics.loc[valid_cluster_ids].pt_ratio.values
-
-    # Save unit table as intermediate file
-    file_name = '{}_unit_table.parquet'.format(imec_folder)
-    unit_table.to_parquet(os.path.join(imec_folder, file_name))
 
     return unit_table
 
@@ -784,7 +709,10 @@ def build_area_table(imec_folder):
     # TODO: confirm location and update
     #path_to_proc_anat = imec_folder.replace('Ephys', 'Anatomy')
     #path_to_proc_anat = path_to_proc_anat.replace(imec_folder.partition('Ephys')[-1], '\\brainreg\\manual_segmentation\\')
-    path_to_proc_anat = r'M:\analysis\Axel_Bisi\ImagedBrains\{}\brainreg\manual_segmentation'.format(mouse_name)
+    if int(mouse_name[2:]) < 116:
+        path_to_proc_anat = r'M:\analysis\Axel_Bisi\ImagedBrains\{}\brainreg\manual_segmentation'.format(mouse_name)
+    else:
+        path_to_proc_anat = r'M:\analysis\Axel_Bisi\ImagedBrains\Axel_Bisi\{}\fused\registered\segmentation'.format(mouse_name)
 
     area_table = pd.read_csv(os.path.join(path_to_proc_anat, 'sample_space\\tracks', 'imec{}.csv'.format(imec_id)))
 
@@ -793,7 +721,8 @@ def build_area_table(imec_folder):
     # -------------------------------------------------------
 
     # Format table for future shank row matching
-    area_table.rename(columns={'Position': 'shank_row',
+    area_table.rename(columns={'Position':'shank_row',
+                               'Index':'shank_row', # brainreg-seg output update                               'Region ID': 'ccf_id',
                                'Region ID': 'ccf_id',
                                'Region acronym': 'ccf_acronym',
                                'Region name': 'ccf_name'}, inplace=True)
@@ -814,10 +743,12 @@ def build_area_table(imec_folder):
     area_table['shank_row'] = max_position - area_table['shank_row'].values  # make values start at 0
 
     # Add atlas metadata
-    path_to_atlas = r'C:\Users\bisi\.brainglobe\allen_mouse_25um_v1.2' #TODO: hard-coded path to change
+    path_to_atlas = r'C:\Users\bisi\.brainglobe\allen_mouse_bluebrain_barrels_10um_v1.0'
     with open(os.path.join(path_to_atlas, 'metadata.json')) as f:
         atlas_metadata = json.load(f)
     area_table['atlas_metadata'] = str(atlas_metadata)
+
+    print('Length of area table:', len(area_table))
 
     # ------------------------------------------------------------
     # Simplify CCF hierarchical nomenclature with parent structure
@@ -854,9 +785,14 @@ def build_area_table(imec_folder):
     # Load ccf coordinates (ccf standard space)
     # -----------------------------------------
 
-    coords = np.load(os.path.join(path_to_proc_anat, 'standard_space\\tracks', 'imec{}.npy'.format(imec_id)))
+    if int(mouse_name[2:]) < 116:
+        coords = np.load(os.path.join(path_to_proc_anat, 'standard_space\\tracks', 'imec{}.npy'.format(imec_id)))
+    else:
+        coords = np.load(os.path.join(path_to_proc_anat, 'atlas_space\\tracks', 'imec{}.npy'.format(imec_id)))
+
     coords = coords[::-1]
-    if int(mouse_name[2:]) < 100: # TOTO: remove for future mice
+    print('Probe track coordinates shape:', coords.shape)
+    if int(mouse_name[2:]) < 100: # TODO: remove for future mice
         coords = coords[9:, :]
     area_table['ccf_ap'] = coords[:, 0]
     area_table['ccf_ml'] = coords[:, 1]

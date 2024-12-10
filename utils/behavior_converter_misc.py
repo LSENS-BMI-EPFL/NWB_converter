@@ -42,6 +42,9 @@ def find_training_days(subject_id, input_folder):
         with open(json_path, 'r') as f:
             json_config = json.load(f)
 
+        if isession == 'AB131_20240904_123728':
+            json_config['behaviour_type'] = 'auditory'
+
         # Correct typos in behaviour names
         if json_config['behaviour_type'] == 'whisker_off':
             json_config['behaviour_type'] = 'whisker_off_1' # ensures correct string parsing
@@ -235,12 +238,13 @@ def get_context_timestamps_dict(timestamps_dict, nwb_trial_table):
         return None, None
     if 'context' not in list(timestamps_dict.keys()):
         return None, None
+    if 'active' in nwb_trial_table['context'].unique() or 'passive' in nwb_trial_table['context'].unique():
+        print(f"Ignoring 'active' or 'passive' in 'context' column from csv file as a behavioral epoch")
+        return None, None
     if len(np.unique(nwb_trial_table['context'].values[:])) == 1:
         print(f"Found only 1 value in 'context' column from csv file : {nwb_trial_table['context'].values[0]}")
         return None, None
-    if 'active' in np.unique(nwb_trial_table['context'].values[:]) or 'passive' in np.unique(nwb_trial_table['context'].values[:]):
-        print(f"Ignoring 'active' or 'passive' in 'context' column from csv file")
-        return None, None
+
 
     # Get context timestamps
     context_on_off = timestamps_dict.get('context')
@@ -350,6 +354,7 @@ def list_standard_trial_type(results_table):
 
     return trial_type_list
 
+
 def build_standard_trial_table(config_file, behavior_results_file, timestamps_dict):
     """
     Build the standard trial table from behavior (and opto) results file and timestamps dictionary, used for all downstream analyses.
@@ -447,10 +452,10 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
     trial_table.replace({'reaction_time': 0}, np.nan, inplace=True)
 
     # Define rewards availability
-    if 'partial_reward_flag' in session_config.keys():
+    if 'partial_reward_flag' in session_config.keys() and session_config['partial_reward_flag'] == 1:
         reward_available = [1 if(trial_table.loc[i].is_auditory == 1 or
-                                    (trial_table.loc[i].is_whisker == 1 and trial_table.loc[i].is_reward == 1)) else 0
-                                for i in range(n_trials)]
+                                 (trial_table.loc[i].is_whisker == 1 and trial_table.loc[i].is_reward == 1)) else 0
+                            for i in range(n_trials)]
     else:
         reward_available = [1 if (trial_table.loc[i].is_auditory == 1 or
                                   (trial_table.loc[i].is_whisker == 1 and trial_table.loc[i].wh_reward == 1)) else 0
@@ -499,9 +504,22 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
             standard_trial_table['context'] = trial_table['wh_reward']
             standard_trial_table['context_background'] = trial_table['context_block']
         else:
-            standard_trial_table['context'] = trial_table['context_block']
+            standard_trial_table['context'] = trial_table['context_block']  # active or passive
             standard_trial_table['context_background'] = np.nan
-    else:
+
+            # If 'active' and some nan values, replace all by np.nan
+            if set(trial_table['context_block'].unique()) == set([np.nan, 'active']):
+                standard_trial_table['context'] = np.nan
+                standard_trial_table['context_background'] = np.nan
+            # If 'passive' and some nan values, replace all by np.nan
+            if set(trial_table['context_block'].unique()) == set([np.nan, 'passive']):
+                standard_trial_table['context'] = np.nan
+                standard_trial_table['context_background'] = np.nan
+            if set(trial_table['context_block'].unique()) == set(['passive', 'active']):
+                standard_trial_table['context'] = trial_table['context_block']  # 'active' or 'passive'
+                standard_trial_table['context_background'] = np.nan
+
+    else:  # case if context_flag is absence from session_config.json i.e. older sessions prior 2023
         standard_trial_table['context'] = np.nan
         standard_trial_table['context_background'] = np.nan
 

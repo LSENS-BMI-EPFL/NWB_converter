@@ -386,12 +386,14 @@ if __name__ == '__main__':
     gmo = True
 
     # Read excel database.
-    db_folder = 'C:\\Users\\aprenard\\recherches\\fast-learning\\docs'
-    db_name = 'sessions_GF.xlsx'
+    db_folder = "\\\\sv-nas1.rcp.epfl.ch\\Petersen-Lab\\analysis\\Anthony_Renard\\mice_info"
+    db_name = "session_metadata.xlsx"
     db = utils_gf.read_excel_database(db_folder, db_name)
 
     # Select mouse IDs.
     mouse_ids = db.subject_id.unique()
+    mouse_ids = [id for id in mouse_ids if id[:2] in ['GF', 'MI']]
+    mouse_ids = ['GF278']
 
     for mouse_id in mouse_ids:
         # Data folder in GF analysis.

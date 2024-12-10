@@ -134,9 +134,9 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
 
         for electrode_id in range(n_chan_total - 1):  # ignore reference channel 768
 
-            # For each electrode, get anatomical info accounting for two electrodes per row
-            row_id = int(shank_rows[electrode_id])
-            area_info = area_table.iloc[row_id, :] 
+            # For each electrode, get anatomical info
+            row_id = int(shank_rows[electrode_id]) # this accounts for two electrodes per row
+            area_info = area_table.iloc[row_id, :] # from tip upwards
             area_info = area_info.astype(str)
 
 
@@ -205,6 +205,7 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
                 electrode_group=electrode_group,
                 depth=unit_table['depth'].values[neuron_id],
                 ks_label=unit_table['ks_label'].values[neuron_id],
+                group=unit_table['group'].values[neuron_id],
                 bc_label=unit_table['bc_label'].values[neuron_id],
                 firing_rate=unit_table['firing_rate'].values[neuron_id],
                 spike_times=unit_table['spike_times'].values[neuron_id],
