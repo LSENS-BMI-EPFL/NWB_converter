@@ -232,7 +232,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
 
     # Extracell. ephys. metadata.
     # ####################
-    if experimenter == 'AB':
+    if experimenter in ['AB', 'PB']:
         ephys_metadata = create_ephys_metadata(subject_id=subject_id)
 
     # Write to yaml file.
@@ -399,12 +399,14 @@ def create_ephys_metadata(subject_id):
 
     """
     mouse_number, initials = get_subject_mouse_number(subject_id)
-    if initials == 'AB':
+    if initials in ['AB', 'PB']:
         setup = 'Neuropixels setup 1 AI3209'
     else:
         setup = 'Neuropixels setup 2 AI3209'
 
     if initials == 'AB' and int(mouse_number) > 131:
+        processed = 0
+    elif initials == 'PB':
         processed = 0
     else:
         processed = 1
@@ -462,7 +464,7 @@ if __name__ == '__main__':
     # Select mouse IDs.
     experimenter = 'AB'
     mouse_ids = ['AB116','AB117','AB119','AB120','AB121','AB122','AB123','AB124','AB126','AB127','AB128','AB129','AB130'] # do AB131
-    mouse_ids = ['AB121']
+    mouse_ids = ['AB133']
     # last_done_day = '20240307'
 
     for mouse_id in mouse_ids:
