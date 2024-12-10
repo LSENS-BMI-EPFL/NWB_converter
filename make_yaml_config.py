@@ -281,7 +281,7 @@ def create_channels_threshold_dict(experimenter, json_config, session_type):
     """
     channels_dict, threshold_dict = {}, {}
 
-    if experimenter in ['AB']:
+    if experimenter in ['AB'] or json_config['ephys_session']:
         lick_threshold = json_config['lick_threshold']
         channels_dict = {
             'trial_TTL': 2,
@@ -464,8 +464,8 @@ if __name__ == '__main__':
     # Select mouse IDs.
     experimenter = 'AB'
     mouse_ids = ['AB116','AB117','AB119','AB120','AB121','AB122','AB123','AB124','AB126','AB127','AB128','AB129','AB130'] # do AB131
-    mouse_ids = ['AB133']
-    # last_done_day = '20240307'
+    mouse_ids = ['PB191']
+    #last_done_day = '20241210'
 
     for mouse_id in mouse_ids:
 
@@ -485,13 +485,13 @@ if __name__ == '__main__':
 
             session_date = session_id.split('_')[1]
             session_date = datetime.datetime.strptime(session_date, "%Y%m%d")
-            # if last_done_day is not None:
+            #if last_done_day is not None:
             #     if session_date <= datetime.datetime.strptime(last_done_day, "%Y%m%d"):
-            #         continue
+            #         continue#
 
-            # sessions_to_do = ["PB176_20240501_111647"]
-            # if session_id not in sessions_to_do:
-            #     continue
+            sessions_to_do = ["PB191_20241210_110601"]
+            if session_id not in sessions_to_do:
+                 continue
 
             make_yaml_config(mouse_id, session_id, day, data_folder, analysis_folder,
                              mouse_line='C57BL/6', gmo=False)
