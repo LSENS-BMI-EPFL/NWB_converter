@@ -436,8 +436,10 @@ def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scan
 
             if key in ["widefield"] and wf_file is not None:
                 import imageio as iio
-                props = iio.v3.improps(wf_file, plugin='pyav', format='gray16be')
-                print(f"Images in WF file: {props.shape[0]}")
+                if wf_file.split('\\')[-1][:-4] not in ['PB175_20240308_140045', 'PB185_20240824_121743', 'PB187_20240823_131743', 'PB197_20241128_161907']:
+                    props = iio.v3.improps(wf_file, plugin='pyav', format='gray16be')
+                    print(f"Images in WF file: {props.shape[0]}")
+
                 exposure_time = [on_off_timestamps[i][1] - on_off_timestamps[i][0] for i in
                                  range(len(on_off_timestamps))]
                 median_exposure = np.median(exposure_time)

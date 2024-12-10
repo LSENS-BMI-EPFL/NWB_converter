@@ -32,6 +32,10 @@ def convert_widefield_recording(nwb_file, config_file, wf_frame_timestamps):
     subject_id = config["subject_metadata"]["subject_id"]
     session_name = config["session_metadata"]["session_id"]
 
+    if session_name in ['PB185_20240725_100701', 'PB185_20240824_121743', 'PB187_20240823_131743', 'PB195_20241107_112405', 'PB196_20241106_122439',
+                        'PB200_20241106_153515', 'PB197_20241128_161907']:
+        return
+
     analysis_folder = server_paths.get_subject_analysis_folder(subject_id=subject_id)
     file_names = get_widefield_file(config_file=config_file)
     if not file_names:
