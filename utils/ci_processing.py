@@ -103,9 +103,13 @@ def get_processed_ci(suite2p_folder):
         F_raw = np.load(os.path.join(suite2p_folder, "F_raw.npy"), allow_pickle=True)
         F_cor = np.load(os.path.join(suite2p_folder, "F_cor.npy"), allow_pickle=True)
         F0 = np.load(os.path.join(suite2p_folder, "F0.npy"), allow_pickle=True)
-        fissa_output = np.load(os.path.join(suite2p_folder, "separated.npz"), allow_pickle=True)
+        dff = np.load(os.path.join(suite2p_folder, "dff.npy"), allow_pickle=True)
+        if os.path.isfile(os.path.join(suite2p_folder, "separated.npz")):
+            fissa_output = np.load(os.path.join(suite2p_folder, "separated.npz"), allow_pickle=True)
+        else:
+            fissa_output = None
 
-    return stat, is_cell, F_raw, F_cor, F0, fissa_output
+    return stat, is_cell, F_raw, F_cor, F0, dff, fissa_output
 
 
 def get_roi_labels(rois_label_folder):

@@ -53,7 +53,7 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
     # Load Suite2p data
     print('Loading suite2p data.')
     if experimenter not in ['GF', 'MI']:
-        stat, is_cell, F_raw, F_cor, F0, fissa_output = utils_ci.get_processed_ci(suite2p_folder)
+        stat, is_cell, F_raw, F_cor, F0, dff, fissa_output = utils_ci.get_processed_ci(suite2p_folder)
     else:
         stat, is_cell, F_raw, F_cor, F0 = utils_gf.get_gf_processed_ci(config_file)
 
@@ -61,16 +61,18 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
     is_cell = utils_ci.set_merged_roi_to_non_cell(stat, is_cell)
 
     # If Fissa did not converge, set cell to non-cell.
-    ncells, ntifs = fissa_output.result.shape
-    converged = []
-    for icell in range(ncells):
-        converged.append(np.all([exp.info[icell][itif]['converged'] for itif in range(ntifs)]))
-    is_cell[is_cell[:,0]==1,0] = converged
-    print(f"A total of {np.sum(~converged)} cells did not converge in Fissa. Set as non-cells.")
+    if fissa_output:
+        ncells, ntifs = fissa_output.result.shape
+        converged = []
+        for icell in range(ncells):
+            converged.append(np.all([exp.info[icell][itif]['converged'] for itif in range(ntifs)]))
+        is_cell[is_cell[:,0]==1,0] = converged
+        print(f"A total of {np.sum(~converged)} cells did not converge in Fissa. Set as non-cells.")
 
-    # Fissa substracts baseline but do not normalized.
-    # Normalizing with baseline of the raw signal.
-    dff = F_cor / F0
+    if experimenter in ['GF', 'MI']:
+        # Fissa substracts baseline but do not normalized.
+        # Normalizing with baseline of the raw signal.
+        dff = F_cor / F0
 
     # Extract image dimensions
     if image_series is not None:
