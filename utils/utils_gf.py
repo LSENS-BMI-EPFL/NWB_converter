@@ -252,7 +252,7 @@ def check_gf_suite2p_folder(config_file):
     with open(config_file, 'r', encoding='utf8') as stream:
         config = yaml.safe_load(stream)
     mouse_name = config['subject_metadata']['subject_id']
-    folder = f'\\\\sv-nas1.rcp.epfl.ch\\Petersen-Lab\\analysis\\Georgios_Foustoukos\\Suite2PRois\\{mouse_name}'
+    folder = rf'\\\\sv-nas1.rcp.epfl.ch\\Petersen-Lab\\analysis\\Georgios_Foustoukos\\Suite2PRois\\{mouse_name}'
 
     if os.path.exists(folder):
         return folder
@@ -276,12 +276,12 @@ def get_gf_processed_ci(config_file):
         stat = np.load(os.path.join(folder, 'stat.npy'), allow_pickle=True)
         is_cell = np.load(os.path.join(folder, "iscell.npy"), allow_pickle=True)
         F_raw = np.load(os.path.join(suite2p_folder, "F.npy"), allow_pickle=True)
-        # Fneu = np.load(os.path.join(suite2p_folder, "Fneu.npy"), allow_pickle=True)
+        F_neu = np.load(os.path.join(suite2p_folder, "Fneu.npy"), allow_pickle=True)
         F0 = np.load(os.path.join(baseline_folder, "baselines.npy"), allow_pickle=True)
         # spks = np.load(os.path.join(suite2p_folder, "spks.npy"), allow_pickle=True)
-        F_cor = np.load(os.path.join(fissa_folder, "F_fissa.npy"), allow_pickle=True)
+        # F_cor = np.load(os.path.join(fissa_folder, "F_fissa.npy"), allow_pickle=True)
 
-        return stat, is_cell, F_raw, F_cor, F0[:,1]
+        return stat, is_cell, F_raw, F_neu, F0[:,1]
 
     
 def get_rois_label_folder_GF(config_file):
@@ -315,3 +315,6 @@ def get_roi_labels_GF(config_file, rois_label_folder):
     info = {color: area for area, color in info.items()}
 
     return far_red_rois, red_rois, un_rois, info
+
+
+

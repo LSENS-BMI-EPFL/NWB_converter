@@ -52,27 +52,28 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
 
     # Load Suite2p data
     print('Loading suite2p data.')
-    if experimenter not in ['GF', 'MI']:
-        stat, is_cell, F_raw, F_cor, F0, dff, fissa_output = utils_ci.get_processed_ci(suite2p_folder)
-    else:
-        stat, is_cell, F_raw, F_cor, F0 = utils_gf.get_gf_processed_ci(config_file)
+    # if experimenter not in ['GF', 'MI']:
+    #     stat, is_cell, F_raw, F_neu, F0, spks  = utils_ci.get_processed_ci(suite2p_folder)
+    # else:
+        # stat, is_cell, F_raw, F_neu, F0, spks = utils_gf.get_gf_processed_ci(config_file)
+    stat, is_cell, F_raw, F_neu, F0_cor, F0_raw, dff  = utils_ci.get_processed_ci(suite2p_folder)
 
     # Correct is_cell for merges.
     is_cell = utils_ci.set_merged_roi_to_non_cell(stat, is_cell)
 
-    # If Fissa did not converge, set cell to non-cell.
-    if fissa_output:
-        ncells, ntifs = fissa_output.result.shape
-        converged = []
-        for icell in range(ncells):
-            converged.append(np.all([exp.info[icell][itif]['converged'] for itif in range(ntifs)]))
-        is_cell[is_cell[:,0]==1,0] = converged
-        print(f"A total of {np.sum(~converged)} cells did not converge in Fissa. Set as non-cells.")
+    # # If Fissa did not converge, set cell to non-cell.
+    # if fissa_output:
+    #     ncells, ntifs = fissa_output.result.shape
+    #     converged = []
+    #     for icell in range(ncells):
+    #         converged.append(np.all([exp.info[icell][itif]['converged'] for itif in range(ntifs)]))
+    #     is_cell[is_cell[:,0]==1,0] = converged
+    #     print(f"A total of {np.sum(~converged)} cells did not converge in Fissa. Set as non-cells.")
 
-    if experimenter in ['GF', 'MI']:
-        # Fissa substracts baseline but do not normalized.
-        # Normalizing with baseline of the raw signal.
-        dff = F_cor / F0
+    # if experimenter in ['GF', 'MI']:
+    #     # Fissa substracts baseline but do not normalized.
+    #     # Normalizing with baseline of the raw signal.
+    #     dff = F_cor / F0
 
     # Extract image dimensions
     if image_series is not None:
@@ -91,12 +92,14 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
     rt_region = ps.create_roi_table_region('all cells', region=list(np.arange(n_cells)))
 
     # List fluorescence data to save
-    data = [F_cor, F_raw, F0, dff]
-    data_labels = ['F_cor', 'F_raw', 'F0', 'dff']
-    descriptions = ['F_cor: Fissa corrected traces.',
-                    'F_raw: raw fluorescence traces extracted by Fissa',
-                    'F0: 5% percentile baseline computed over a 2 min rolling window of F_raw.',
-                    'dff: Normalized fissa output, dff = F_cor / F0.']
+    data = [F_raw, F_neu, F0_cor, F0_raw, dff, spks]
+    data_labels = ["F_raw", "F_neu", "F_cor", "F0_cor", "F0_raw", "dff", "spks"]
+    descriptions = ["F_raw: raw fluorescence traces extracted by Suite2p",
+                    "F_neu: neuropil fluorescence traces extracted by Suite2p",
+                    'F0_cor: 5% percentile baseline computed over a 2 min rolling window of F_raw - 0.7 * F_neu.',
+                    'F0_raw: 5% percentile baseline computed over a 2 min rolling window of F_raw.',
+                    'dff: Normalized fissa output, dff = (F_raw - 0.7 * F_neu) - F0_cor / F0_raw.',
+                    'spks: OASIS deconvolved signal.']
 
     # Add information about cell type (projections, ... ).
     # ####################################################
