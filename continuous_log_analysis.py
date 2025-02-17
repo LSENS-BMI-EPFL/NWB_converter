@@ -36,6 +36,10 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
         with open(config_file, 'r', encoding='utf8') as stream:
             config = yaml.safe_load(stream)
         bin_file = os.path.join(config['root_path'], "log_continuous.bin")
+        bin_file_cor = os.path.join(config['root_path'], "log_continuous_cor.bin")
+        if os.path.exists(bin_file_cor):
+            bin_file = bin_file_cor
+
         movie_names = config['movie_files_path']
         if movie_names is not None:
             movie_files = [os.path.join(config['root_path'], movie_name) for movie_name in movie_names]
@@ -50,6 +54,7 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
             config = yaml.safe_load(stream)
 
         bin_file = server_paths.get_log_continuous_file(config_file)
+        print(f"Continuous log file: {bin_file}")
 
         if config['session_metadata']['experimenter'] == 'AB':
             # Check if continuous processing is required
@@ -65,7 +70,7 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
             movie_files = server_paths.get_session_movie_files(config_file)
         else:
             movie_files = server_paths.get_movie_files(config_file)
-
+        print('here')
         tiff_file = server_paths.get_imaging_file(config_file)
 
         mj2_file = server_paths.get_widefield_file(config_file)
@@ -136,7 +141,7 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
 
 
 if __name__ == "__main__":
-    # This is a simplified config_file with only necessary to analyse quickly the continuous logging
-    yaml_file = "C:/Users/rdard/Documents/test_data/log_file_config.yml"
+    # This is a simplified config_file to analyse quickly the continuous logging
+    yaml_file = r"\\sv-nas1.rcp.epfl.ch\Petersen-Lab\analysis\Anthony_Renard\data\AR176\AR176_20241215_160714\config_AR176_20241215_160714.yaml"
     analyze_continuous_log(config_file=yaml_file,
-                           do_plot=False, plot_start=100, plot_stop=500, camera_filtering=False)
+                           do_plot=True, plot_start=-5000*60*20, plot_stop=-5000*60*10, camera_filtering=False)

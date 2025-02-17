@@ -93,6 +93,7 @@ def add_suite2p_roi(ps, stat, is_cell, dim_x, dim_y):
 
 
 def get_processed_ci(suite2p_folder):
+
     suite2p_folder = os.path.join(suite2p_folder, "plane0")
     if not os.path.isfile(os.path.join(suite2p_folder, "stat.npy")):
         print(f"Stat file missing in {suite2p_folder}")
@@ -101,7 +102,7 @@ def get_processed_ci(suite2p_folder):
         stat = np.load(os.path.join(suite2p_folder, "stat.npy"), allow_pickle=True)
         is_cell = np.load(os.path.join(suite2p_folder, "iscell.npy"), allow_pickle=True)
         F_raw = np.load(os.path.join(suite2p_folder, "F_raw.npy"), allow_pickle=True)
-        F_neu = np.load(os.path.join(suite2p_folder, "F_reu.npy"), allow_pickle=True)
+        F_neu = np.load(os.path.join(suite2p_folder, "F_neu.npy"), allow_pickle=True)
         F0_cor = np.load(os.path.join(suite2p_folder, "F0_cor.npy"), allow_pickle=True)
         F0_raw = np.load(os.path.join(suite2p_folder, "F0_raw.npy"), allow_pickle=True)
         dff = np.load(os.path.join(suite2p_folder, "dff.npy"), allow_pickle=True)

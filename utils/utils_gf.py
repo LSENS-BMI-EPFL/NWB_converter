@@ -18,7 +18,7 @@ def read_excel_database(folder, file_name):
     # Change yes/no columns to booleans.
     database = database.replace('yes', True)
     database = database.replace('no', False)
-    database = database.astype({'2P_calcium_imaging': bool, 'optogenetic': bool,
+    database = database.astype({'two_p_imaging': bool, 'optogenetic': bool,
                      'pharmacology': bool})
 
     return database
@@ -252,7 +252,7 @@ def check_gf_suite2p_folder(config_file):
     with open(config_file, 'r', encoding='utf8') as stream:
         config = yaml.safe_load(stream)
     mouse_name = config['subject_metadata']['subject_id']
-    folder = rf'\\\\sv-nas1.rcp.epfl.ch\\Petersen-Lab\\analysis\\Georgios_Foustoukos\\Suite2PRois\\{mouse_name}'
+    folder = rf'//sv-nas1.rcp.epfl.ch/Petersen-Lab/analysis/Georgios_Foustoukos/Suite2PRois/{mouse_name}'
 
     if os.path.exists(folder):
         return folder
