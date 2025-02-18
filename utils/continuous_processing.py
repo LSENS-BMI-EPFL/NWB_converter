@@ -408,8 +408,9 @@ def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scan
                                  range(len(on_off_timestamps))]
                 median_exposure = np.median(exposure_time)
                 last_exposure = exposure_time[-1]
-                if last_exposure < median_exposure - 2 * np.std(exposure_time) or \
-                        last_exposure > median_exposure + 2 * np.std(exposure_time):
+                print(f"{key} Median exposure time : {np.round(median_exposure, 4) * 1000} ms")
+                if last_exposure < 0.9 * median_exposure or last_exposure > 1.1 * median_exposure:
+                    print(f"{key} Last exposure: {np.round(last_exposure, 4) * 1000} ms")
                     print(f"Session likely stopped during last exposure of {key} (before image acquisition), "
                           f"cut the last detected frames")
                     filtered_on_off_timestamps = on_off_timestamps[0: -1]

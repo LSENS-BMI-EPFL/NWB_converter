@@ -253,11 +253,12 @@ def make_alignment_reference(mouse_id, align_to='bregma', overwrite_session=None
 
         if session_id in sessions_to_skip:
             continue
-
-        wf_file = get_widefield_file(os.path.join(analysis_folder, session_id, f"config_{session_id}.yaml"))
+        if session_id == 'RD052_20240605_143534':
+            wf_file = ['//sv-nas1.rcp.epfl.ch/Petersen-Lab/data/RD052/Recording/Imaging/RD052_20240605_152408/RD052_20240605_152408.mj2']
+        else:
+            wf_file = get_widefield_file(os.path.join(analysis_folder, session_id, f"config_{session_id}.yaml"))
         if wf_file is None:
             continue
-
         if os.path.exists(ref_file):
             reference_list = pd.read_csv(ref_file)
             if session_id in reference_list['session_id'].values:

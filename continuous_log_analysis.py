@@ -54,7 +54,6 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
             config = yaml.safe_load(stream)
 
         bin_file = server_paths.get_log_continuous_file(config_file)
-        print(f"Continuous log file: {bin_file}")
 
         if config['session_metadata']['experimenter'] == 'AB':
             # Check if continuous processing is required
@@ -70,7 +69,7 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
             movie_files = server_paths.get_session_movie_files(config_file)
         else:
             movie_files = server_paths.get_movie_files(config_file)
-        print('here')
+
         tiff_file = server_paths.get_imaging_file(config_file)
 
         mj2_file = server_paths.get_widefield_file(config_file)

@@ -232,6 +232,7 @@ def get_wf_grid_pixel_mask(img_shape):
 
     pix_masks = []
     image_masks = []
+    spot_coords = []
     for x, y in zip(np.flip(wf_x).flatten().astype(int), wf_y.flatten().astype(int)):
         rr, cc = disk((x, y), scalebar / 2)
         mask = np.zeros(img_shape).astype(bool)
@@ -240,8 +241,10 @@ def get_wf_grid_pixel_mask(img_shape):
         pix_mask = np.argwhere(mask)
         pix_mask = [(pix[0], pix[1], 1) for pix in pix_mask]
         pix_masks.append(pix_mask)
+        rev_x, rev_y = (bregma[0] - x) / scalebar, (bregma[1] - y) / scalebar
+        spot_coords.append([rev_x, rev_y])
 
-    return list(zip(np.flip(xn).flatten(), yn.flatten())), pix_masks, image_masks
+    return spot_coords, pix_masks, image_masks
 
 
 def add_wf_roi(ps, pix_masks, img_masks):

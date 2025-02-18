@@ -171,32 +171,34 @@ def convert_widefield_recording(nwb_file, config_file, wf_frame_timestamps):
                                                          name='brain_grid_area_segmentation',
                                                          reference_images=dFF0_wf_series if dFF0_wf_series is not None else None)
         # Extract list of grid mask
+        print(f"Extract pixel masks from grid info")
         img_shape = dff0_data.shape[1:]
         grid_coords, brain_grid_pixel_masks, brain_grid_image_masks = ci_processing.get_wf_grid_pixel_mask(img_shape)
 
         # Add rois to plane segmentation
-        print(f"Add masks to plane segmentation")
+        print(f"Add grid masks to plane segmentation")
         ci_processing.add_wf_roi(grid_ps, pix_masks=brain_grid_pixel_masks, img_masks=brain_grid_image_masks)
 
         # Create Fluorescence object to store fluorescence data
         fl = Fluorescence(name="brain_grid_fluorescence")
         ophys_module.add_data_interface(fl)
-        n_cells = len(grid_coords)
-        rt_grid = grid_ps.create_roi_table_region('brain grid', region=list(np.arange(n_cells)))
+        n_grid_spots = len(grid_coords)
+        rt_grid = grid_ps.create_roi_table_region('brain grid', region=list(np.arange(n_grid_spots)))
 
         # Compute dff0 traces
-        print(f"Compute traces")
-        dff0_grid_traces = np.zeros((n_cells, dff0_data.shape[0]))
-        for cell in np.arange(n_cells):
-            img_mask = grid_ps['image_mask'][cell]
-            dff0_grid_traces[cell, :] = np.nanmean(dff0_data[:, img_mask], axis=1)
+        print(f"Compute grid traces")
+        dff0_grid_traces = np.zeros((n_grid_spots, dff0_data.shape[0]))
+        for grid_spot in np.arange(n_grid_spots):
+            img_mask = grid_ps['image_mask'][grid_spot]
+            dff0_grid_traces[grid_spot, :] = np.nanmean(dff0_data[:, img_mask], axis=1)
 
         # Add fluorescence data to roi response series.
         rrs = fl.create_roi_response_series(name='dff0_grid_traces', data=np.transpose(dff0_grid_traces), unit='lumens',
                                             rois=rt_grid,
                                             timestamps=[timestamp[0] for timestamp in wf_frame_timestamps],
-                                            description="dff0 grid traces", control=[coord for coord in grid_coords],
-                                            control_description=grid_coords)
+                                            description="dff0 grid traces",
+                                            control=[spot for spot in range(n_grid_spots)],
+                                            control_description=[str(coord) for coord in grid_coords])
         print(f"Creating Roi Response Series with dff0 grid traces of shape: {(np.transpose(dff0_grid_traces)).shape}")
 
     gc.collect()
