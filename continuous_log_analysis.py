@@ -144,4 +144,4 @@ if __name__ == "__main__":
     # This is a simplified config_file to analyse quickly the continuous logging
     yaml_file = r"\\sv-nas1.rcp.epfl.ch\Petersen-Lab\analysis\Anthony_Renard\data\AR176\AR176_20241215_160714\config_AR176_20241215_160714.yaml"
     analyze_continuous_log(config_file=yaml_file,
-                           do_plot=True, plot_start=-5000*60*20, plot_stop=-5000*60*10, camera_filtering=False)
+                           do_plot=False, plot_start=0, plot_stop=1500, camera_filtering=False)

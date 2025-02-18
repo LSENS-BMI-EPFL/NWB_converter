@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 import scipy
 from scipy import ndimage
+from skimage.draw import disk
 from read_roi import read_roi_file, read_roi_zip
 
 
@@ -218,6 +219,29 @@ def get_wf_roi_pixel_mask(roi_file, img_shape):
         return None, None, None
 
     return area_names, pix_masks, image_masks
+
+
+def get_wf_grid_pixel_mask(img_shape):
+    y = np.linspace(-5, 0, 6, endpoint=True).astype(int) - 0.5
+    x = np.linspace(-2, 4, 7, endpoint=True).astype(int) - 0.5
+    xn, yn = np.meshgrid(x, y)
+    bregma = (88, 120)
+    scalebar = 18
+    wf_x = bregma[0] - xn * scalebar
+    wf_y = bregma[1] + yn * scalebar
+
+    pix_masks = []
+    image_masks = []
+    for x, y in zip(np.flip(wf_x).flatten().astype(int), wf_y.flatten().astype(int)):
+        rr, cc = disk((x, y), scalebar / 2)
+        mask = np.zeros(img_shape).astype(bool)
+        mask[cc, rr] = True
+        image_masks.append(mask)
+        pix_mask = np.argwhere(mask)
+        pix_mask = [(pix[0], pix[1], 1) for pix in pix_mask]
+        pix_masks.append(pix_mask)
+
+    return list(zip(np.flip(xn).flatten(), yn.flatten())), pix_masks, image_masks
 
 
 def add_wf_roi(ps, pix_masks, img_masks):
