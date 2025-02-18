@@ -56,10 +56,9 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
     #     stat, is_cell, F_raw, F_neu, F0, spks  = utils_ci.get_processed_ci(suite2p_folder)
     # else:
         # stat, is_cell, F_raw, F_neu, F0, spks = utils_gf.get_gf_processed_ci(config_file)
-    stat, is_cell, F_raw, F_neu, F0_cor, F0_raw, dff = utils_ci.get_processed_ci(suite2p_folder)
 
-    # Correct is_cell for merges.
-    is_cell = utils_ci.set_merged_roi_to_non_cell(stat, is_cell)
+    # Assumes that non-cells are already filtered out.
+    stat, is_cell, F_raw, F_neu, F0_cor, F0_raw, dff = utils_ci.get_processed_ci(suite2p_folder)
 
     # # If Fissa did not converge, set cell to non-cell.
     # if fissa_output:
@@ -79,7 +78,7 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
     if image_series is not None:
         dim_y, dim_x = image_series.dimension[1:]
     else:
-        dim_y, dim_x = 512, 512  # GF case.
+        dim_y, dim_x = 512, 512
 
     # Add suite2p pixel mask of 'real cells' (is_cell == 1)
     print('Add cell masks.')
@@ -112,6 +111,8 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
         cell_type_names = None
         cell_type_codes = None
     else:
+        # It is assumed that that cell type indices are not the suite2p indices, but the indices reindexed
+        # after filtering out non-cells.
         if experimenter in ['GF', 'MI']:
             far_red_rois, red_rois, na_rois, info = utils_gf.get_roi_labels_GF(config_file, projection_folder)
         else:
@@ -133,7 +134,6 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
                 cell_type_codes[iroi] = projection_code[info['CTB-594']]
                 cell_type_names[iroi] = info['CTB-594']
 
-
     # Add fluorescence data to roi response series.
     # #############################################
 
@@ -141,21 +141,10 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
     # todo : add control (list of int code for cell type) and control_description (list of str for name of cell type)
     for d, l, desc in zip(data, data_labels, descriptions):
         if d is not None:
-            # # Filtering is already done for GF data.
-            # if experimenter in ['GF', 'MI']:
-            #     d_filt = d
-            # elif fissa_output:
-            #     # Fissa outputs traces only for cells, so most of non-cells are already filtered out (no need of iscell).
-            #     # But we need to remove the cells that did not converge.
-            #     d_filt = d[converged, :]
-            # else:
-            #     # If suite2p processing (without fissa), non-cells are already filtered as well.
-            #     d_filt = d
-            d_filt = d
 
             if cell_type_codes is not None and cell_type_names is not None:
                 fl.create_roi_response_series(name=l,
-                                            data=np.transpose(d_filt),
+                                            data=np.transpose(d),
                                             unit='lumens',
                                             rois=rt_region, timestamps=ci_frame_timestamps,
                                             description=desc,
@@ -163,9 +152,12 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
                                             control_description=cell_type_names)
             else:
                 fl.create_roi_response_series(name=l,
-                                            data=np.transpose(d_filt),
+                                            data=np.transpose(d),
                                             unit='lumens',
                                             rois=rt_region, timestamps=ci_frame_timestamps,
                                             description=desc)
             print(f"- Creating Roi Response Series with: {desc}"
-                f"shape: {(np.transpose(d_filt)).shape}")
+                f"shape: {(np.transpose(d)).shape}")
+
+
+
