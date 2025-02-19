@@ -221,30 +221,46 @@ def get_wf_roi_pixel_mask(roi_file, img_shape):
     return area_names, pix_masks, image_masks
 
 
-def get_wf_grid_pixel_mask(img_shape):
-    y = np.linspace(-5, 0, 6, endpoint=True).astype(int) - 0.5
-    x = np.linspace(-2, 4, 7, endpoint=True).astype(int) - 0.5
+def process_grid_based_dff_traces(ps, fl, dff, wf_ts, debug=False):
+    img_shape = dff.shape[1:]
+    y = - (np.linspace(-5, 0, 6, endpoint=True).astype(int) - 0.5)
+    x = - (np.linspace(-2, 4, 7, endpoint=True).astype(int) - 0.5)
     xn, yn = np.meshgrid(x, y)
     bregma = (88, 120)
     scalebar = 18
-    wf_x = bregma[0] - xn * scalebar
-    wf_y = bregma[1] + yn * scalebar
 
-    pix_masks = []
-    image_masks = []
-    spot_coords = []
-    for x, y in zip(np.flip(wf_x).flatten().astype(int), wf_y.flatten().astype(int)):
-        rr, cc = disk((x, y), scalebar / 2)
+    centers_list = list(zip(xn.flatten(), yn.flatten()))
+    dff0_grid_traces = np.zeros((len(centers_list), dff.shape[0]), dtype=float)
+    for grid_spot, (x, y) in enumerate(centers_list):
+        # Go to the WF coordinate system
+        wf_x = int(bregma[0] + x * scalebar)
+        wf_y = int(bregma[1] - y * scalebar)
+
+        # Define disk center on spot center
+        rr, cc = disk((wf_x, wf_y), scalebar / 2)
+
+        # Build image & pixels masks
         mask = np.zeros(img_shape).astype(bool)
         mask[cc, rr] = True
-        image_masks.append(mask)
         pix_mask = np.argwhere(mask)
         pix_mask = [(pix[0], pix[1], 1) for pix in pix_mask]
-        pix_masks.append(pix_mask)
-        rev_x, rev_y = (bregma[0] - x) / scalebar, (bregma[1] - y) / scalebar
-        spot_coords.append([rev_x, rev_y])
 
-    return spot_coords, pix_masks, image_masks
+        # Add roi (pixel and mask) to plan segmentation
+        ps.add_roi(pixel_mask=pix_mask, image_mask=mask)
+
+        # Compute trace and add it to 2D activity array
+        dff0_grid_traces[grid_spot, :] = np.nanmean(dff[:, mask], axis=1)
+
+    rt_grid = ps.create_roi_table_region('brain grid', region=list(np.arange(dff0_grid_traces.shape[0])))
+
+    # Add fluorescence data to roi response series.
+    rrs = fl.create_roi_response_series(name='dff0_grid_traces', data=np.transpose(dff0_grid_traces), unit='lumens',
+                                        rois=rt_grid,
+                                        timestamps=[timestamp[0] for timestamp in wf_ts],
+                                        description="dff0 grid traces",
+                                        control=[spot for spot in range(dff0_grid_traces.shape[0])],
+                                        control_description=[str(coord) for coord in centers_list])
+    print(f"Creating Roi Response Series with dff0 grid traces of shape: {(np.transpose(dff0_grid_traces)).shape}")
 
 
 def add_wf_roi(ps, pix_masks, img_masks):
