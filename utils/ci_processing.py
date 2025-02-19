@@ -221,7 +221,7 @@ def get_wf_roi_pixel_mask(roi_file, img_shape):
     return area_names, pix_masks, image_masks
 
 
-def process_grid_based_dff_traces(ps, fl, dff, wf_ts, debug=False):
+def process_grid_based_dff_traces(ps, fl, dff, wf_ts):
     img_shape = dff.shape[1:]
     y = - (np.linspace(-5, 0, 6, endpoint=True).astype(int) - 0.5)
     x = - (np.linspace(-2, 4, 7, endpoint=True).astype(int) - 0.5)

@@ -174,8 +174,7 @@ def convert_widefield_recording(nwb_file, config_file, wf_frame_timestamps):
         ophys_module.add_data_interface(fl)
 
         print(f"Process dff0 data to grid dimensions")
-        ci_processing.process_grid_based_dff_traces(ps=grid_ps, fl=fl, dff=dff0_data, wf_ts=wf_frame_timestamps,
-                                                    debug=True)
+        ci_processing.process_grid_based_dff_traces(ps=grid_ps, fl=fl, dff=dff0_data, wf_ts=wf_frame_timestamps)
 
     gc.collect()
 
