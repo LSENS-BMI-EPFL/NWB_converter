@@ -165,5 +165,20 @@ def convert_widefield_recording(nwb_file, config_file, wf_frame_timestamps):
                                             control_description=area_names)
         print(f"Creating Roi Response Series with dff0 traces of shape: {(np.transpose(dff0_traces)).shape}")
 
+    # Add grid like ROI
+    add_grid_rrs = True
+    if add_grid_rrs:
+        grid_img_seg = ImageSegmentation(name="grid_areas")
+        ophys_module.add_data_interface(grid_img_seg)
+        grid_ps = grid_img_seg.create_plane_segmentation(description='brain grid area segmentation',
+                                                         imaging_plane=imaging_plane,
+                                                         name='brain_grid_area_segmentation',
+                                                         reference_images=dFF0_wf_series if dFF0_wf_series is not None else None)
+        fl = Fluorescence(name="brain_grid_fluorescence")
+        ophys_module.add_data_interface(fl)
+
+        print(f"Process dff0 data to grid dimensions")
+        ci_processing.process_grid_based_dff_traces(ps=grid_ps, fl=fl, dff=dff0_data, wf_ts=wf_frame_timestamps)
+
     gc.collect()
 
