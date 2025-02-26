@@ -44,6 +44,18 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
                 behavior_results_file=behavior_results_file,
                 timestamps_dict=timestamps_dict
             )
+
+            ## Fix for mice with no block info in sessions until 06/08/2024
+            subject_id = config_dict.get('subject_metadata').get('subject_id')
+            if subject_id in ['PB185', 'PB186', 'PB187', 'PB188', 'PB189', 'PB190']:
+                if int(config_dict.get('session_metadata').get('session_id').split('_')[1]) <= 20240806:
+                    import pandas as pd
+                    context_rewarded = pd.read_csv(r"M:\analysis\Pol_Bech\behaviour_context_files\rewarded_context.csv")
+                    trial_table['context_background'] = trial_table['context'].map(
+                        {1: context_rewarded.loc[context_rewarded['MouseName'] == subject_id, 'RewardedContext'].item(),
+                         0: 'pink' if context_rewarded.loc[context_rewarded[
+                                                               'MouseName'] == subject_id, 'RewardedContext'].item() == 'brown' else 'brown'})
+
         elif config_dict.get('behaviour_metadata').get('trial_table') == 'simple':  # TODO: remove?
             trial_table = build_simplified_trial_table(behavior_results_file=behavior_results_file,
                                                        timestamps_dict=timestamps_dict)
@@ -236,6 +248,9 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
                 print(f"Difference in number of frames ({video_length}) vs detected frames ({len(on_off_timestamps)}) "
                       f"is {len(on_off_timestamps) - video_length} (larger than 2), do next video")
                 continue
+            elif len(on_off_timestamps) == video_length-1:
+                movie_timestamps = [on_off_timestamps[i][0] for i in range(video_length-1)]
+
             else:
                 movie_timestamps = [on_off_timestamps[i][0] for i in range(video_length)]
 

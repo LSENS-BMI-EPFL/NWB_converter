@@ -240,7 +240,7 @@ def prompt_overwrite(folder_path, file):
 
 
 def make_alignment_reference(mouse_id, align_to='bregma', overwrite_session=None):
-    sessions_to_skip = ['PB175_20240308_140045']
+    sessions_to_skip = ['PB175_20240308_140045', 'PB185_20240824_121743', 'PB187_20240823_131743', 'PB195_20241107_112405', 'PB197_20241128_161907']
     analysis_folder = get_subject_analysis_folder(mouse_id)
     ref_file = os.path.join(analysis_folder, 'alignment_ref.csv')
     sessions = os.listdir(analysis_folder)
