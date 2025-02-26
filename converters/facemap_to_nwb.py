@@ -42,7 +42,7 @@ def convert_facemap_data(nwb_file, config_file, video_timestamps):
 
     # Add Motion energy to NWB
     timeseries = TimeSeries(name='motion_energy',
-                            data=motSVD,
+                            data=motion_energy,
                             unit='seconds',
                             timestamps=[timestamp[0] for timestamp in video_timestamps['cam1']],
                             starting_time=None,
@@ -57,7 +57,7 @@ def convert_facemap_data(nwb_file, config_file, video_timestamps):
 
     # Add Motion SVD  to NWB
     timeseries = TimeSeries(name='motion_svd',
-                            data=motion_energy,
+                            data=motSVD,
                             unit='seconds',
                             timestamps=[timestamp[0] for timestamp in video_timestamps['cam1']],
                             starting_time=None,
