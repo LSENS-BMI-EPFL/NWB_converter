@@ -478,3 +478,18 @@ def get_dlc_file_path(config_file):
         dlc_file = None
 
     return dlc_file
+
+
+def get_facemap_file_path(config_file):
+    with open(config_file, 'r', encoding='utf8') as stream:
+        config = yaml.safe_load(stream)
+
+    mouse_name = config['subject_metadata']['subject_id']
+    session_name = config['session_metadata']['session_id']
+
+    data_folder = os.path.join(get_subject_analysis_folder(mouse_name), session_name)
+
+    file_path = os.path.join(data_folder, f'{session_name}_sideview_proc.npy')
+
+    return file_path
+

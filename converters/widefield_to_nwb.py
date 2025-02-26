@@ -7,6 +7,8 @@ import subprocess
 import dask.array as da
 from utils.widefield_utils import *
 from pynwb.ophys import OpticalChannel, Device, OnePhotonSeries, ImageSegmentation, Fluorescence
+from pynwb.base import Images
+from pynwb.image import GrayscaleImage
 import utils.server_paths as server_paths
 import utils.ci_processing as ci_processing
 
@@ -51,10 +53,23 @@ def convert_widefield_recording(nwb_file, config_file, wf_frame_timestamps):
             print(" ")
             print(f"Found F_data file with shape {f['F'].shape}")
 
-    dff0_data = compute_dff0(data_folder=os.path.join(analysis_folder, session_name), method='percentile')
+    dff0_data, f0 = compute_dff0(data_folder=os.path.join(analysis_folder, session_name), method='percentile')
 
     print(" ")
     print(f"dFF0 calculated, final shape = {dff0_data.shape}")
+
+    # Add F0 image to NWB:
+    gs_f0_im = GrayscaleImage(
+        name="F0",
+        data=f0,
+        description="Grayscale version of the F0 image.")
+
+    images = Images(
+        name="F0 image",
+        images=[gs_f0_im],
+        description="A grayscale version of the F0 image")
+
+    nwb_file.add_acquisition(images)
 
     # Create the 'ophys module'
     if 'ophys' in nwb_file.processing:

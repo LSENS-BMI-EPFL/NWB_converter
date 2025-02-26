@@ -106,7 +106,7 @@ def compute_dff0(data_folder, method='percentile'):
 
     F_file.close()
 
-    return dff0
+    return dff0, F0
 
 
 def load_array(file, frame):
