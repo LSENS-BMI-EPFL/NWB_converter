@@ -80,6 +80,8 @@ def compute_dff0(data_folder, method='percentile'):
         F0 = compute_F0_early_percentile(F, winsize=F.shape[0])
     F_dims = F.shape
 
+    std_F = np.nanstd(F, axis=0)
+
     F_file.close()
     del F
     gc.collect()
@@ -106,7 +108,7 @@ def compute_dff0(data_folder, method='percentile'):
 
     F_file.close()
 
-    return dff0, F0
+    return dff0, F0, std_F
 
 
 def load_array(file, frame):
