@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 import scipy
 from scipy import ndimage
+from skimage.draw import disk
 from read_roi import read_roi_file, read_roi_zip
 
 
@@ -17,65 +18,65 @@ def set_merged_roi_to_non_cell(stat, is_cell):
     return is_cell
 
 
-def compute_F0(F, fs, window):
+# def compute_F0(F, fs, window):
 
-    # Parameters --------------------------------------------------------------
-    nfilt = 30  # Number of taps to use in FIR filter
-    fw_base = 1  # Cut-off frequency for lowpass filter, in Hz
-    base_pctle = 5  # Percentile to take as baseline value
+#     # Parameters --------------------------------------------------------------
+#     nfilt = 30  # Number of taps to use in FIR filter
+#     fw_base = 1  # Cut-off frequency for lowpass filter, in Hz
+#     base_pctle = 5  # Percentile to take as baseline value
 
-    # Main --------------------------------------------------------------------
-    # Ensure array_like input is a numpy.ndarray
-    F = np.asarray(F)
+#     # Main --------------------------------------------------------------------
+#     # Ensure array_like input is a numpy.ndarray
+#     F = np.asarray(F)
 
-    # For short measurements, we reduce the number of taps
-    nfilt = min(nfilt, max(3, int(F.shape[1] / 3)))
+#     # For short measurements, we reduce the number of taps
+#     nfilt = min(nfilt, max(3, int(F.shape[1] / 3)))
 
-    if fs <= fw_base:
-        # If our sampling frequency is less than our goal with the smoothing
-        # (sampling at less than 1Hz) we don't need to apply the filter.
-        filtered_f = F
-    else:
-        # The Nyquist rate of the signal is half the sampling frequency
-        nyq_rate = fs / 2.0
+#     if fs <= fw_base:
+#         # If our sampling frequency is less than our goal with the smoothing
+#         # (sampling at less than 1Hz) we don't need to apply the filter.
+#         filtered_f = F
+#     else:
+#         # The Nyquist rate of the signal is half the sampling frequency
+#         nyq_rate = fs / 2.0
 
-        # Cut-off needs to be relative to the nyquist rate. For sampling
-        # frequencies in the range from our target lowpass filter, to
-        # twice our target (i.e. the 1Hz to 2Hz range) we instead filter
-        # at the Nyquist rate, which is the highest possible frequency to
-        # filter at.
-        cutoff = min(1.0, fw_base / nyq_rate)
+#         # Cut-off needs to be relative to the nyquist rate. For sampling
+#         # frequencies in the range from our target lowpass filter, to
+#         # twice our target (i.e. the 1Hz to 2Hz range) we instead filter
+#         # at the Nyquist rate, which is the highest possible frequency to
+#         # filter at.
+#         cutoff = min(1.0, fw_base / nyq_rate)
 
-        # Make a set of weights to use with our taps.
-        # We use an FIR filter with a Hamming window.
-        b = scipy.signal.firwin(nfilt, cutoff=cutoff, window='hamming')
+#         # Make a set of weights to use with our taps.
+#         # We use an FIR filter with a Hamming window.
+#         b = scipy.signal.firwin(nfilt, cutoff=cutoff, window='hamming')
 
-        # The default padlen for filtfilt is 3 * nfilt, but in case our
-        # dataset is small, we need to make sure padlen is not too big
-        padlen = min(3 * nfilt, F.shape[1] - 1)
+#         # The default padlen for filtfilt is 3 * nfilt, but in case our
+#         # dataset is small, we need to make sure padlen is not too big
+#         padlen = min(3 * nfilt, F.shape[1] - 1)
 
-        # Use filtfilt to filter with the FIR filter, both forwards and
-        # backwards.
-        filtered_f = scipy.signal.filtfilt(b, [1.0], F, axis=1,
-                                           padlen=padlen)
+#         # Use filtfilt to filter with the FIR filter, both forwards and
+#         # backwards.
+#         filtered_f = scipy.signal.filtfilt(b, [1.0], F, axis=1,
+#                                            padlen=padlen)
 
-    # Take a percentile of the filtered signal and windowed signal
-    F0 = scipy.ndimage.percentile_filter(filtered_f, percentile=base_pctle, size=(1,(fs*2*window + 1)), mode='constant', cval=+np.inf)
+#     # Take a percentile of the filtered signal and windowed signal
+#     F0 = scipy.ndimage.percentile_filter(filtered_f, percentile=base_pctle, size=(1,(fs*2*window + 1)), mode='constant', cval=+np.inf)
 
-    # Ensure filtering doesn't take us below the minimum value which actually
-    # occurs in the data. This can occur when the amount of data is very low.
-    F0 = np.maximum(F0, np.nanmin(F, axis=1, keepdims=True))
+#     # Ensure filtering doesn't take us below the minimum value which actually
+#     # occurs in the data. This can occur when the amount of data is very low.
+#     F0 = np.maximum(F0, np.nanmin(F, axis=1, keepdims=True))
 
-    return F0
+#     return F0
 
 
-def compute_dff(F, Fneu, fs, window=60):
+# def compute_dff(F_raw, F_neu, fs, window=60):
 
-    Fcor = F - .7 * Fneu  # Neuropil correction.
-    F0 = compute_F0(Fcor, fs, window)
-    dff = (Fcor - F0) / F0
+#     F_res = F_raw - .7 * F_neu  # Neuropil correction.
+#     F0 = compute_F0(Fcor, fs, window)
+#     dff = (Fcor - F0) / F0
 
-    return F0, dff
+#     return F0, dff
 
 
 def add_suite2p_roi(ps, stat, is_cell, dim_x, dim_y):
@@ -93,6 +94,7 @@ def add_suite2p_roi(ps, stat, is_cell, dim_x, dim_y):
 
 
 def get_processed_ci(suite2p_folder):
+
     suite2p_folder = os.path.join(suite2p_folder, "plane0")
     if not os.path.isfile(os.path.join(suite2p_folder, "stat.npy")):
         print(f"Stat file missing in {suite2p_folder}")
@@ -101,11 +103,17 @@ def get_processed_ci(suite2p_folder):
         stat = np.load(os.path.join(suite2p_folder, "stat.npy"), allow_pickle=True)
         is_cell = np.load(os.path.join(suite2p_folder, "iscell.npy"), allow_pickle=True)
         F_raw = np.load(os.path.join(suite2p_folder, "F_raw.npy"), allow_pickle=True)
-        F_cor = np.load(os.path.join(suite2p_folder, "F_cor.npy"), allow_pickle=True)
-        F0 = np.load(os.path.join(suite2p_folder, "F0.npy"), allow_pickle=True)
-        fissa_output = np.load(os.path.join(suite2p_folder, "separated.npz"), allow_pickle=True)
+        F_neu = np.load(os.path.join(suite2p_folder, "F_neu.npy"), allow_pickle=True)
+        F0_cor = np.load(os.path.join(suite2p_folder, "F0_cor.npy"), allow_pickle=True)
+        F0_raw = np.load(os.path.join(suite2p_folder, "F0_raw.npy"), allow_pickle=True)
+        dff = np.load(os.path.join(suite2p_folder, "dff.npy"), allow_pickle=True)
+        # spks = np.load(os.path.join(suite2p_folder, "spks.npy"), allow_pickle=True)
+        # if os.path.isfile(os.path.join(suite2p_folder, "separated.npz")):
+        #     fissa_output = np.load(os.path.join(suite2p_folder, "separated.npz"), allow_pickle=True)
+        # else:
+        #     fissa_output = None
 
-    return stat, is_cell, F_raw, F_cor, F0, fissa_output
+    return stat, is_cell, F_raw, F_neu, F0_cor, F0_raw, dff
 
 
 def get_roi_labels(rois_label_folder):
@@ -211,6 +219,48 @@ def get_wf_roi_pixel_mask(roi_file, img_shape):
         return None, None, None
 
     return area_names, pix_masks, image_masks
+
+
+def process_grid_based_dff_traces(ps, fl, dff, wf_ts):
+    img_shape = dff.shape[1:]
+    y = - (np.linspace(-5, 0, 6, endpoint=True).astype(int) - 0.5)
+    x = - (np.linspace(-2, 4, 7, endpoint=True).astype(int) - 0.5)
+    xn, yn = np.meshgrid(x, y)
+    bregma = (88, 120)
+    scalebar = 18
+
+    centers_list = list(zip(xn.flatten(), yn.flatten()))
+    dff0_grid_traces = np.zeros((len(centers_list), dff.shape[0]), dtype=float)
+    for grid_spot, (x, y) in enumerate(centers_list):
+        # Go to the WF coordinate system
+        wf_x = int(bregma[0] + x * scalebar)
+        wf_y = int(bregma[1] - y * scalebar)
+
+        # Define disk center on spot center
+        rr, cc = disk((wf_x, wf_y), scalebar / 2)
+
+        # Build image & pixels masks
+        mask = np.zeros(img_shape).astype(bool)
+        mask[cc, rr] = True
+        pix_mask = np.argwhere(mask)
+        pix_mask = [(pix[0], pix[1], 1) for pix in pix_mask]
+
+        # Add roi (pixel and mask) to plan segmentation
+        ps.add_roi(pixel_mask=pix_mask, image_mask=mask)
+
+        # Compute trace and add it to 2D activity array
+        dff0_grid_traces[grid_spot, :] = np.nanmean(dff[:, mask], axis=1)
+
+    rt_grid = ps.create_roi_table_region('brain grid', region=list(np.arange(dff0_grid_traces.shape[0])))
+
+    # Add fluorescence data to roi response series.
+    rrs = fl.create_roi_response_series(name='dff0_grid_traces', data=np.transpose(dff0_grid_traces), unit='lumens',
+                                        rois=rt_grid,
+                                        timestamps=[timestamp[0] for timestamp in wf_ts],
+                                        description="dff0 grid traces",
+                                        control=[spot for spot in range(dff0_grid_traces.shape[0])],
+                                        control_description=[str(coord) for coord in centers_list])
+    print(f"Creating Roi Response Series with dff0 grid traces of shape: {(np.transpose(dff0_grid_traces)).shape}")
 
 
 def add_wf_roi(ps, pix_masks, img_masks):

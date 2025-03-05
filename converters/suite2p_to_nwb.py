@@ -22,10 +22,10 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
     experimenter = config['session_metadata']['experimenter']
 
     # First check whether there is data to add in the ophys module
-    if experimenter in ['GF', 'MI']:
-        suite2p_folder = utils_gf.check_gf_suite2p_folder(config_file)
-    else:
-        suite2p_folder = server_paths.get_suite2p_folder(config_file)
+    # if experimenter in ['GF', 'MI']:
+    #     suite2p_folder = utils_gf.check_gf_suite2p_folder(config_file)
+    # else:
+    suite2p_folder = server_paths.get_suite2p_folder(config_file)
     if suite2p_folder is None:
         print("No suite2p folder to add")
         return
@@ -52,31 +52,33 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
 
     # Load Suite2p data
     print('Loading suite2p data.')
-    if experimenter not in ['GF', 'MI']:
-        stat, is_cell, F_raw, F_cor, F0, fissa_output = utils_ci.get_processed_ci(suite2p_folder)
-    else:
-        stat, is_cell, F_raw, F_cor, F0 = utils_gf.get_gf_processed_ci(config_file)
+    # if experimenter not in ['GF', 'MI']:
+    #     stat, is_cell, F_raw, F_neu, F0, spks  = utils_ci.get_processed_ci(suite2p_folder)
+    # else:
+        # stat, is_cell, F_raw, F_neu, F0, spks = utils_gf.get_gf_processed_ci(config_file)
 
-    # Correct is_cell for merges.
-    is_cell = utils_ci.set_merged_roi_to_non_cell(stat, is_cell)
+    # Assumes that non-cells are already filtered out.
+    stat, is_cell, F_raw, F_neu, F0_cor, F0_raw, dff = utils_ci.get_processed_ci(suite2p_folder)
 
-    # If Fissa did not converge, set cell to non-cell.
-    ncells, ntifs = fissa_output.result.shape
-    converged = []
-    for icell in range(ncells):
-        converged.append(np.all([exp.info[icell][itif]['converged'] for itif in range(ntifs)]))
-    is_cell[is_cell[:,0]==1,0] = converged
-    print(f"A total of {np.sum(~converged)} cells did not converge in Fissa. Set as non-cells.")
+    # # If Fissa did not converge, set cell to non-cell.
+    # if fissa_output:
+    #     ncells, ntifs = fissa_output.result.shape
+    #     converged = []
+    #     for icell in range(ncells):
+    #         converged.append(np.all([exp.info[icell][itif]['converged'] for itif in range(ntifs)]))
+    #     is_cell[is_cell[:,0]==1,0] = converged
+    #     print(f"A total of {np.sum(~converged)} cells did not converge in Fissa. Set as non-cells.")
 
-    # Fissa substracts baseline but do not normalized.
-    # Normalizing with baseline of the raw signal.
-    dff = F_cor / F0
+    # if experimenter in ['GF', 'MI']:
+    #     # Fissa substracts baseline but do not normalized.
+    #     # Normalizing with baseline of the raw signal.
+    #     dff = F_cor / F0
 
     # Extract image dimensions
     if image_series is not None:
         dim_y, dim_x = image_series.dimension[1:]
     else:
-        dim_y, dim_x = 512, 512  # GF case.
+        dim_y, dim_x = 512, 512
 
     # Add suite2p pixel mask of 'real cells' (is_cell == 1)
     print('Add cell masks.')
@@ -89,12 +91,13 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
     rt_region = ps.create_roi_table_region('all cells', region=list(np.arange(n_cells)))
 
     # List fluorescence data to save
-    data = [F_cor, F_raw, F0, dff]
-    data_labels = ['F_cor', 'F_raw', 'F0', 'dff']
-    descriptions = ['F_cor: Fissa corrected traces.',
-                    'F_raw: raw fluorescence traces extracted by Fissa',
-                    'F0: 5% percentile baseline computed over a 2 min rolling window of F_raw.',
-                    'dff: Normalized fissa output, dff = F_cor / F0.']
+    data = [F_raw, F_neu, F0_cor, F0_raw, dff]
+    data_labels = ["F_raw", "F_neu", "F0_cor", "F0_raw", "dff",]
+    descriptions = ["F_raw: raw fluorescence traces extracted by Suite2p",
+                    "F_neu: neuropil fluorescence traces extracted by Suite2p",
+                    'F0_cor: 5% percentile baseline computed over a 2 min rolling window of F_raw - 0.7 * F_neu.',
+                    'F0_raw: 5% percentile baseline computed over a 2 min rolling window of F_raw.',
+                    'dff: Normalized fissa output, dff = (F_raw - 0.7 * F_neu) - F0_cor / F0_raw.']
 
     # Add information about cell type (projections, ... ).
     # ####################################################
@@ -108,6 +111,8 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
         cell_type_names = None
         cell_type_codes = None
     else:
+        # It is assumed that that cell type indices are not the suite2p indices, but the indices reindexed
+        # after filtering out non-cells.
         if experimenter in ['GF', 'MI']:
             far_red_rois, red_rois, na_rois, info = utils_gf.get_roi_labels_GF(config_file, projection_folder)
         else:
@@ -129,7 +134,6 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
                 cell_type_codes[iroi] = projection_code[info['CTB-594']]
                 cell_type_names[iroi] = info['CTB-594']
 
-
     # Add fluorescence data to roi response series.
     # #############################################
 
@@ -137,19 +141,10 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
     # todo : add control (list of int code for cell type) and control_description (list of str for name of cell type)
     for d, l, desc in zip(data, data_labels, descriptions):
         if d is not None:
-            # Filtering is already done for GF data.
-            if experimenter in ['GF', 'MI']:
-                d_filt = d
-            else:
-                # For some recording the non-cells are already filtered out.
-                if d.shape[0] == n_cells:
-                    d_filt = d
-                else:
-                    d_filt = d[is_cell[:, 0].astype(bool)]
-                
+
             if cell_type_codes is not None and cell_type_names is not None:
                 fl.create_roi_response_series(name=l,
-                                            data=np.transpose(d_filt),
+                                            data=np.transpose(d),
                                             unit='lumens',
                                             rois=rt_region, timestamps=ci_frame_timestamps,
                                             description=desc,
@@ -157,9 +152,12 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
                                             control_description=cell_type_names)
             else:
                 fl.create_roi_response_series(name=l,
-                                            data=np.transpose(d_filt),
+                                            data=np.transpose(d),
                                             unit='lumens',
                                             rois=rt_region, timestamps=ci_frame_timestamps,
                                             description=desc)
             print(f"- Creating Roi Response Series with: {desc}"
-                f"shape: {(np.transpose(d_filt)).shape}")
+                f"shape: {(np.transpose(d)).shape}")
+
+
+

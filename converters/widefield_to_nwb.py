@@ -7,6 +7,8 @@ import subprocess
 import dask.array as da
 from utils.widefield_utils import *
 from pynwb.ophys import OpticalChannel, Device, OnePhotonSeries, ImageSegmentation, Fluorescence
+from pynwb.base import Images
+from pynwb.image import GrayscaleImage
 import utils.server_paths as server_paths
 import utils.ci_processing as ci_processing
 
@@ -32,6 +34,10 @@ def convert_widefield_recording(nwb_file, config_file, wf_frame_timestamps):
     subject_id = config["subject_metadata"]["subject_id"]
     session_name = config["session_metadata"]["session_id"]
 
+    if session_name in ['PB185_20240725_100701', 'PB185_20240824_121743', 'PB187_20240823_131743', 'PB195_20241107_112405', 'PB196_20241106_122439',
+                        'PB200_20241106_153515', 'PB197_20241128_161907']:
+        return
+
     analysis_folder = server_paths.get_subject_analysis_folder(subject_id=subject_id)
     file_names = get_widefield_file(config_file=config_file)
     if not file_names:
@@ -51,10 +57,25 @@ def convert_widefield_recording(nwb_file, config_file, wf_frame_timestamps):
             print(" ")
             print(f"Found F_data file with shape {f['F'].shape}")
 
-    dff0_data = compute_dff0(data_folder=os.path.join(analysis_folder, session_name), method='percentile')
+    dff0_data, f0, std_img = compute_dff0(data_folder=os.path.join(analysis_folder, session_name), method='percentile')
 
     print(" ")
     print(f"dFF0 calculated, final shape = {dff0_data.shape}")
+
+    # Add images to NWB:
+    gs_f0_im = GrayscaleImage(
+        name="F0",
+        data=f0,
+        description="Grayscale version of the F-F0 image.")
+    gs_std_im = GrayscaleImage(
+        name="STD",
+        data=std_img,
+        description="Grayscale version of the F-STD image.")
+    images = Images(
+        name="F0 image",
+        images=[gs_f0_im, gs_std_im],
+        description="A grayscale version of the F stats images")
+    nwb_file.add_acquisition(images)
 
     # Create the 'ophys module'
     if 'ophys' in nwb_file.processing:
@@ -160,6 +181,21 @@ def convert_widefield_recording(nwb_file, config_file, wf_frame_timestamps):
                                             description="dff0 traces", control=[cell for cell in range(n_cells)],
                                             control_description=area_names)
         print(f"Creating Roi Response Series with dff0 traces of shape: {(np.transpose(dff0_traces)).shape}")
+
+    # Add grid like ROI
+    add_grid_rrs = True
+    if add_grid_rrs:
+        grid_img_seg = ImageSegmentation(name="grid_areas")
+        ophys_module.add_data_interface(grid_img_seg)
+        grid_ps = grid_img_seg.create_plane_segmentation(description='brain grid area segmentation',
+                                                         imaging_plane=imaging_plane,
+                                                         name='brain_grid_area_segmentation',
+                                                         reference_images=dFF0_wf_series if dFF0_wf_series is not None else None)
+        fl = Fluorescence(name="brain_grid_fluorescence")
+        ophys_module.add_data_interface(fl)
+
+        print(f"Process dff0 data to grid dimensions")
+        ci_processing.process_grid_based_dff_traces(ps=grid_ps, fl=fl, dff=dff0_data, wf_ts=wf_frame_timestamps)
 
     gc.collect()
 

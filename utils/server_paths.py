@@ -138,7 +138,9 @@ def get_log_continuous_file(config_file):
     session_name = config['session_metadata']['session_id']
     data_folder = get_subject_data_folder(mouse_name)
     log_continuous_file = os.path.join(data_folder, 'Training', session_name, 'log_continuous.bin')
-
+    log_continuous_cor = os.path.join(data_folder, 'Training', session_name, 'log_continuous_cor.bin')
+    if os.path.exists(log_continuous_cor):
+        log_continuous_file = log_continuous_cor
     return log_continuous_file
 
 
@@ -150,8 +152,10 @@ def get_movie_files(config_file):
     data_folder = get_subject_data_folder(mouse_name)
     movies_path = os.path.join(data_folder, 'Recording', 'Video', session_name)
     if not os.path.exists(movies_path):
-        movies = None
-        return movies
+        movies_path = os.path.join(data_folder, 'Recording', 'Filming', session_name)
+        if not os.path.exists(movies_path):
+            movies = None
+            return movies
     movies = [os.path.join(movies_path, m) for m in os.listdir(movies_path)
               if os.path.splitext(m)[1] in ['.avi', '.mp4']]
     if not movies:
@@ -212,12 +216,12 @@ def get_imaging_file(config_file):
                      if os.path.splitext(m)[1] in ['.tif', '.tiff']]
         # Sort this list
         f = lambda x: int(os.path.basename(x).split('_')[0][6:])
-        tiff_file = sorted(tiff_file, key=f)
+        tiff_file = sorted(tiff_file, key=f)    
         if not tiff_file:
             add_raw_movie = True
         else:
             print("Add registered tiff")
-
+    
     if add_raw_movie:
         data_folder = get_subject_data_folder(mouse_name)
         tiff_path = os.path.join(data_folder, 'Recording', 'Imaging', session_name)
@@ -226,13 +230,13 @@ def get_imaging_file(config_file):
             return tiff_file
         tiff_file = [os.path.join(tiff_path, m) for m in os.listdir(tiff_path)
                      if os.path.splitext(m)[1] in ['.tif', '.tiff']]
-        # Sort this list
-        f = lambda x: int(os.path.basename(x).split('_')[0][6:])
-        tiff_file = sorted(tiff_file, key=f)
+        # f = lambda x: int(os.path.basename(x).split('_')[0][6:])
+        # tiff_file = sorted(tiff_file, key=f)
+        tiff_file = sorted(tiff_file)
         if not tiff_file:
             tiff_file = None
         else:
-            print("Add registered tiff")
+            print("Add raw tiff")
 
     return tiff_file
 
@@ -501,3 +505,18 @@ def get_dlc_file_path(config_file):
         dlc_file = None
 
     return dlc_file
+
+
+def get_facemap_file_path(config_file):
+    with open(config_file, 'r', encoding='utf8') as stream:
+        config = yaml.safe_load(stream)
+
+    mouse_name = config['subject_metadata']['subject_id']
+    session_name = config['session_metadata']['session_id']
+
+    data_folder = os.path.join(get_subject_analysis_folder(mouse_name), session_name)
+
+    file_path = os.path.join(data_folder, f'{session_name}_sideview_proc.npy')
+
+    return file_path
+

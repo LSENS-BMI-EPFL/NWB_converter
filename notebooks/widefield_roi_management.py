@@ -177,15 +177,16 @@ def extract_trial_average_images(config_file):
 
 
 # Select the sessions ID to do
-group_file = "//sv-nas1.rcp.epfl.ch/Petersen-Lab/analysis/Robin_Dard/group.yaml"
-with open(group_file, 'r', encoding='utf8') as stream:
-    group_dict = yaml.safe_load(stream)
-# sessions = group_dict['NWB_CI_LSENS']['Context_expert_sessions']
-# sessions = group_dict['NWB_CI_LSENS']['Context_good_params']
-# sessions = group_dict['NWB_CI_LSENS']['context_expert_widefield']
-# sessions = group_dict['NWB_CI_LSENS']['Context_contrast_expert']
-sessions = group_dict['NWB_CI_LSENS']['context_contrast_widefield']
-session_to_do = [session[0] for session in sessions]
+# group_file = "//sv-nas1.rcp.epfl.ch/Petersen-Lab/analysis/Robin_Dard/group.yaml"
+# with open(group_file, 'r', encoding='utf8') as stream:
+#     group_dict = yaml.safe_load(stream)
+# # sessions = group_dict['NWB_CI_LSENS']['Context_expert_sessions']
+# # sessions = group_dict['NWB_CI_LSENS']['Context_good_params']
+# # sessions = group_dict['NWB_CI_LSENS']['context_expert_widefield']
+# # sessions = group_dict['NWB_CI_LSENS']['Context_contrast_expert']
+# sessions = group_dict['NWB_CI_LSENS']['context_contrast_widefield']
+# session_to_do = [session[0] for session in sessions]
+session_to_do = ['PB187_20240730_131530']
 
 
 for session in session_to_do:

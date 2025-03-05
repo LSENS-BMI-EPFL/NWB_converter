@@ -3,6 +3,7 @@
 import datetime
 import os
 import platform
+import numpy as np
 
 import yaml
 import json
@@ -17,9 +18,10 @@ from converters.subject_to_nwb import create_nwb_file
 from converters.suite2p_to_nwb import convert_suite2p_data
 from converters.widefield_to_nwb import convert_widefield_recording
 from converters.DLC_to_nwb import convert_dlc_data
+from converters.facemap_to_nwb import convert_facemap_data
 from utils.behavior_converter_misc import find_training_days
 from utils.server_paths import (get_nwb_folder, get_subject_analysis_folder,
-                                get_subject_data_folder, get_dlc_file_path)
+                                get_subject_data_folder, get_dlc_file_path, get_facemap_file_path)
 
 
 def convert_data_to_nwb(config_file, output_folder, with_time_string=True):
@@ -94,6 +96,14 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True):
             convert_dlc_data(nwb_file=nwb_file,
                              config_file=config_file,
                              video_timestamps={k: timestamps_dict[k] for k in ("cam1", "cam2")})
+
+        facemap_file = get_facemap_file_path(config_file)
+        if facemap_file is not None:
+            print(" ")
+            print("Convert Facemap data")
+            convert_facemap_data(nwb_file=nwb_file,
+                                 config_file=config_file,
+                                 video_timestamps={k: timestamps_dict[k] for k in ("cam1", "cam2")})
 
     print(" ")
     print("Saving NWB file")

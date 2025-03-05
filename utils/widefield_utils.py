@@ -80,6 +80,8 @@ def compute_dff0(data_folder, method='percentile'):
         F0 = compute_F0_early_percentile(F, winsize=F.shape[0])
     F_dims = F.shape
 
+    std_F = np.nanstd(F, axis=0)
+
     F_file.close()
     del F
     gc.collect()
@@ -106,7 +108,7 @@ def compute_dff0(data_folder, method='percentile'):
 
     F_file.close()
 
-    return dff0
+    return dff0, F0, std_F
 
 
 def load_array(file, frame):
@@ -240,7 +242,7 @@ def prompt_overwrite(folder_path, file):
 
 
 def make_alignment_reference(mouse_id, align_to='bregma', overwrite_session=None):
-    sessions_to_skip = ['PB175_20240308_140045']
+    sessions_to_skip = ['PB175_20240308_140045', 'PB185_20240824_121743', 'PB187_20240823_131743', 'PB195_20241107_112405', 'PB197_20241128_161907']
     analysis_folder = get_subject_analysis_folder(mouse_id)
     ref_file = os.path.join(analysis_folder, 'alignment_ref.csv')
     sessions = os.listdir(analysis_folder)
@@ -253,11 +255,12 @@ def make_alignment_reference(mouse_id, align_to='bregma', overwrite_session=None
 
         if session_id in sessions_to_skip:
             continue
-
-        wf_file = get_widefield_file(os.path.join(analysis_folder, session_id, f"config_{session_id}.yaml"))
+        if session_id == 'RD052_20240605_143534':
+            wf_file = ['//sv-nas1.rcp.epfl.ch/Petersen-Lab/data/RD052/Recording/Imaging/RD052_20240605_152408/RD052_20240605_152408.mj2']
+        else:
+            wf_file = get_widefield_file(os.path.join(analysis_folder, session_id, f"config_{session_id}.yaml"))
         if wf_file is None:
             continue
-
         if os.path.exists(ref_file):
             reference_list = pd.read_csv(ref_file)
             if session_id in reference_list['session_id'].values:
