@@ -361,6 +361,28 @@ def get_anat_images_files(config_file):
 
     return anat_images
 
+def get_anat_probe_track_folder(config_file):
+    """Returns path to folder with probe track estimates"""
+    with open(config_file, 'r', encoding='utf8') as stream:
+        config = yaml.safe_load(stream)
+    mouse_name = config['subject_metadata']['subject_id']
+    folder = get_subject_analysis_folder(mouse_name)
+    experimenter = EXPERIMENTER_MAP[mouse_name[:2]]
+    if experimenter == 'Axel_Bisi':
+        if int(mouse_name[:2]) < 116:
+            probe_track_folder = os.path.join(folder, 'ImagedBrains', mouse_name, 'brainreg/manual_segmentation') #older brainreg auto output
+        else:
+            probe_track_folder = os.path.join(folder, 'ImagedBrains', experimenter, mouse_name, 'fused/registered/segmentation')
+    else:
+        probe_track_folder = os.path.join(folder, 'ImagedBrains', mouse_name, 'fused/registered/segmentation')
+        print('Unspecified experimenter for probe track folder.')
+        print('Returning default:', probe_track_folder)
+
+    if not os.path.exists(probe_track_folder):
+        print(f"No probe track folder found for {mouse_name}")
+        return None
+
+    return probe_track_folder
 
 def get_opto_results_file(config_file):
     with open(config_file, 'r', encoding='utf8') as stream:
@@ -465,12 +487,17 @@ def get_dlc_file_path(config_file):
         dlc_file = glob.glob(dlc_folder + "/**/*.csv")
 
     elif initials == 'AB':
+        experimenter = "Axel_Bisi"
+        dlc_folder = os.path.join(r"\\sv-nas1.rcp.epfl.ch\Petersen-Lab", "analysis", experimenter, "data", session_id.split("_")[0], session_id, 'Video').replace("\\", "/")
+        #dlc_file = glob.glob(dlc_folder + "/**/*.csv")
+        #dlc_file = glob.glob(dlc_folder + "/**/*filtered.h5")
         dlc_file = None
 
     else:
         dlc_file = None
 
     if dlc_file is not None and len(dlc_file) == 0:
+        print('No DLC file found for session {}'.format(session_id))
         dlc_file = None
 
     return dlc_file

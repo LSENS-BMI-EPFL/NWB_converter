@@ -114,7 +114,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     else:
         ref_weight_df = pd.read_excel(ref_weight_csv_path)
         # Make sure subject is in the reference weight file
-        if subject_id not in ref_weight_df.mouse_name.values:
+        if subject_id not in ref_weight_df['mouse_id'].values:
             print(f'Error: subject {subject_id} not found in reference weight file for {subject_id}. Please add it.')
             ref_weight = np.nan
         else:
@@ -124,7 +124,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
                     f'NotImplementedError: more than one reference weight column found for {experimenter}. Please check.')
                 ref_weight = np.nan
             else:
-                ref_weight = ref_weight_df.loc[ref_weight_df.mouse_name == subject_id, ref_weight_cols[0]].values[0]
+                ref_weight = ref_weight_df.loc[ref_weight_df['mouse_id'] == subject_id, ref_weight_cols[0]].values[0]
                 assert isinstance(ref_weight,
                                   float), f'Error: reference weight for {subject_id} is not a float. Please check.'
 
@@ -232,7 +232,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
 
     # Extracell. ephys. metadata.
     # ####################
-    if experimenter in ['AB', 'PB']:
+    if experimenter in ['AB', 'PB', 'MH', 'RD', 'JL']:
         ephys_metadata = create_ephys_metadata(subject_id=subject_id)
 
     # Write to yaml file.
@@ -399,12 +399,16 @@ def create_ephys_metadata(subject_id):
 
     """
     mouse_number, initials = get_subject_mouse_number(subject_id)
-    if initials in ['AB', 'PB']:
+    if initials in ['AB']:
+        setup = 'Neuropixels setup 1 AI3209'
+        path_to_probe_info = r'M:\analysis\Axel_Bisi\mice_info\probe_insertion_info.xlsx'
+        path_to_atlas = r'C:\Users\bisi\.brainglobe\allen_mouse_bluebrain_barrels_10um_v1.0'
+    elif initials in ['PB']:
         setup = 'Neuropixels setup 1 AI3209'
     else:
         setup = 'Neuropixels setup 2 AI3209'
 
-    if initials == 'AB' and int(mouse_number) > 131:
+    if initials == 'AB' and int(mouse_number) > 150:
         processed = 0
     elif initials == 'PB':
         processed = 0
@@ -421,6 +425,8 @@ def create_ephys_metadata(subject_id):
         'setup': setup,
         'unit_table': unit_table,  # 'simple' or 'standard'
         'processed': processed, # 0 or 1
+        'path_to_probe_info': path_to_probe_info,
+        'path_to_atlas': path_to_atlas,
     }
     return ephys_metadata
 
@@ -463,8 +469,7 @@ def create_wf_metadata(config_path):
 if __name__ == '__main__':
     # Select mouse IDs.
     experimenter = 'AB'
-    mouse_ids = ['AB116','AB117','AB119','AB120','AB121','AB122','AB123','AB124','AB126','AB127','AB128','AB129','AB130'] # do AB131
-    mouse_ids = ['PB191']
+    mouse_ids = ['AB{}'.format(n) for n in range(151, 156)]
     #last_done_day = '20241210'
 
     for mouse_id in mouse_ids:
@@ -489,12 +494,15 @@ if __name__ == '__main__':
             #     if session_date <= datetime.datetime.strptime(last_done_day, "%Y%m%d"):
             #         continue#
 
-            sessions_to_do = ["PB191_20241210_110601"]
-            if session_id not in sessions_to_do:
-                 continue
+            #sessions_to_do = []
+            #if session_id not in sessions_to_do:
+            #     continue
+
+            #if experimenter == 'AB' and day not in ['whisker_0']:
+            #    continue
 
             make_yaml_config(mouse_id, session_id, day, data_folder, analysis_folder,
                              mouse_line='C57BL/6', gmo=False)
 
-            add_metadata_to_config(mouse_id, session_id, experimenter)
+            #add_metadata_to_config(mouse_id, session_id, experimenter)
 
