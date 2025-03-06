@@ -517,6 +517,8 @@ def get_facemap_file_path(config_file):
     data_folder = os.path.join(get_subject_analysis_folder(mouse_name), session_name)
 
     file_path = os.path.join(data_folder, f'{session_name}_sideview_proc.npy')
+    if not os.path.exists(file_path):
+        return None
 
     return file_path
 
