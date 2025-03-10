@@ -493,9 +493,7 @@ def get_dlc_file_path(config_file):
     elif initials == 'AB':
         experimenter = "Axel_Bisi"
         dlc_folder = os.path.join(r"\\sv-nas1.rcp.epfl.ch\Petersen-Lab", "analysis", experimenter, "data", session_id.split("_")[0], session_id, 'Video').replace("\\", "/")
-        #dlc_file = glob.glob(dlc_folder + "/**/*.csv")
-        #dlc_file = glob.glob(dlc_folder + "/**/*filtered.h5")
-        dlc_file = None
+        dlc_file = glob.glob(dlc_folder + "/*filtered.h5")
 
     else:
         dlc_file = None

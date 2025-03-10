@@ -571,6 +571,10 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
         standard_trial_table['id'] = np.arange(0,standard_trial_table.shape[0])
         standard_trial_table = standard_trial_table.reset_index(drop=True)
 
+    if experimenter == 'AB':
+        # Ensure string formatting of context
+        standard_trial_table['context'] = standard_trial_table['context'].astype(str)
+
     return standard_trial_table
 
 

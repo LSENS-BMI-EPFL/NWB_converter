@@ -17,6 +17,7 @@ def convert_dlc_data(nwb_file, config_file, video_timestamps):
         config = yaml.safe_load(stream)
 
     dlc_file_path = get_dlc_file_path(config_file)
+    print(dlc_file_path)
 
     print("Creating behaviour processing module")
     if 'behavior' in nwb_file.processing:
@@ -38,22 +39,28 @@ def convert_dlc_data(nwb_file, config_file, video_timestamps):
         behavior_t_series = BehavioralTimeSeries(name='BehavioralTimeSeries')
         bhv_module.add_data_interface(behavior_t_series)
 
-
     ## Retrieve the multiindex dataframes with the dlc results for top and side views
     side_dlc, top_dlc = get_dlc_dataframe(dlc_file_path)
+    #side_dlc, top_dlc = get_dlc_h5_dataframe(dlc_file_path)
 
     # If one of the two is missing, stop processing
     if len(side_dlc) == 0 or len(top_dlc) == 0:
-        ValueError("DLC can't be found or needs to be analyzed")
+        ValueError("DLC data can't be found or needs to be analyzed")
 
     # Compute kinematics for each of the views.
-    side_dlc = compute_kinematics(side_dlc, 'sideview')
-    top_dlc = compute_kinematics(top_dlc, 'topview')
+    if config['session_metadata']['experimenter'] == 'AB':
+        side_dlc = compute_kinematics_alt(side_dlc, 'sideview')
+        top_dlc = compute_kinematics_alt(top_dlc, 'topview')
+        pcutoff_tongue=0.5
+
+    else:
+        side_dlc = compute_kinematics(side_dlc, 'sideview')
+        top_dlc = compute_kinematics(top_dlc, 'topview')
+        pcutoff_tongue=0.8
 
     px_ref = get_reference_from_grid(config['session_metadata']['experimenter'])
 
     for name, data in side_dlc.items():
-
         # Add times series for bodybarts
         timeseries = TimeSeries(name=f'{name}',
                                          data=data.to_numpy(),
@@ -75,7 +82,6 @@ def convert_dlc_data(nwb_file, config_file, video_timestamps):
     for name, data in top_dlc.items():
         if 'nose' in name or 'particle' in name:
             name = 'top_' + name
-
         # Add times series for bodybarts
         timeseries = TimeSeries(name=f'{name}',
                                          data=data.to_numpy(),
@@ -95,7 +101,7 @@ def convert_dlc_data(nwb_file, config_file, video_timestamps):
         behavior_t_series.add_timeseries(timeseries)
 
     # Add lick times counted as the peaks of tongue distance
-    tongue_licks, _ = find_peaks(np.where(side_dlc['tongue_likelihood']>0.8, side_dlc['tongue_distance'], np.nan), distance= 20)
+    tongue_licks, _ = find_peaks(np.where(side_dlc['tongue_likelihood'] > pcutoff_tongue, side_dlc['tongue_distance'], np.nan), distance= 20)
 
     data_to_store = np.arange(len(tongue_licks))  # data would be lick index
     timestamps_to_store = tongue_licks  # same length as n_licks absolute times of licks
@@ -137,3 +143,5 @@ def convert_dlc_data(nwb_file, config_file, video_timestamps):
                                   continuity='instantaneous')
 
     behavior_events.add_timeseries(lick_timeseries)
+
+    return
