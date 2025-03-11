@@ -58,7 +58,7 @@ def convert_dlc_data(nwb_file, config_file, video_timestamps):
         top_dlc = compute_kinematics(top_dlc, 'topview')
         pcutoff_tongue=0.8
 
-    px_ref = get_reference_from_grid(config['session_metadata']['experimenter'])
+    px_ref = get_reference_from_grid(config)
 
     for name, data in side_dlc.items():
         # Add times series for bodybarts
