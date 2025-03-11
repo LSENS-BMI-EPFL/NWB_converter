@@ -253,7 +253,7 @@ def compute_kinematics_alt(df, view):
 
         debug = True
         bodyparts = ['jaw_distance', 'tongue_distance', 'nose_distance', 'pupil_area']
-        bodyparts.extend(['jaw_velocity', 'tongue_velocity', 'nose_velocity', 'pupil_area_change'])
+        bodyparts_diff = ['jaw_velocity', 'tongue_velocity', 'nose_velocity', 'pupil_area_change']
         if debug:
             start_sec = 2000
             end_sec = 2100
@@ -262,12 +262,13 @@ def compute_kinematics_alt(df, view):
             n_bodyparts = len(bodyparts)
             # Plot all bodyparts
             fig, axs = plt.subplots(n_bodyparts, 1, figsize=(10, 10))
-            for i, bodypart in enumerate(bodyparts):
-                axs[i].plot(df[bodypart], label=bodypart)
+            for i, (bp, bp_diff) in enumerate(zip(bodyparts, bodyparts_diff)):
+                axs[i].plot(df[bp], label=bp)
+                axs[i].plot(df[bp_diff], label=bp_diff)
                 axs[i].legend()
 
             fig.tight_layout()
-            plt.xlim(start_idx, end_idx)
+            #plt.xlim(start_idx, end_idx)
             plt.show()
 
     elif view == 'topview' and len(df) != 0:
@@ -307,7 +308,7 @@ def compute_kinematics_alt(df, view):
 
         debug = True
         bodyparts = ['whisker_angle', 'nose_distance']
-        bodyparts.extend(['whisker_velocity', 'nose_velocity'])
+        bodyparts_diff = ['whisker_velocity', 'nose_velocity']
         if debug:
             start_sec = 2000
             end_sec = 2100
@@ -316,12 +317,13 @@ def compute_kinematics_alt(df, view):
             n_bodyparts = len(bodyparts)
             # Plot all bodyparts
             fig, axs = plt.subplots(n_bodyparts, 1, figsize=(10, 10))
-            for i, bodypart in enumerate(bodyparts):
-                axs[i].plot(df[bodypart], label=bodypart)
+            for i, (bp, bp_diff) in enumerate(zip(bodyparts, bodyparts_diff)):
+                axs[i].plot(df[bp], label=bp)
+                axs[i].plot(df[bp_diff], label=bp_diff)
                 axs[i].legend()
 
             fig.tight_layout()
-            plt.xlim(start_idx, end_idx)
+            #plt.xlim(start_idx, end_idx)
             plt.show()
 
     return df
