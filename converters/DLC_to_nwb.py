@@ -39,9 +39,8 @@ def convert_dlc_data(nwb_file, config_file, video_timestamps):
         behavior_t_series = BehavioralTimeSeries(name='BehavioralTimeSeries')
         bhv_module.add_data_interface(behavior_t_series)
 
-    ## Retrieve the multiindex dataframes with the dlc results for top and side views
+    # Retrieve the multiindex dataframes with the DLC results for top and side views
     side_dlc, top_dlc = get_dlc_dataframe(dlc_file_path)
-    #side_dlc, top_dlc = get_dlc_h5_dataframe(dlc_file_path)
 
     # If one of the two is missing, stop processing
     if len(side_dlc) == 0 or len(top_dlc) == 0:
@@ -51,16 +50,21 @@ def convert_dlc_data(nwb_file, config_file, video_timestamps):
     if config['session_metadata']['experimenter'] == 'AB':
         side_dlc = compute_kinematics_alt(side_dlc, 'sideview')
         top_dlc = compute_kinematics_alt(top_dlc, 'topview')
-        pcutoff_tongue=0.5
+        pcutoff_tongue = 0.5
 
     else:
         side_dlc = compute_kinematics(side_dlc, 'sideview')
         top_dlc = compute_kinematics(top_dlc, 'topview')
-        pcutoff_tongue=0.8
+        pcutoff_tongue = 0.8 #cutoff for tongue/lick events detection
 
     px_ref = get_reference_from_grid(config)
 
     for name, data in side_dlc.items():
+        ts = [timestamp[0] for timestamp in video_timestamps['cam1']]
+        rate = np.round(1 / np.median(np.diff(ts[0:200])), 2)
+        if 'velocity' in name: # scale frame difference wrt. to sampling rate
+            data = data * rate
+
         # Add times series for bodybarts
         timeseries = TimeSeries(name=f'{name}',
                                          data=data.to_numpy(),
@@ -82,6 +86,12 @@ def convert_dlc_data(nwb_file, config_file, video_timestamps):
     for name, data in top_dlc.items():
         if 'nose' in name or 'particle' in name:
             name = 'top_' + name
+
+        ts = [timestamp[0] for timestamp in video_timestamps['cam2']]
+        rate = np.round(1 / np.median(np.diff(ts[0:200])), 2)
+        if 'velocity' in name: # scale frame difference wrt. to sampling rate
+            data = data * rate
+
         # Add times series for bodybarts
         timeseries = TimeSeries(name=f'{name}',
                                          data=data.to_numpy(),
@@ -143,5 +153,6 @@ def convert_dlc_data(nwb_file, config_file, video_timestamps):
                                   continuity='instantaneous')
 
     behavior_events.add_timeseries(lick_timeseries)
+
 
     return

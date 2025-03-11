@@ -57,24 +57,6 @@ def get_dlc_dataframe(dlc_file_path):
 
     return side_dlc, top_dlc
 
-def get_dlc_h5_dataframe(dlc_file_path): # try with DLC2Kinematics with smoothing etzc
-    side_path = [file for file in dlc_file_path if 'side' in file]
-    top_path = [file for file in dlc_file_path if 'top' in file]
-
-    if len(side_path) != 0:
-        side_dlc = pd.read_hdf(side_path[0])
-    else:
-        side_dlc = []
-
-    if len(top_path) != 0:
-        top_dlc = pd.read_hdf(top_path[0])
-    else:
-        top_dlc = []
-
-    return side_dlc, top_dlc
-
-
-
 
 def get_reference_from_grid(config):
     """
@@ -119,7 +101,7 @@ def compute_kinematics(df, view):
                                                                    df['jaw_x'] - df['jaw_ref_x'].median()) ** 2))))
         df.loc[:, 'jaw_distance'] = np.sqrt((df['jaw_y'] - ref_y) ** 2 + (df['jaw_x'] - ref_x) ** 2)
         df.loc[:, 'jaw_velocity'] = np.zeros_like(df['jaw_distance'])
-        df.loc[1:, 'jaw_velocity'] = np.diff(df['jaw_distance'])
+        df.loc[1:, 'jaw_velocity'] = np.diff(df['jaw_distance']) # Note: the correct scaling with the time period is done later, where camera rate is known
 
         ## Tongue kinematics
 
@@ -154,6 +136,9 @@ def compute_kinematics(df, view):
                                              (df.loc[:, 'pupil_bottom_likelihood'] > 0.9) & \
                                              (df.loc[:, 'pupil_left_likelihood'] > 0.9)
 
+        df.loc[:, 'pupil_area_velocity'] = np.zeros_like(df['pupil_area'])
+        df.loc[1:, 'pupil_area_velocity'] = np.diff(df['pupil_area'])
+
     elif view == 'topview' and len(df) != 0:
         ## TODO: to be tested
         ## Whisker kinematics
@@ -187,8 +172,6 @@ def compute_kinematics(df, view):
 
 def compute_kinematics_alt(df, view):
 
-    fs = 200 # sampling frequency in Hz
-    dt = 1/fs # sampling period in seconds
     pcutoff = 0.5
 
     if view == 'sideview' and len(df) != 0:
@@ -215,7 +198,7 @@ def compute_kinematics_alt(df, view):
                                                                    df['jaw_x'] - df['jaw_ref_x'].median()) ** 2))))
         df.loc[:, 'jaw_distance'] = np.sqrt((df['jaw_y'] - ref_y) ** 2 + (df['jaw_x'] - ref_x) ** 2)
         df.loc[:, 'jaw_velocity'] = np.zeros_like(df['jaw_distance'])
-        df.loc[1:, 'jaw_velocity'] = np.diff(df['jaw_distance']) / dt
+        df.loc[1:, 'jaw_velocity'] = np.diff(df['jaw_distance'])  # Note: the correct scaling with the time period is done later, where camera rate is known
 
         ## Tongue kinematics
         df.loc[:, 'tongue_angle'] = np.degrees(np.arcsin((df['tongue_y'] - ref_y) /
@@ -224,7 +207,7 @@ def compute_kinematics_alt(df, view):
         #df.loc[:, 'tongue_distance'] = np.sqrt((df['tongue_y'] - ref_y) ** 2 + (df['tongue_x'] - ref_x) ** 2)
         df.loc[:, 'tongue_distance'] = np.sqrt(df['tongue_y'] ** 2 + df['tongue_x'] ** 2)
         df.loc[:, 'tongue_velocity'] = np.zeros_like(df['tongue_distance'])
-        df.loc[1:, 'tongue_velocity'] = np.diff(df['tongue_distance']) / dt
+        df.loc[1:, 'tongue_velocity'] = np.diff(df['tongue_distance'])
 
         ## Nose kinematics
         ref_x = np.percentile(np.where(df['nose_tip_likelihood'] > pcutoff, df['nose_tip_x'], 0), 5)
@@ -234,7 +217,7 @@ def compute_kinematics_alt(df, view):
                                                                    df['nose_tip_x'] - df['nose_base_x'].median()) ** 2))))
         df.loc[:, 'nose_distance'] = np.sqrt((df['nose_tip_y'] - ref_y) ** 2 + (df['nose_tip_x'] - ref_x) ** 2)
         df.loc[:, 'nose_velocity'] = np.zeros_like(df['nose_distance'])
-        df.loc[1:, 'nose_velocity'] = np.diff(df['nose_distance']) / dt
+        df.loc[1:, 'nose_velocity'] = np.diff(df['nose_distance'])
 
         ## Pupil
         df.loc[:, 'pupil_area'] = df.apply(lambda x: 0.5 * np.abs(
@@ -248,12 +231,12 @@ def compute_kinematics_alt(df, view):
                                              (df.loc[:, 'pupil_bottom_likelihood'] > pcutoff) & \
                                              (df.loc[:, 'pupil_left_likelihood'] > pcutoff)
 
-        df.loc[:, 'pupil_area_change'] = np.zeros_like(df['pupil_area'])
-        df.loc[1:, 'pupil_area_change'] = np.diff(df['pupil_area']) / dt
+        df.loc[:, 'pupil_area_velocity'] = np.zeros_like(df['pupil_area'])
+        df.loc[1:, 'pupil_area_velocity'] = np.diff(df['pupil_area'])
 
-        debug = True
+        debug = False
         bodyparts = ['jaw_distance', 'tongue_distance', 'nose_distance', 'pupil_area']
-        bodyparts_diff = ['jaw_velocity', 'tongue_velocity', 'nose_velocity', 'pupil_area_change']
+        bodyparts_diff = ['jaw_velocity', 'tongue_velocity', 'nose_velocity', 'pupil_area_velocity']
         if debug:
             start_sec = 2000
             end_sec = 2100
@@ -292,7 +275,7 @@ def compute_kinematics_alt(df, view):
 
         df.loc[:, 'whisker_angle'] = np.degrees(np.arccos(dot_prod/(magnitude1*magnitude2)))
         df.loc[:, 'whisker_velocity'] = np.zeros_like(df['whisker_angle'])
-        df.loc[1:, 'whisker_velocity'] = np.diff(df['whisker_angle']) / dt
+        df.loc[1:, 'whisker_velocity'] = np.diff(df['whisker_angle'])
 
         ## Nose_top kinematics
         ref_x = np.median(np.where(df['nose_tip_likelihood'] > pcutoff, df['nose_tip_x'], 0))
@@ -304,9 +287,9 @@ def compute_kinematics_alt(df, view):
 
         df.loc[:, 'nose_distance'] = np.sqrt((df['nose_tip_y'] - ref_y) ** 2 + (df['nose_tip_x'] - ref_x) ** 2)
         df.loc[:, 'nose_velocity'] = np.zeros_like(df['nose_distance'])
-        df.loc[1:, 'nose_velocity'] = np.diff(df['nose_distance']) / dt
+        df.loc[1:, 'nose_velocity'] = np.diff(df['nose_distance'])
 
-        debug = True
+        debug = False
         bodyparts = ['whisker_angle', 'nose_distance']
         bodyparts_diff = ['whisker_velocity', 'nose_velocity']
         if debug:
