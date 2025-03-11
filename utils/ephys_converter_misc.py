@@ -720,7 +720,6 @@ def build_area_table(config_file, imec_folder):
     # -----------------------------------------
 
     imec_id = imec_folder[-1]
-    mouse_name = imec_folder.split('\\')[7]
     mouse_name = config['subject_metadata']['subject_id']
     path_to_proc_anat = server_paths.get_anat_probe_track_folder(config_file)
 
@@ -810,7 +809,7 @@ def build_area_table(config_file, imec_folder):
     else:
         path_to_atlas_space_track = os.path.join(path_to_proc_anat, 'atlas_space\\tracks')
 
-    coords = np.load(path_to_atlas_space_track, 'imec{}.npy'.format(imec_id))
+    coords = np.load(os.path.join(path_to_atlas_space_track, 'imec{}.npy'.format(imec_id)))
     coords = coords[::-1]
     print('Probe track coordinates shape:', coords.shape)
 
