@@ -370,17 +370,17 @@ def get_anat_probe_track_folder(config_file):
     with open(config_file, 'r', encoding='utf8') as stream:
         config = yaml.safe_load(stream)
     mouse_name = config['subject_metadata']['subject_id']
-    folder = get_subject_analysis_folder(mouse_name)
     experimenter = EXPERIMENTER_MAP[mouse_name[:2]]
+    analysis_folder = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis', experimenter)
     if experimenter == 'Axel_Bisi':
-        if int(mouse_name[:2]) < 116:
-            probe_track_folder = os.path.join(folder, 'ImagedBrains', mouse_name, 'brainreg/manual_segmentation') #older brainreg auto output
+        if int(mouse_name[2:]) < 116:
+            probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', mouse_name, 'brainreg\\manual_segmentation') #older brainreg auto output
         else:
-            probe_track_folder = os.path.join(folder, 'ImagedBrains', experimenter, mouse_name, 'fused/registered/segmentation')
+            probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', experimenter, mouse_name, 'fused\\registered\\segmentation')
     else:
-        probe_track_folder = os.path.join(folder, 'ImagedBrains', mouse_name, 'fused/registered/segmentation')
+        probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', mouse_name, 'fused\\registered\\segmentation')
         print('Unspecified experimenter for probe track folder.')
-        print('Returning default:', probe_track_folder)
+        print('Default:', probe_track_folder)
 
     if not os.path.exists(probe_track_folder):
         print(f"No probe track folder found for {mouse_name}")
