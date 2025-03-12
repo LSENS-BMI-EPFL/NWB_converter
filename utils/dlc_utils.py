@@ -66,15 +66,17 @@ def get_reference_from_grid(config):
     experimenter = config['session_metadata']['experimenter']
     reference_folder = EXPERIMENTER_MAP[experimenter]
 
-    if experimenter in ['AB', 'MH']:
-        # Check if config has ephys metadata
-        if 'ephys_metadata' in config.keys():
-            setup = config['ephys_metadata']['setup']
+    if experimenter in ['AB', 'MH'] and config.get('behaviour_metadata')['camera_flag'] == 1:
+        if config.get('behaviour_metadata')['setup'] is not None:
+            setup = config['behaviour_metadata']['setup']
             if setup == 'Neuropixels setup 1 AI3209':
                 ref_path = os.path.join(reference_folder, 'reference_setup1.xlsx').replace('\\', '/')
             elif setup == 'Neuropixels setup 2 AI3209':
                 ref_path = os.path.join(reference_folder, 'reference_setup2.xlsx').replace('\\', '/')
-        else: # use a default reference
+
+        # If setup info absent, use a default reference
+        else:
+            print('Warning: no behaviour setup info found in config file. Using default reference.')
             ref_path = os.path.join(reference_folder, 'reference_setup1.xlsx').replace('\\', '/')
 
     else:
