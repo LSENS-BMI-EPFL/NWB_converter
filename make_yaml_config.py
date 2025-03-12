@@ -21,6 +21,7 @@ KEYWORD_MAP = {
     'AR': ['optogenetics', 'widefield', 'two_photon', 'calcium_imaging', 'barrel_cortex'],
     'RD': [''],
     'AB': ['electrophysiology', 'neuropixels'],
+    'MH': ['electrophysiology', 'neuropixels'],
     'MP': [''],
     'PB': ['behaviour', 'optogenetics', 'widefield', 'two_photon'],
     'MM': [''],
@@ -109,7 +110,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     ref_weight_path = get_ref_weight_folder(experimenter=experimenter)
     ref_weight_csv_path = os.path.join(ref_weight_path, 'mouse_reference_weight.xlsx')
     if not os.path.exists(ref_weight_csv_path):
-        print(f'Error: reference weight file not found for {experimenter}. Please create it.')
+        print(f'Error: reference weight file not found for {experimenter}. Please create it in analysis_folder/mice_info.')
         ref_weight = np.nan
     else:
         ref_weight_df = pd.read_excel(ref_weight_csv_path)
@@ -206,7 +207,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     log_continuous_metadata.update({'channels_dict': channels_dict})
     log_continuous_metadata.update({'threshold_dict': threshold_dict})
 
-    # Behaviour metadata. # TODO: this could also be experimenter-dependent and a function of the json config file.
+    # Behaviour metadata.
     # ###################
 
     behaviour_metadata = create_behaviour_metadata(experimenter=experimenter,
@@ -224,6 +225,8 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
         5: 'false_alarm',
         6: 'early_lick',
     }
+    if experimenter in ['AB', 'MH']:
+        trial_map[6] = 'association'
 
     # 2P imaging metadata.
     # ####################
@@ -246,7 +249,9 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
         'trial_map': trial_map,
     }
 
-    # Depending on session type, add relevant dictionary
+    # Depending on session type, add relevant metadata.
+    # #################################################
+
     if json_config['twophoton_session']:
         main_dict.update({'two_photon_metadata': two_photon_metadata})
 
@@ -272,6 +277,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
 def create_channels_threshold_dict(experimenter, json_config, session_type):
     """
     Make log_continuous channels & thresholds dictionary for a given experimenter and session.
+    This relates to logging by the behavioural control software.
     Args:
         experimenter: experimenter initials
         json_config: session config dictionary from session_config.json file
@@ -281,7 +287,7 @@ def create_channels_threshold_dict(experimenter, json_config, session_type):
     """
     channels_dict, threshold_dict = {}, {}
 
-    if experimenter in ['AB'] or json_config['ephys_session']:
+    if experimenter in ['AB'] or json_config['ephys_session']: # note: this differs from SpikeGLX ephys setup
         lick_threshold = json_config['lick_threshold']
         channels_dict = {
             'trial_TTL': 2,
@@ -382,10 +388,13 @@ def create_behaviour_metadata(experimenter, path_to_json_config):
     if 'camera_exposure_time' in json_config.keys():
         behaviour_metadata.update({'camera_exposure_time': json_config['camera_exposure_time']})
 
-    # Experimenter specific behaviour metadata
-    if experimenter == 'AB':
-        behaviour_metadata.update({'trial_table': 'standard'})
-
+    # Experimenter specific behaviour metadata - change setup per mouse
+    if experimenter in ['AB']:
+        behaviour_metadata.update({'trial_table': 'standard',
+                                  'setup': 'Neuropixels setup 1 AI3209'})
+    elif experimenter in ['MH']:
+        behaviour_metadata.update({'trial_table': 'standard',
+                                  'setup': 'Neuropixels setup 2 AI3209'})
     return behaviour_metadata
 
 
@@ -399,6 +408,9 @@ def create_ephys_metadata(subject_id):
 
     """
     mouse_number, initials = get_subject_mouse_number(subject_id)
+    setup = None
+
+    # Set setup and paths here
     if initials in ['AB']:
         setup = 'Neuropixels setup 1 AI3209'
         path_to_probe_info = r'M:\analysis\Axel_Bisi\mice_info\probe_insertion_info.xlsx'
@@ -408,6 +420,36 @@ def create_ephys_metadata(subject_id):
     else:
         setup = 'Neuropixels setup 2 AI3209'
 
+    # Set SpikeGLX-NIDQ channel mapping, experiment-dependent
+    # Note: if the setup is changed, the channel mapping should be updated
+    # TODO: use it later on
+    if initials in ['AB', 'MH'] and setup == 'Neuropixels setup 1 AI3209':
+        ephys_channels_dict = {
+            0: 'sync',
+            1: 'trial_TTL',
+            2: 'whisker_stim',
+            3: 'auditory_stim',
+            4: 'valve',
+            5: 'cam1',
+            6: 'cam2',
+            7: 'lick_trace'
+        }
+    elif initials == 'PB' and setup == 'Neuropixels setup 1 AI3209':
+        ephys_channels_dict = {
+            0: 'sync',
+            1: 'trial_TTL',
+            2: 'whisker_stim',
+            3: 'auditory_stim',
+            4: 'context_transition',
+            5: 'cam1',
+            6: 'cam2',
+            7: 'lick_trace'
+        }
+    elif initials in ['MH'] and setup == 'Neuropixels setup 2 AI3209':
+        print('WARNING - ADD CHANNEL MAPPING FOR NEUROPIXELS SETUP 2 AI3209')
+        ephys_channels_dict = {}
+
+    # Set which mice have processed neural data
     if initials == 'AB' and int(mouse_number) > 150:
         processed = 0
     elif initials == 'PB':
@@ -415,14 +457,16 @@ def create_ephys_metadata(subject_id):
     else:
         processed = 1
 
-    data_folder = get_subject_data_folder(subject_id)
-    if os.path.isdir(os.path.join(data_folder, 'Anatomy')):
+    # If processed anatomy available, use standard unit table
+    analysis_data_folder = get_subject_analysis_folder(subject_id)
+    if os.path.isdir(os.path.join(analysis_data_folder, 'Anatomy')):
         unit_table = 'standard'
     else:
         unit_table = 'simple'
 
     ephys_metadata = {
         'setup': setup,
+        'ephys_channels_dict': ephys_channels_dict,
         'unit_table': unit_table,  # 'simple' or 'standard'
         'processed': processed, # 0 or 1
         'path_to_probe_info': path_to_probe_info,
@@ -469,7 +513,8 @@ def create_wf_metadata(config_path):
 if __name__ == '__main__':
     # Select mouse IDs.
     experimenter = 'AB'
-    mouse_ids = ['AB{}'.format(n) for n in range(151, 156)]
+    mouse_ids = ['AB{}'.format(n) for n in range(151, 157)]
+    mouse_ids = ['AB147']
     #last_done_day = '20241210'
 
     for mouse_id in mouse_ids:
@@ -500,6 +545,9 @@ if __name__ == '__main__':
 
             #if experimenter == 'AB' and day not in ['whisker_0']:
             #    continue
+
+            if experimenter == 'AB' and 'whisker' not in day:
+                continue
 
             make_yaml_config(mouse_id, session_id, day, data_folder, analysis_folder,
                              mouse_line='C57BL/6', gmo=False)
