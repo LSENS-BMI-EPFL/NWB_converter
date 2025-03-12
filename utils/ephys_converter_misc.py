@@ -134,11 +134,16 @@ def read_ephys_binary_data(bin_file, meta_file):
     Read ephys binary data and return a dictionary with the data.
     This only reads the analog data of these binary files.
     Args:
-        bin_file:
-        meta_file:
+        bin_file: path to binary file
+        meta_file: path to meta file
     Returns:
     """
+    print('Read ephys binary data')
+
     # Parameters about what data to read
+    # This can be user-specific
+    # TODO: read a config file ephys_channel_dict
+
     t_start = 0
     t_end = -1
     channel_dict = {0: 'sync',
@@ -175,9 +180,9 @@ def read_ephys_binary_data(bin_file, meta_file):
 
     # Read NI data
     else:
-        MN, MA, XA, DW = ChannelCountsNI(meta_dict)
+        #MN, MA, XA, DW = ChannelCountsNI(meta_dict)
         #print("NI channel counts: %d, %d, %d, %d" % (MN, MA, XA, DW))
-        # Apply gain correction and convert to V
+        # Apply gain correction and convert to Volt
         conv_data = GainCorrectNI(select_data, channel_list, meta_dict)
 
         conv_data_dict = {}
@@ -194,10 +199,11 @@ def load_ephys_sync_timestamps(config_file, log_timestamps_dict):
     """
     Load sync timestamps derived from CatGT/TPrime from config file.
     Add and compare timestamps with log_continuous.bin timestamps.
+    Args:
+        config_file: path to config file
+        log_timestamps_dict: dictionary of timestamps from log_continuous.bin
+    Returns:
 
-    :param config_file: path to config file
-    :param log_timestamps_dict: dictionary of timestamps from log_continuous.bin
-    :return: sync timestamps
     """
 
     event_map = {
@@ -242,13 +248,15 @@ def load_ephys_sync_timestamps(config_file, log_timestamps_dict):
     return timestamps_dict
 
 
-def format_ephys_timestamps(config_file, ephys_timestamps_dict):
+def format_ephys_timestamps(config_file, ephys_timestamps_dict, n_frames_dict):
     """
-    Format ephys timestamps into (on,off) tuples.
+    Format ephys timestamps as (on, off) tuples for NWB.
     Args:
-        config_file:
-        ephys_timestamps_dict:
+        config_file: path to config file
+        ephys_timestamps_dict: dictionary of timestamps from SpikeGLX/CatGT/TPrime NIDQ acquisition
+
     Returns:
+
     """
 
     # Init. new timestamps dict
@@ -258,7 +266,7 @@ def format_ephys_timestamps(config_file, ephys_timestamps_dict):
 
     if config.get('behaviour_metadata').get('camera_flag'):
         movie_files = server_paths.get_session_movie_files(config_file)
-        print('Movie files during ephys:', movie_files)
+        print(f'Movie files {len(movie_files)} during ephys:', [os.path.basename(f) for f in movie_files])
         if movie_files is not None:
             movie_file_names = [os.path.basename(f) for f in movie_files]
             movie_file_suffix = [f.split('-')[0] for f in movie_file_names]
@@ -326,7 +334,13 @@ def format_ephys_timestamps(config_file, ephys_timestamps_dict):
                 if diff_ts_on[-1] > startup_pulse_thresh:
                     ts_on = ts_on[:-1]
 
-                # Get exposure time
+                # Check if last exposure cut (detected with behaviour binary file)
+                if '{}_info'.format(event) in n_frames_dict.keys():
+                    if n_frames_dict['{}_info'.format(event)]['last_exposure_cut']:
+                        ts_on = ts_on[:-1]
+                        print('Removed last exposure TTL of {}'.format(event))
+
+                # Get timestamps as (on, off) tuples
                 exposure_time = float(config['behaviour_metadata']['camera_exposure_time']) / 1000
                 ts_off = ts_on + exposure_time
                 timestamps = list(zip(ts_on, ts_off))
@@ -350,6 +364,7 @@ def format_ephys_timestamps(config_file, ephys_timestamps_dict):
 def get_sglx_behaviour_log_delay(log_timestamps_dict, ephys_timestamps_dict):
     """
     Get delay between SpikeGLX and behaviour logging timestamps.
+    SpikeGLX sessions start recording before behaviour sessions.
     Args:
         log_timestamps_dict: dictionary of timestamps from log_continuous.bin
         ephys_timestamps_dict: dictionary of timestamps from CatGT/TPrime NIDQ acquisition
@@ -364,14 +379,19 @@ def get_sglx_behaviour_log_delay(log_timestamps_dict, ephys_timestamps_dict):
 
     # Get first trials timestamps onset
     log_sess_start = log_trial_ts[0][0]  # (on,off)-formatted
-    ephys_sess_start = ephys_trial_ts[0]  # just onset
+    ephys_trial_ts = ephys_trial_ts[0]
+
+    if isinstance(ephys_trial_ts, tuple):
+        ephys_sess_start = ephys_trial_ts[0] # (on,off)-formatted
+    else:
+        ephys_sess_start = ephys_trial_ts # before (on,off)-format
 
     time_delay = ephys_sess_start - log_sess_start
 
     return time_delay
 
 
-def extract_ephys_timestamps(config_file, continuous_data_dict, threshold_dict, log_timestamps_dict):
+def extract_ephys_timestamps(config_file, continuous_data_dict, threshold_dict, log_timestamps_dict, n_frames_dict):
     """
     Load and format ephys timestamps for continuous_log_analysis.
     Args:
@@ -379,6 +399,7 @@ def extract_ephys_timestamps(config_file, continuous_data_dict, threshold_dict, 
         continuous_data_dict: dictionary of continuous data from SpikeGLX
         threshold_dict: dictionary of thresholds for continuous data processing
         log_timestamps_dict: dictionary of timestamps from log_continuous.bin
+        n_frames_dict: dictionary of number of frames for each camera
 
     Returns:
 
@@ -387,9 +408,9 @@ def extract_ephys_timestamps(config_file, continuous_data_dict, threshold_dict, 
 
     # Load and format existing timestamps extracted by CatGT and TPrime
     timestamps_dict = load_ephys_sync_timestamps(config_file, log_timestamps_dict)
-    timestamps_dict = format_ephys_timestamps(config_file, timestamps_dict)
+    timestamps_dict = format_ephys_timestamps(config_file, timestamps_dict, n_frames_dict)
 
-    # Extract timestamps from binary files
+    # Extract timestamps from ephys-related binary files
     ephys_nidq_meta, _ = server_paths.get_raw_ephys_nidq_files(config_file)
     meta_dict = readMeta(pathlib.Path(ephys_nidq_meta))
     lick_threshold = threshold_dict.get('lick_trace')

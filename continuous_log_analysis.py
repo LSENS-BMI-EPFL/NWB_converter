@@ -113,11 +113,14 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
     if 'ephys_metadata' in config:
         ephys_nidq_meta, ephys_nidq_bin = server_paths.get_raw_ephys_nidq_files(config_file)
         ephys_cont_data_dict = read_ephys_binary_data(ephys_nidq_bin, ephys_nidq_meta)
-        ephys_timestamps_dict, n_frames_dict = extract_ephys_timestamps(config_file=config_file,
+        ephys_timestamps_dict, ephys_n_frames_dict = extract_ephys_timestamps(config_file=config_file,
                                                                         continuous_data_dict=ephys_cont_data_dict,
                                                                         threshold_dict=threshold_dict,
-                                                                        log_timestamps_dict=timestamps_dict)
+                                                                        log_timestamps_dict=timestamps_dict,
+                                                                        n_frames_dict=n_frames_dict)
         timestamps_dict = ephys_timestamps_dict
+        print('Number of timestamps per acquisition (ephys):')
+        print_info_dict(ephys_n_frames_dict)
 
     print("Number of timestamps per acquisition:")
     print_info_dict(n_frames_dict)
