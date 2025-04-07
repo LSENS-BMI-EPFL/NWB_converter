@@ -56,7 +56,7 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
                          0: 'pink' if context_rewarded.loc[context_rewarded[
                                                                'MouseName'] == subject_id, 'RewardedContext'].item() == 'brown' else 'brown'})
 
-        elif config_dict.get('behaviour_metadata').get('trial_table') == 'simple':  # TODO: remove?
+        elif config_dict.get('behaviour_metadata').get('trial_table') == 'simple':
             trial_table = build_simplified_trial_table(behavior_results_file=behavior_results_file,
                                                        timestamps_dict=timestamps_dict)
     else:

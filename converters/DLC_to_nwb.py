@@ -59,6 +59,7 @@ def convert_dlc_data(nwb_file, config_file, video_timestamps):
 
     px_ref = get_reference_from_grid(config)
 
+    print('Adding DLC time series and events to NWB file...')
     for name, data in side_dlc.items():
         ts = [timestamp[0] for timestamp in video_timestamps['cam1']]
         rate = np.round(1 / np.median(np.diff(ts[0:200])), 2)
@@ -154,5 +155,5 @@ def convert_dlc_data(nwb_file, config_file, video_timestamps):
 
     behavior_events.add_timeseries(lick_timeseries)
 
-
+    print('Done DLC conversion to NWB.')
     return
