@@ -264,7 +264,7 @@ def get_raw_ephys_folder(config_file):
     session_name = config['session_metadata']['session_id']
     data_folder = get_subject_data_folder(mouse_name)
     raw_ephys_path = os.path.join(data_folder, 'Recording', session_name, 'Ephys')
-    run_name = [f for f in os.listdir(raw_ephys_path)][0]
+    run_name = [f for f in os.listdir(raw_ephys_path) if 'DS' not in f][0]
     raw_ephys_run_folder = os.path.join(raw_ephys_path, run_name)
 
     return raw_ephys_run_folder
