@@ -1,7 +1,7 @@
 import os
 import glob
 import yaml
-
+import platform
 
 EXPERIMENTER_MAP = {
     'AR': 'Anthony_Renard',
@@ -13,11 +13,19 @@ EXPERIMENTER_MAP = {
     'MS': 'Lana_Smith',
     'GF': 'Anthony_Renard',
     'MI': 'Anthony_Renard',
+    'JL': 'Jules_Lebert',
 }
 
+os_name = platform.system()
+assert os_name in ['Windows', 'Darwin'], f'{os_name} not implemented' # TODO: add Linux, or a configurable server path?
+
+if os_name == 'Windows':
+    SERVER_PATH = '\\\\sv-nas1.rcp.epfl.ch'
+elif os_name == 'Darwin': # MacOS
+    SERVER_PATH = '/Volumes'
 
 def get_subject_data_folder(subject_id):
-    data_folder = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'data', subject_id)
+    data_folder = os.path.join(SERVER_PATH, 'Petersen-Lab', 'data', subject_id)
 
     return data_folder
 
@@ -28,7 +36,7 @@ def get_subject_analysis_folder(subject_id):
     else:
         # Map initials to experimenter to get analysis folder path.
         experimenter = EXPERIMENTER_MAP[subject_id[:2]]
-    analysis_folder = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis',
+    analysis_folder = os.path.join(SERVER_PATH, 'Petersen-Lab', 'analysis',
                                    experimenter, 'data', subject_id)
     if not os.path.exists(analysis_folder):
         os.makedirs(analysis_folder)
@@ -59,7 +67,7 @@ def get_nwb_folder(subject_id):
         experimenter = 'Robin_Dard'
     else:
         experimenter = EXPERIMENTER_MAP[subject_id[:2]]
-    nwb_folder = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis',
+    nwb_folder = os.path.join(SERVER_PATH, 'Petersen-Lab', 'analysis',
                               experimenter, 'NWB')
     if not os.path.exists(nwb_folder):
         os.makedirs(nwb_folder)
@@ -77,7 +85,7 @@ def get_ref_weight_folder(experimenter):
 
     """
 
-    ref_weight_folder = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis',
+    ref_weight_folder = os.path.join(SERVER_PATH, 'Petersen-Lab', 'analysis',
                                      EXPERIMENTER_MAP[experimenter], 'mice_info')
     if not os.path.exists(ref_weight_folder):
         os.makedirs(ref_weight_folder)
@@ -97,7 +105,7 @@ def get_behavior_results_file(config_file):
 
     if mouse_name[:2] in ['GF', 'MI']:
         if not os.path.exists(behavior_results_file):
-            behavior_results_file = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis',
+            behavior_results_file = os.path.join(SERVER_PATH, 'Petersen-Lab', 'analysis',
                                                  'Anthony_Renard', 'data', mouse_name, 'Recordings', 'BehaviourData',
                                                  session_name, 'performanceResults.json')
         # if not os.path.exists(behavior_results_file):
@@ -371,7 +379,7 @@ def get_anat_probe_track_folder(config_file):
         config = yaml.safe_load(stream)
     mouse_name = config['subject_metadata']['subject_id']
     experimenter = EXPERIMENTER_MAP[mouse_name[:2]]
-    analysis_folder = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis', experimenter)
+    analysis_folder = os.path.join(SERVER_PATH, 'Petersen-Lab', 'analysis', experimenter)
     if experimenter == 'Axel_Bisi':
         if int(mouse_name[2:]) < 116:
             probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', mouse_name, 'brainreg\\manual_segmentation') #older brainreg auto output
