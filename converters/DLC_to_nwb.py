@@ -95,7 +95,7 @@ def convert_dlc_data(nwb_file, config_file, video_timestamps):
         behavior_t_series.add_timeseries(timeseries)
 
     # Add lick times counted as the peaks of tongue distance
-    tongue_licks, _ = find_peaks(np.where(side_dlc['tongue_likelihood']>0.8, side_dlc['tongue_distance'], np.nan), distance= 20)
+    tongue_licks, _ = find_peaks(np.where(side_dlc['tongue_likelihood']>0.6, side_dlc['tongue_distance'], np.nan), distance= 20)
 
     data_to_store = np.arange(len(tongue_licks))  # data would be lick index
     timestamps_to_store = tongue_licks  # same length as n_licks absolute times of licks
@@ -117,7 +117,7 @@ def convert_dlc_data(nwb_file, config_file, video_timestamps):
     behavior_events.add_timeseries(lick_timeseries)
 
     # Add movement times as peaks of jaw angle
-    jaw_licks, _ = find_peaks(np.where(side_dlc['jaw_likelihood'] > 0.8, side_dlc['jaw_angle'], np.nan), prominence=side_dlc['jaw_angle'].std() * 1.8)
+    jaw_licks, _ = find_peaks(np.where(side_dlc['jaw_likelihood'] > 0.6, side_dlc['jaw_angle'], np.nan), prominence=side_dlc['jaw_angle'].std() * 1.8)
 
     data_to_store = np.arange(len(jaw_licks))  # data would be lick index
     timestamps_to_store = jaw_licks  # same length as n_licks absolute times of licks

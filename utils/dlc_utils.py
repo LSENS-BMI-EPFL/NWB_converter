@@ -25,16 +25,18 @@ def get_dlc_dataframe(dlc_file_path):
     side_path = [file for file in dlc_file_path if 'sideview' in file]
     top_path = [file for file in dlc_file_path if 'topview' in file]
     if len(side_path) != 0:
-        side_dlc = pd.read_csv(side_path[0], header=[1, 2])
-        side_dlc = side_dlc.drop(('bodyparts', 'coords'), axis=1)
+        side_dlc = pd.read_csv(side_path[0], header=[0, 1], skipinitialspace=True)
+        # side_dlc = side_dlc.drop(('bodyparts', 'coords'), axis=1)
+        side_dlc = side_dlc.drop([('bodyparts', 'coords'), ('Unnamed: 0_level_0', 'Unnamed: 0_level_1'), ('split', 'Unnamed: 35_level_1')], axis=1)
         side_dlc.columns = ["_".join(a) for a in side_dlc.columns.to_flat_index()]
 
     else:
         side_dlc = []
 
     if len(top_path) != 0:
-        top_dlc = pd.read_csv(top_path[0], header=[1, 2])
-        top_dlc = top_dlc.drop(('bodyparts', 'coords'), axis=1)
+        top_dlc = pd.read_csv(top_path[0], header=[0, 1], skipinitialspace=True)
+        # top_dlc = top_dlc.drop(('bodyparts', 'coords'), axis=1)
+        top_dlc = top_dlc.drop([('bodyparts', 'coords'), ('Unnamed: 0_level_0', 'Unnamed: 0_level_1'), ('split', 'Unnamed: 17_level_1')], axis=1)
         top_dlc.columns = ["_".join(a) for a in top_dlc.columns.to_flat_index()]
 
     else:
