@@ -52,47 +52,49 @@ def convert_dlc_data(nwb_file, config_file, video_timestamps):
 
     px_ref = get_reference_from_grid(config['session_metadata']['experimenter'])
 
-    for name, data in side_dlc.items():
+    if len(side_dlc)>0:
+        for name, data in side_dlc.items():
 
-        # Add times series for bodybarts
-        timeseries = TimeSeries(name=f'{name}',
-                                         data=data.to_numpy(),
-                                         unit='seconds',
-                                         resolution=-1.0,
-                                         conversion=[1/px_ref[key].values[0] for key in px_ref.keys() if "side" in key][0],
-                                         offset=0.0,
-                                         timestamps=[timestamp[0] for timestamp in video_timestamps['cam1']],
-                                         starting_time=None,
-                                         rate=None,
-                                         comments='no comments',
-                                         description=f'no description',
-                                         control=None,
-                                         control_description=None,
-                                         continuity='continuous')
+            # Add times series for bodybarts
+            timeseries = TimeSeries(name=f'{name}',
+                                            data=data.to_numpy(),
+                                            unit='seconds',
+                                            resolution=-1.0,
+                                            conversion=[1/px_ref[key].values[0] for key in px_ref.keys() if "side" in key][0],
+                                            offset=0.0,
+                                            timestamps=[timestamp[0] for timestamp in video_timestamps['cam1']],
+                                            starting_time=None,
+                                            rate=None,
+                                            comments='no comments',
+                                            description=f'no description',
+                                            control=None,
+                                            control_description=None,
+                                            continuity='continuous')
 
-        behavior_t_series.add_timeseries(timeseries)
+            behavior_t_series.add_timeseries(timeseries)
 
-    for name, data in top_dlc.items():
-        if 'nose' in name or 'particle' in name:
-            name = 'top_' + name
+    if len(top_dlc)>0:
+        for name, data in top_dlc.items():
+            if 'nose' in name or 'particle' in name:
+                name = 'top_' + name
 
-        # Add times series for bodybarts
-        timeseries = TimeSeries(name=f'{name}',
-                                         data=data.to_numpy(),
-                                         unit='seconds',
-                                         resolution=-1.0,
-                                         conversion=[1/px_ref[key].values[0] for key in px_ref.keys() if "top" in key][0],
-                                         offset=0.0,
-                                         timestamps=[timestamp[0] for timestamp in video_timestamps['cam2']],
-                                         starting_time=None,
-                                         rate=None,
-                                         comments='no comments',
-                                         description=f'no description',
-                                         control=None,
-                                         control_description=None,
-                                         continuity='continuous')
+            # Add times series for bodybarts
+            timeseries = TimeSeries(name=f'{name}',
+                                            data=data.to_numpy(),
+                                            unit='seconds',
+                                            resolution=-1.0,
+                                            conversion=[1/px_ref[key].values[0] for key in px_ref.keys() if "top" in key][0],
+                                            offset=0.0,
+                                            timestamps=[timestamp[0] for timestamp in video_timestamps['cam2']],
+                                            starting_time=None,
+                                            rate=None,
+                                            comments='no comments',
+                                            description=f'no description',
+                                            control=None,
+                                            control_description=None,
+                                            continuity='continuous')
 
-        behavior_t_series.add_timeseries(timeseries)
+            behavior_t_series.add_timeseries(timeseries)
 
     # Add lick times counted as the peaks of tongue distance
     tongue_licks, _ = find_peaks(np.where(side_dlc['tongue_likelihood']>0.6, side_dlc['tongue_distance'], np.nan), distance= 20)
