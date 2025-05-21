@@ -653,7 +653,11 @@ def build_unit_table(imec_folder, sync_spike_times_path):
     # Note: Iterate over selected good cluster only !
     for c_id in cluster_info_df.cluster_id.values:
         spike_ids = spike_clusters_df[spike_clusters_df.cluster_id == c_id].index
-        spike_times_per_cluster.append(np.array(spike_times_sync_df.iloc[spike_ids].spike_times))
+        try:
+            spike_times_per_cluster.append(np.array(spike_times_sync_df.iloc[spike_ids].spike_times))
+        except:
+            print('Error with cluster {} - check kilosort output'.format(c_id))
+            spike_times_per_cluster.append(np.array([]))
     cluster_info_df['spike_times'] = spike_times_per_cluster
 
     unit_table['spike_times'] = cluster_info_df.loc[valid_cluster_ids].spike_times
@@ -825,8 +829,9 @@ def build_area_table(config_file, imec_folder):
     # Load ccf coordinates (ccf standard space)
     # -----------------------------------------
 
-    if int(mouse_name[2:]) < 116:
-        path_to_atlas_space_track = os.path.join(path_to_proc_anat, 'standard_space\\tracks')
+    #if int(mouse_name[2:]) < 116:
+    if int(mouse_name[2:]) < 102:
+            path_to_atlas_space_track = os.path.join(path_to_proc_anat, 'standard_space\\tracks')
     else:
         path_to_atlas_space_track = os.path.join(path_to_proc_anat, 'atlas_space\\tracks')
 

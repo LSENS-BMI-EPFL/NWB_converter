@@ -408,7 +408,6 @@ def create_ephys_metadata(subject_id):
 
     """
     mouse_number, initials = get_subject_mouse_number(subject_id)
-    setup = None
 
     # Set setup and paths here
     if initials in ['AB']:
@@ -422,7 +421,7 @@ def create_ephys_metadata(subject_id):
 
     # Set SpikeGLX-NIDQ channel mapping, experiment-dependent
     # Note: if the setup is changed, the channel mapping should be updated
-    # TODO: use it later on
+    # TODO: use it later on in preprocessing
     if initials in ['AB', 'MH'] and setup == 'Neuropixels setup 1 AI3209':
         ephys_channels_dict = {
             0: 'sync',
@@ -450,14 +449,16 @@ def create_ephys_metadata(subject_id):
         ephys_channels_dict = {}
 
     # Set which mice have processed neural data
-    if initials == 'AB' and int(mouse_number) > 150:
+    if initials == 'AB' and int(mouse_number) > 157:
+        processed = 0
+    elif subject_id in ['AB077', 'AB135', 'AB137']:
         processed = 0
     elif initials == 'PB':
         processed = 0
     else:
         processed = 1
 
-    # If processed anatomy available, use standard unit table
+    # If processed anatomy available, use standard unit table #TODO: use this section after copying anatomy folders
     analysis_data_folder = get_subject_analysis_folder(subject_id)
     if os.path.isdir(os.path.join(analysis_data_folder, 'Anatomy')):
         unit_table = 'standard'
@@ -467,7 +468,7 @@ def create_ephys_metadata(subject_id):
     ephys_metadata = {
         'setup': setup,
         'ephys_channels_dict': ephys_channels_dict,
-        'unit_table': unit_table,  # 'simple' or 'standard'
+        'unit_table': 'standard',  # 'simple' or 'standard'
         'processed': processed, # 0 or 1
         'path_to_probe_info': path_to_probe_info,
         'path_to_atlas': path_to_atlas,
@@ -513,8 +514,7 @@ def create_wf_metadata(config_path):
 if __name__ == '__main__':
     # Select mouse IDs.
     experimenter = 'AB'
-    mouse_ids = ['AB{}'.format(n) for n in range(151, 157)]
-    mouse_ids = ['AB147']
+    mouse_ids = ['AB{}'.format(str(n).zfill(3)) for n in range(151,152)]
     #last_done_day = '20241210'
 
     for mouse_id in mouse_ids:
@@ -546,8 +546,8 @@ if __name__ == '__main__':
             #if experimenter == 'AB' and day not in ['whisker_0']:
             #    continue
 
-            if experimenter == 'AB' and 'whisker' not in day:
-                continue
+            #if experimenter == 'AB' and 'whisker' not in day:
+            #    continue
 
             make_yaml_config(mouse_id, session_id, day, data_folder, analysis_folder,
                              mouse_line='C57BL/6', gmo=False)
