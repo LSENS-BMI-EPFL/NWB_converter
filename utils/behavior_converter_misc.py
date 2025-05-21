@@ -38,7 +38,9 @@ def find_training_days(subject_id, input_folder):
     for isession in sessions_list:
         if 'calibration' in isession:
             continue
-        json_path = os.path.join(input_folder, 'Training', isession, 'session_config.json')
+        session_folder_path = os.path.join(input_folder, 'Training', isession)
+        json_file = 'session_config_corrected.json' if 'session_config_corrected.json' in os.listdir(session_folder_path) else 'session_config.json' # seek any corrected file if it exists, default to GUI output otherwise
+        json_path = os.path.join(session_folder_path, json_file)
         with open(json_path, 'r') as f:
             json_config = json.load(f)
 
@@ -177,7 +179,7 @@ def get_trial_timestamps_dict(timestamps_dict, behavior_results_file, config_fil
             behavior_results = pd.read_csv(behavior_results_file, sep=';', engine='python')
         n_trials_max = len(behavior_results)
 
-        # TODO: get max number of trials possible
+    # TODO: get max number of trials possible
     if len(behavior_results) > len(timestamps_dict['trial_TTL']):
         n_trials_max = len(timestamps_dict['trial_TTL'])
         print(f"Found more trials in .csv file than TTL up/down signal, session must have been stopped "
@@ -420,8 +422,10 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
         trial_timestamps = np.zeros((n_trials, 2))
         trial_timestamps[:, 0] = trial_table['trial_time']  # use results table information instead
         trial_timestamps[:, 1] = trial_table['trial_time'] + 1.0  # response window
-        if session_config['mouse_name'][0:2] == 'AB' and int(session_config['mouse_name'][2:-1]) < 68:
+
+        if session_config['mouse_name'][0:2] == 'AB' and int(session_config['mouse_name'][2:-1]) < 68: #TODO: remove at one point if mice unused
             trial_table = check_trial_table_content(trial_table=trial_table)
+
 
     # Compare number of trials in .csv table and TTL timestamps
     if len(trial_timestamps[:, 0]) > n_trials:
@@ -470,12 +474,12 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
 
     standard_trial_table['whisker_stim'] = trial_table['is_whisker']
 
-    standard_trial_table['whisker_stim_amplitude'] = trial_table['wh_stim_amp']  # TODO: convert from calibration data to mT
+    standard_trial_table['whisker_stim_amplitude'] = trial_table['wh_stim_amp']
     standard_trial_table['whisker_stim_duration'] = trial_table['wh_stim_duration']
     standard_trial_table['whisker_stim_time'] = whisker_stim_time
 
     standard_trial_table['auditory_stim'] = trial_table['is_auditory']
-    standard_trial_table['auditory_stim_amplitude'] = trial_table['aud_stim_amp']  # TODO: convert from calibration data to dB?
+    standard_trial_table['auditory_stim_amplitude'] = trial_table['aud_stim_amp']
     standard_trial_table['auditory_stim_frequency'] = trial_table['aud_stim_freq']
     standard_trial_table['auditory_stim_duration'] = trial_table['aud_stim_duration']
     standard_trial_table['auditory_stim_time'] = auditory_stim_time
@@ -570,6 +574,10 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
         standard_trial_table = standard_trial_table.loc[standard_trial_table.perf != 6]
         standard_trial_table['id'] = np.arange(0,standard_trial_table.shape[0])
         standard_trial_table = standard_trial_table.reset_index(drop=True)
+
+    if experimenter == 'AB':
+        # Ensure string formatting of context
+        standard_trial_table['context'] = standard_trial_table['context'].astype(str)
 
     return standard_trial_table
 

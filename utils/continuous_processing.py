@@ -404,6 +404,7 @@ def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scan
                     on_off_timestamps = filtered_on_off_timestamps
 
             if key in ["cam1", "cam2"] and len(on_off_timestamps) > 1:
+                print('Checking cam TTL content:')
                 exposure_time = [on_off_timestamps[i][1] - on_off_timestamps[i][0] for i in
                                  range(len(on_off_timestamps))]
                 median_exposure = np.median(exposure_time)
@@ -411,12 +412,17 @@ def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scan
                 print(f"{key} Median exposure time : {np.round(median_exposure, 4) * 1000} ms")
                 if last_exposure < 0.9 * median_exposure or last_exposure > 1.1 * median_exposure:
                     print(f"{key} Last exposure: {np.round(last_exposure, 4) * 1000} ms")
-                    print(f"Session likely stopped during last exposure of {key} (before image acquisition), "
-                          f"cut the last detected frames")
+                    print(f"Session likely stopped during last exposure of {key} (before image saving), "
+                          f"cut the last detected frame TTL")
                     filtered_on_off_timestamps = on_off_timestamps[0: -1]
                     on_off_timestamps = filtered_on_off_timestamps
 
+                    # Update dict with info key
+                    n_frames_dict.update({f"{key}_info": {"last_exposure_cut":True}})
+
+
             if key in ["trial_TTL"]:
+                print('Checking trial TTL content:')
                 # Detection of early licks (whether there is a baseline window or not)
                 iti = np.array([on_off_timestamps[i+1][0] - on_off_timestamps[i][1]
                                 for i in range(len(on_off_timestamps) - 1)])
@@ -431,7 +437,7 @@ def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scan
                     on_off_timestamps = list(filtered_on_off_timestamps)
 
             if key in ["trial_TTL"] and binary_data[-1] == 1:
-                print(f"Session likely stopped before end of last {key}, cut the last detected trial")
+                print(f"Session likely stopped before end of last {key}, cut the last detected trial TTL")
                 filtered_on_off_timestamps = on_off_timestamps[0: -1]  # remove last timestamp that signals session end
                 on_off_timestamps = filtered_on_off_timestamps
 

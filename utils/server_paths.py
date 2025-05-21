@@ -264,7 +264,7 @@ def get_raw_ephys_folder(config_file):
     session_name = config['session_metadata']['session_id']
     data_folder = get_subject_data_folder(mouse_name)
     raw_ephys_path = os.path.join(data_folder, 'Recording', session_name, 'Ephys')
-    run_name = [f for f in os.listdir(raw_ephys_path)][0]
+    run_name = [f for f in os.listdir(raw_ephys_path) if 'DS' not in f][0]
     raw_ephys_run_folder = os.path.join(raw_ephys_path, run_name)
 
     return raw_ephys_run_folder
@@ -365,6 +365,28 @@ def get_anat_images_files(config_file):
 
     return anat_images
 
+def get_anat_probe_track_folder(config_file):
+    """Returns path to folder with probe track estimates"""
+    with open(config_file, 'r', encoding='utf8') as stream:
+        config = yaml.safe_load(stream)
+    mouse_name = config['subject_metadata']['subject_id']
+    experimenter = EXPERIMENTER_MAP[mouse_name[:2]]
+    analysis_folder = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis', experimenter)
+    if experimenter == 'Axel_Bisi':
+        if int(mouse_name[2:]) < 116:
+            probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', mouse_name, 'brainreg\\manual_segmentation') #older brainreg auto output
+        else:
+            probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', experimenter, mouse_name, 'fused\\registered\\segmentation')
+    else:
+        probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', mouse_name, 'fused\\registered\\segmentation')
+        print('Unspecified experimenter for probe track folder.')
+        print('Default:', probe_track_folder)
+
+    if not os.path.exists(probe_track_folder):
+        print(f"No probe track folder found for {mouse_name}")
+        return None
+
+    return probe_track_folder
 
 def get_opto_results_file(config_file):
     with open(config_file, 'r', encoding='utf8') as stream:
@@ -469,12 +491,15 @@ def get_dlc_file_path(config_file):
         dlc_file = glob.glob(dlc_folder + "/**/*view.csv")
 
     elif initials == 'AB':
-        dlc_file = None
+        experimenter = "Axel_Bisi"
+        dlc_folder = os.path.join(r"\\sv-nas1.rcp.epfl.ch\Petersen-Lab", "analysis", experimenter, "data", session_id.split("_")[0], session_id, 'Video').replace("\\", "/")
+        dlc_file = glob.glob(dlc_folder + "/*filtered.h5")
 
     else:
         dlc_file = None
 
     if dlc_file is not None and len(dlc_file) == 0:
+        print('No DLC file found for session {}'.format(session_id))
         dlc_file = None
 
     return dlc_file
@@ -490,6 +515,8 @@ def get_facemap_file_path(config_file):
     data_folder = os.path.join(get_subject_analysis_folder(mouse_name), session_name)
 
     file_path = os.path.join(data_folder, f'{session_name}_sideview_proc.npy')
+    if not os.path.exists(file_path):
+        return None
 
     return file_path
 

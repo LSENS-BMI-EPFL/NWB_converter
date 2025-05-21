@@ -98,7 +98,7 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
 
         # Create ElectrodeGroup object
         electrode_group = nwb_file.create_electrode_group(
-            name=device_name + '_shank0',
+            name=device_name + '_shank0', #TODO: update for multiple shanks
             description='IMEC probe',
             device=device,
             location=str(location_dict),
@@ -119,7 +119,7 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
         # ----------------------------------
 
         # Build table with anatomical location estimates of each electrode
-        area_table = build_area_table(imec_folder=imec_folder)
+        area_table = build_area_table(config_file=config_file, imec_folder=imec_folder)
 
         # Reindex to match shank electrode order
         area_table = area_table.sort_values(by=['shank_row'], ascending=True, axis=0)
@@ -178,11 +178,19 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
 
         # Get path to preprocessed sync spike times
         sync_path = get_sync_event_times_folder(config_file)
-        spike_times_sync_file = [f for f in os.listdir(sync_path) if device_name in f][0]
-        sync_spike_times_path = pathlib.Path(sync_path, spike_times_sync_file)
+        spike_times_sync_file = [f for f in os.listdir(sync_path) if device_name in f]
+        try:
+            sync_spike_times_path = pathlib.Path(sync_path, spike_times_sync_file[0])
+        except IndexError:
+            print('Skipping {} probe IMEC{} because no synced spike time file found.'.format(mouse_name, imec_id))
+            continue
+
 
         # Build unit table
         unit_table = build_unit_table(imec_folder=imec_folder, sync_spike_times_path=sync_spike_times_path)
+        if unit_table is None:
+            print('Skipping {} probe IMEC{} because no spike sorting.'.format(mouse_name, imec_id))
+            continue
 
         # Join anatomical info to each unit entry
         unit_table['shank_row'] = unit_table['peak_channel'].map(lambda x: int(shank_rows[x])) # get shank row from peak channel
@@ -232,7 +240,7 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
                 nSpikes=unit_table['nSpikes'].values[neuron_id],
                 nPeaks=unit_table['nPeaks'].values[neuron_id],
                 nTroughs=unit_table['nTroughs'].values[neuron_id],
-                isSomatic=unit_table['isSomatic'].values[neuron_id],
+                #isSomatic=unit_table['isSomatic'].values[neuron_id],
                 waveformDuration_peakTrough=unit_table['waveformDuration_peakTrough'].values[neuron_id],
                 spatialDecaySlope=unit_table['spatialDecaySlope'].values[neuron_id],
                 waveformBaselineFlatness=unit_table['waveformBaselineFlatness'].values[neuron_id],
@@ -246,8 +254,6 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
             neuron_counter += 1
 
         print('Done adding spike data for IMEC{}'.format(imec_id))
-
-
 
         add_recordings = False
         if add_recordings:
@@ -270,7 +276,7 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
                 starting_time=0.0,
                 rate=float(lfp_meta_dict['imSampRate']),
                 filtering='0.5-500Hz',
-                description='SpikeGLX-acquired  LFP data from IMEC{}'.format(imec_id)
+                description='SpikeGLX-acquired LFP data from IMEC{}'.format(imec_id)
             )
 
             # Store in a LFP object

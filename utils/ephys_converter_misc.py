@@ -27,6 +27,8 @@ AREA_COORDINATES_MAP = {
     'A1': 'IOS',
     'wM1': (1, 1),
     'wM2': (2, 1),
+    'ALM': (2.5,1.5),
+    'OFC': (3, 1),
     'mPFC': (2, 0.5),
     'Vis': (-3.8, 2.5),
     'PPC': (-2, 1.75),
@@ -51,14 +53,21 @@ def get_probe_insertion_info(config_file):
         config = yaml.load(f, Loader=yaml.FullLoader)
 
     # This is experimenter-specific tracking of that information
-    if config.get('session_metadata').get('experimenter') == 'AB':
-        # Load probe insertion table
-        path_to_info_file = r'M:\analysis\Axel_Bisi\mice_info\probe_insertion_info.xlsx'
-        probe_info_df = pd.read_excel(path_to_info_file)
-
+    try: # TODO: temporary for yaml files containing this info
+        path_to_probe_info = config.get('ephys_metadata').get('path_to_probe_info')
+        probe_info_df = pd.read_excel(path_to_probe_info)
+    except KeyError:
+        print('Yaml file ephys_metadata does not contain path to probe insertion info.')
     else:
-        print('No probe insertion information found for this experimenter.')
-        raise NotImplementedError
+
+        if config.get('session_metadata').get('experimenter') == 'AB':
+            # Load probe insertion table
+            path_to_probe_info = r'M:\analysis\Axel_Bisi\mice_info\probe_insertion_info.xlsx'
+            probe_info_df = pd.read_excel(path_to_probe_info)
+
+        else:
+            print('No probe insertion information found for this experimenter.')
+            raise NotImplementedError
 
     return probe_info_df
 
@@ -125,11 +134,16 @@ def read_ephys_binary_data(bin_file, meta_file):
     Read ephys binary data and return a dictionary with the data.
     This only reads the analog data of these binary files.
     Args:
-        bin_file:
-        meta_file:
+        bin_file: path to binary file
+        meta_file: path to meta file
     Returns:
     """
+    print('Read ephys binary data')
+
     # Parameters about what data to read
+    # This can be user-specific
+    # TODO: read a config file ephys_channel_dict
+
     t_start = 0
     t_end = -1
     channel_dict = {0: 'sync',
@@ -166,9 +180,9 @@ def read_ephys_binary_data(bin_file, meta_file):
 
     # Read NI data
     else:
-        MN, MA, XA, DW = ChannelCountsNI(meta_dict)
+        #MN, MA, XA, DW = ChannelCountsNI(meta_dict)
         #print("NI channel counts: %d, %d, %d, %d" % (MN, MA, XA, DW))
-        # Apply gain correction and convert to V
+        # Apply gain correction and convert to Volt
         conv_data = GainCorrectNI(select_data, channel_list, meta_dict)
 
         conv_data_dict = {}
@@ -185,10 +199,11 @@ def load_ephys_sync_timestamps(config_file, log_timestamps_dict):
     """
     Load sync timestamps derived from CatGT/TPrime from config file.
     Add and compare timestamps with log_continuous.bin timestamps.
+    Args:
+        config_file: path to config file
+        log_timestamps_dict: dictionary of timestamps from log_continuous.bin
+    Returns:
 
-    :param config_file: path to config file
-    :param log_timestamps_dict: dictionary of timestamps from log_continuous.bin
-    :return: sync timestamps
     """
 
     event_map = {
@@ -233,13 +248,15 @@ def load_ephys_sync_timestamps(config_file, log_timestamps_dict):
     return timestamps_dict
 
 
-def format_ephys_timestamps(config_file, ephys_timestamps_dict):
+def format_ephys_timestamps(config_file, ephys_timestamps_dict, n_frames_dict):
     """
-    Format ephys timestamps into (on,off) tuples.
+    Format ephys timestamps as (on, off) tuples for NWB.
     Args:
-        config_file:
-        ephys_timestamps_dict:
+        config_file: path to config file
+        ephys_timestamps_dict: dictionary of timestamps from SpikeGLX/CatGT/TPrime NIDQ acquisition
+
     Returns:
+
     """
 
     # Init. new timestamps dict
@@ -249,7 +266,7 @@ def format_ephys_timestamps(config_file, ephys_timestamps_dict):
 
     if config.get('behaviour_metadata').get('camera_flag'):
         movie_files = server_paths.get_session_movie_files(config_file)
-        print('Movie files during ephys:', movie_files)
+        print(f'Movie files {len(movie_files)} during ephys:', [os.path.basename(f) for f in movie_files])
         if movie_files is not None:
             movie_file_names = [os.path.basename(f) for f in movie_files]
             movie_file_suffix = [f.split('-')[0] for f in movie_file_names]
@@ -317,7 +334,13 @@ def format_ephys_timestamps(config_file, ephys_timestamps_dict):
                 if diff_ts_on[-1] > startup_pulse_thresh:
                     ts_on = ts_on[:-1]
 
-                # Get exposure time
+                # Check if last exposure cut (detected with behaviour binary file)
+                if '{}_info'.format(event) in n_frames_dict.keys():
+                    if n_frames_dict['{}_info'.format(event)]['last_exposure_cut']:
+                        ts_on = ts_on[:-1]
+                        print('Removed last exposure TTL of {}'.format(event))
+
+                # Get timestamps as (on, off) tuples
                 exposure_time = float(config['behaviour_metadata']['camera_exposure_time']) / 1000
                 ts_off = ts_on + exposure_time
                 timestamps = list(zip(ts_on, ts_off))
@@ -341,6 +364,7 @@ def format_ephys_timestamps(config_file, ephys_timestamps_dict):
 def get_sglx_behaviour_log_delay(log_timestamps_dict, ephys_timestamps_dict):
     """
     Get delay between SpikeGLX and behaviour logging timestamps.
+    SpikeGLX sessions start recording before behaviour sessions.
     Args:
         log_timestamps_dict: dictionary of timestamps from log_continuous.bin
         ephys_timestamps_dict: dictionary of timestamps from CatGT/TPrime NIDQ acquisition
@@ -355,14 +379,19 @@ def get_sglx_behaviour_log_delay(log_timestamps_dict, ephys_timestamps_dict):
 
     # Get first trials timestamps onset
     log_sess_start = log_trial_ts[0][0]  # (on,off)-formatted
-    ephys_sess_start = ephys_trial_ts[0]  # just onset
+    ephys_trial_ts = ephys_trial_ts[0]
+
+    if isinstance(ephys_trial_ts, tuple):
+        ephys_sess_start = ephys_trial_ts[0] # (on,off)-formatted
+    else:
+        ephys_sess_start = ephys_trial_ts # before (on,off)-format
 
     time_delay = ephys_sess_start - log_sess_start
 
     return time_delay
 
 
-def extract_ephys_timestamps(config_file, continuous_data_dict, threshold_dict, log_timestamps_dict):
+def extract_ephys_timestamps(config_file, continuous_data_dict, threshold_dict, log_timestamps_dict, n_frames_dict):
     """
     Load and format ephys timestamps for continuous_log_analysis.
     Args:
@@ -370,6 +399,7 @@ def extract_ephys_timestamps(config_file, continuous_data_dict, threshold_dict, 
         continuous_data_dict: dictionary of continuous data from SpikeGLX
         threshold_dict: dictionary of thresholds for continuous data processing
         log_timestamps_dict: dictionary of timestamps from log_continuous.bin
+        n_frames_dict: dictionary of number of frames for each camera
 
     Returns:
 
@@ -378,9 +408,9 @@ def extract_ephys_timestamps(config_file, continuous_data_dict, threshold_dict, 
 
     # Load and format existing timestamps extracted by CatGT and TPrime
     timestamps_dict = load_ephys_sync_timestamps(config_file, log_timestamps_dict)
-    timestamps_dict = format_ephys_timestamps(config_file, timestamps_dict)
+    timestamps_dict = format_ephys_timestamps(config_file, timestamps_dict, n_frames_dict)
 
-    # Extract timestamps from binary files
+    # Extract timestamps from ephys-related binary files
     ephys_nidq_meta, _ = server_paths.get_raw_ephys_nidq_files(config_file)
     meta_dict = readMeta(pathlib.Path(ephys_nidq_meta))
     lick_threshold = threshold_dict.get('lick_trace')
@@ -491,7 +521,7 @@ def create_unit_table(nwb_file):
         'nSpikes': 'number of spikes',
         'nPeaks': 'number of template waveform peaks on peak channel',
         'nTroughs': 'number of template waveform troughs on peak channel',
-        'isSomatic': 'waveforms classified as somatic (Deligkaris et al., 2016)',
+        #'isSomatic': 'waveforms classified as somatic (Deligkaris et al., 2016)',
         'waveformDuration_peakTrough': 'peak-to-trough template waveform duration, in us',
         'spatialDecaySlope': 'slope of spatial decay of template waveform amplitude across channels up to 100 um away, in (a.u.)/um',
         'waveformBaselineFlatness': 'ratio of max. value in baseline window vs. max. value in waveform window',
@@ -577,7 +607,7 @@ def build_unit_table(imec_folder, sync_spike_times_path):
         cluster_info_df = pd.read_csv(cluster_info_path, sep='\t')
     except FileNotFoundError:
         print('No spike sorting at: {}'.format(cluster_info_path))
-        return
+        return None
 
     cluster_info_df.rename(columns={'KSLabel': 'ks_label',
                                     'Amplitude': 'amplitude',
@@ -585,16 +615,18 @@ def build_unit_table(imec_folder, sync_spike_times_path):
                                     'bc_unitType': 'bc_label'}, inplace=True)
 
     # Find if cluster had a curated label
-    cluster_info_df['curated'] = cluster_info_df.apply(lambda x: 0 if pd.isnull(x.group) else 1, axis=1)
-
-    # Phy-based new clusters/ new splits have no ks_label: convert NaN to None
-    cluster_info_df.fillna(value='', inplace=True)  # returns None
+    try:
+        cluster_info_df['curated'] = cluster_info_df.apply(lambda x: 0 if pd.isnull(x.group) else 1, axis=1)
+        # Phy-based new clusters/ new splits have no ks_label: convert NaN to None
+        cluster_info_df.fillna(value='', inplace=True)  # returns None
+    except AttributeError:
+        cluster_info_df['curated'] = 0
+        cluster_info_df['group'] = np.nan
 
     # Format columns
     cluster_info_df['bc_label'] = cluster_info_df['bc_label'].str.lower()
 
-    # Get valid cluster indices
-    #valid_cluster_ids = cluster_info_df[cluster_info_df.group.isin(['good', 'mua'])].index  # dataframe indices
+    # Get valid cluster indices only based on automatic curation
     valid_cluster_ids = cluster_info_df[cluster_info_df.bc_label.isin(['good', 'mua', 'non-soma'])].index  # dataframe indices
     cluster_info_df_sub = cluster_info_df.loc[valid_cluster_ids, :]
 
@@ -643,7 +675,7 @@ def build_unit_table(imec_folder, sync_spike_times_path):
     try: # TODO: make sure this does not happen, fix for mouse AB126
         bc_info_df_sub = bc_info_df.loc[valid_cluster_ids, :]
     except KeyError:
-        print('Error with valid cluster indices - check kilosort/bomcell output.')
+        print('Error with valid cluster indices - check kilosort/bombcell output.')
         valid_cluster_ids_temp = [idx for idx in valid_cluster_ids if idx in bc_info_df.index]
         bc_info_df_sub = bc_info_df.loc[valid_cluster_ids_temp, :]
 
@@ -661,7 +693,7 @@ def build_unit_table(imec_folder, sync_spike_times_path):
     unit_table['nSpikes'] = bc_info_df_sub['nSpikes']
     unit_table['nPeaks'] = bc_info_df_sub['nPeaks']
     unit_table['nTroughs'] = bc_info_df_sub['nTroughs']
-    unit_table['isSomatic'] = bc_info_df_sub['isSomatic']
+    #unit_table['isSomatic'] = bc_info_df_sub['isSomatic']
     unit_table['waveformDuration_peakTrough'] = bc_info_df_sub['waveformDuration_peakTrough']
     unit_table['spatialDecaySlope'] = bc_info_df_sub['spatialDecaySlope']
     unit_table['waveformBaselineFlatness'] = bc_info_df_sub['waveformBaselineFlatness']
@@ -689,32 +721,37 @@ def build_unit_table(imec_folder, sync_spike_times_path):
     return unit_table
 
 
-def build_area_table(imec_folder):
+def build_area_table(config_file, imec_folder):
     """
     Build area table from brainreg output.
     Args:
-        imec_folder: path to imec folder anatomical data
+        config_file: path to config file
+        imec_folder: path to imec folder processed neural data
 
     Returns:
 
     """
+
+    # Read config file
+    with open(config_file, 'r') as f:
+        config = yaml.load(f, Loader=yaml.FullLoader)
 
     # -----------------------------------------
     # Load ccf probe track areas (sample space)
     # -----------------------------------------
 
     imec_id = imec_folder[-1]
-    mouse_name = imec_folder.split('\\')[7]
+    mouse_name = config['subject_metadata']['subject_id']
+    path_to_proc_anat = server_paths.get_anat_probe_track_folder(config_file)
 
     # TODO: confirm location and update
-    #path_to_proc_anat = imec_folder.replace('Ephys', 'Anatomy')
-    #path_to_proc_anat = path_to_proc_anat.replace(imec_folder.partition('Ephys')[-1], '\\brainreg\\manual_segmentation\\')
-    if int(mouse_name[2:]) < 116:
-        path_to_proc_anat = r'M:\analysis\Axel_Bisi\ImagedBrains\{}\brainreg\manual_segmentation'.format(mouse_name)
-    else:
-        path_to_proc_anat = r'M:\analysis\Axel_Bisi\ImagedBrains\Axel_Bisi\{}\fused\registered\segmentation'.format(mouse_name)
+    #if int(mouse_name[2:]) < 116:
+    #    path_to_proc_anat = r'M:\analysis\Axel_Bisi\ImagedBrains\{}\brainreg\manual_segmentation'.format(mouse_name)
+    #else:
+    #    path_to_proc_anat = r'M:\analysis\Axel_Bisi\ImagedBrains\Axel_Bisi\{}\fused\registered\segmentation'.format(mouse_name)
 
-    area_table = pd.read_csv(os.path.join(path_to_proc_anat, 'sample_space\\tracks', 'imec{}.csv'.format(imec_id)))
+    path_to_sample_space_track = os.path.join(path_to_proc_anat, 'sample_space\\tracks', 'imec{}.csv'.format(imec_id))
+    area_table = pd.read_csv(path_to_sample_space_track)
 
     # -------------------------------------------------------
     # Format table content and match electrodes to table rows
@@ -722,7 +759,7 @@ def build_area_table(imec_folder):
 
     # Format table for future shank row matching
     area_table.rename(columns={'Position':'shank_row',
-                               'Index':'shank_row', # brainreg-seg output update                               'Region ID': 'ccf_id',
+                               'Index':'shank_row', # brainreg-segmentation output update                               'Region ID': 'ccf_id',
                                'Region ID': 'ccf_id',
                                'Region acronym': 'ccf_acronym',
                                'Region name': 'ccf_name'}, inplace=True)
@@ -736,14 +773,17 @@ def build_area_table(imec_folder):
     area_table = area_table.iloc[::-1]  # reverse order (from probe tip upwards)
 
     # Remove first 9 rows (probe tip without electrodes)
-    if int(mouse_name[2:]) < 100: # TODO: remove for future mice (also see below)
-        area_table = area_table.iloc[9:, :]  # remove first 9 rows (probe tip)
+    #if int(mouse_name[2:]) < 100: # TODO: remove for future mice (also see below)
+    #    area_table = area_table.iloc[9:, :]  # remove first 9 rows (probe tip)
+
+    area_table = area_table.iloc[9:, :]  # remove first 9 rows (probe tip)
 
     max_position = np.max(area_table['shank_row'].values)
     area_table['shank_row'] = max_position - area_table['shank_row'].values  # make values start at 0
 
     # Add atlas metadata
-    path_to_atlas = r'C:\Users\bisi\.brainglobe\allen_mouse_bluebrain_barrels_10um_v1.0'
+    #path_to_atlas = r'C:\Users\bisi\.brainglobe\allen_mouse_bluebrain_barrels_10um_v1.0'
+    path_to_atlas = config['ephys_metadata']['path_to_atlas']
     with open(os.path.join(path_to_atlas, 'metadata.json')) as f:
         atlas_metadata = json.load(f)
     area_table['atlas_metadata'] = str(atlas_metadata)
@@ -786,14 +826,19 @@ def build_area_table(imec_folder):
     # -----------------------------------------
 
     if int(mouse_name[2:]) < 116:
-        coords = np.load(os.path.join(path_to_proc_anat, 'standard_space\\tracks', 'imec{}.npy'.format(imec_id)))
+        path_to_atlas_space_track = os.path.join(path_to_proc_anat, 'standard_space\\tracks')
     else:
-        coords = np.load(os.path.join(path_to_proc_anat, 'atlas_space\\tracks', 'imec{}.npy'.format(imec_id)))
+        path_to_atlas_space_track = os.path.join(path_to_proc_anat, 'atlas_space\\tracks')
 
+    coords = np.load(os.path.join(path_to_atlas_space_track, 'imec{}.npy'.format(imec_id)))
     coords = coords[::-1]
     print('Probe track coordinates shape:', coords.shape)
-    if int(mouse_name[2:]) < 100: # TODO: remove for future mice
-        coords = coords[9:, :]
+
+    #if int(mouse_name[2:]) < 100: # TODO: remove for future mice
+    #    coords = coords[9:, :]
+
+    coords = coords[9:, :] # remove tip-length
+
     area_table['ccf_ap'] = coords[:, 0]
     area_table['ccf_ml'] = coords[:, 1]
     area_table['ccf_dv'] = coords[:, 2]

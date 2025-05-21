@@ -56,7 +56,7 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
                          0: 'pink' if context_rewarded.loc[context_rewarded[
                                                                'MouseName'] == subject_id, 'RewardedContext'].item() == 'brown' else 'brown'})
 
-        elif config_dict.get('behaviour_metadata').get('trial_table') == 'simple':  # TODO: remove?
+        elif config_dict.get('behaviour_metadata').get('trial_table') == 'simple':
             trial_table = build_simplified_trial_table(behavior_results_file=behavior_results_file,
                                                        timestamps_dict=timestamps_dict)
     else:
@@ -197,10 +197,16 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
 
     # Check if behaviour video filming
     if config_dict.get('session_metadata').get('experimenter') == 'AB':
-        movie_files = server_paths.get_session_movie_files(config_file)
-        if config_dict.get('behaviour_metadata').get('behaviour_type') == 'auditory':
+        if config_dict.get('behaviour_metadata').get('behaviour_type') in ['auditory', 'free_licking']:
             print('Ignoring videos for auditory sessions')
             movie_files = None
+        else:
+            if config_dict.get('behaviour_metadata').get('camera_flag') == 1:
+
+                movie_files = server_paths.get_session_movie_files(config_file)
+                movie_files = [f for f in movie_files if 'short' not in f]
+            else:
+                movie_files = None
     else:
         movie_files = server_paths.get_movie_files(config_file)
 
