@@ -373,8 +373,9 @@ def get_anat_probe_track_folder(config_file):
     experimenter = EXPERIMENTER_MAP[mouse_name[:2]]
     analysis_folder = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis', experimenter)
     if experimenter == 'Axel_Bisi':
-        if int(mouse_name[2:]) < 116:
-            probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', mouse_name, 'brainreg\\manual_segmentation') #older brainreg auto output
+        #if int(mouse_name[2:]) < 116:
+        if int(mouse_name[2:]) < 102:
+                probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', mouse_name, 'brainreg\\manual_segmentation') #older brainreg auto output
         else:
             probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', experimenter, mouse_name, 'fused\\registered\\segmentation')
     else:
