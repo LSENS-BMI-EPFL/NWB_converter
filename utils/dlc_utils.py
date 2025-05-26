@@ -172,6 +172,7 @@ def compute_kinematics(df, view):
 
     return df
 
+
 def compute_kinematics_alt(df, view):
 
     pcutoff = 0.5
