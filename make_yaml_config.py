@@ -12,7 +12,7 @@ from utils.behavior_converter_misc import find_training_days
 from utils.server_paths import (get_ref_weight_folder,
                                 get_subject_analysis_folder,
                                 get_subject_data_folder,
-                                get_subject_mouse_number)
+                                get_subject_mouse_number, get_experimenter_analysis_folder)
 from metadata_to_yaml import add_metadata_to_config
 
 # Update your keywords
@@ -106,8 +106,11 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     else:
         subject_metadata['weight'] = 'na'
 
-    # Get mouse reference weight # TODO: modularize
-    ref_weight_path = get_ref_weight_folder(experimenter=experimenter)
+    # Get mouse reference weight
+    if subject_id in ['PB{}'.format(i) for i in range(191, 202)]:
+        ref_weight_path = get_ref_weight_folder('AB')
+    else:
+        ref_weight_path = get_ref_weight_folder(experimenter=experimenter)
     ref_weight_csv_path = os.path.join(ref_weight_path, 'mouse_reference_weight.xlsx')
     if not os.path.exists(ref_weight_csv_path):
         print(f'Error: reference weight file not found for {experimenter}. Please create it in analysis_folder/mice_info.')
@@ -417,6 +420,9 @@ def create_ephys_metadata(subject_id):
         path_to_atlas = r'C:\Users\bisi\.brainglobe\allen_mouse_bluebrain_barrels_10um_v1.0'
     elif initials in ['PB']:
         setup = 'Neuropixels setup 1 AI3209'
+        path_to_probe_info = r'M:\analysis\Axel_Bisi\mice_info\probe_insertion_info.xlsx'
+        path_to_atlas = r'C:\Users\bisi\.brainglobe\allen_mouse_bluebrain_barrels_10um_v1.0'
+
     else:
         setup = 'Neuropixels setup 2 AI3209'
 
@@ -450,24 +456,17 @@ def create_ephys_metadata(subject_id):
         ephys_channels_dict = {}
 
     # Set which mice have processed neural data
-    if initials == 'AB' and int(mouse_number) > 150:
+    if initials == 'AB' and int(mouse_number) not in [159, 163, 164]:
         processed = 0
     elif initials == 'PB':
         processed = 0
     else:
         processed = 1
 
-    # If processed anatomy available, use standard unit table
-    analysis_data_folder = get_subject_analysis_folder(subject_id)
-    if os.path.isdir(os.path.join(analysis_data_folder, 'Anatomy')):
-        unit_table = 'standard'
-    else:
-        unit_table = 'simple'
-
     ephys_metadata = {
         'setup': setup,
         'ephys_channels_dict': ephys_channels_dict,
-        'unit_table': unit_table,  # 'simple' or 'standard'
+        'unit_table': 'standard',  # 'simple' or 'standard'
         'processed': processed, # 0 or 1
         'path_to_probe_info': path_to_probe_info,
         'path_to_atlas': path_to_atlas,
@@ -514,19 +513,28 @@ if __name__ == '__main__':
     # Select mouse IDs.
     experimenter = 'AB'
     mouse_ids = ['AB{}'.format(n) for n in range(151, 157)]
-    mouse_ids = ['AB147']
+    mouse_ids = ['AB105']
+    mouse_ids = ['AB080']
+    mouse_ids = ['PB191', 'PB192', 'PB193', 'PB194', 'PB195', 'PB196', 'PB197', 'PB198', 'PB200', 'PB201']
+    mouse_ids = ['PB191']
+    mouse_ids = ['AB159', 'AB162', 'AB163', 'AB164']
     #last_done_day = '20241210'
 
     for mouse_id in mouse_ids:
 
         # Find data and analysis folders on server for that mouse.
         data_folder = get_subject_data_folder(mouse_id)
+
         if os.path.exists(data_folder):
             pass
         else:
             print(f"No mouse data folder for {mouse_id}.")
             continue
         analysis_folder = get_subject_analysis_folder(mouse_id)
+
+        if experimenter == 'AB' and mouse_id.startswith('PB'):
+            analysis_folder = get_experimenter_analysis_folder('AB')
+            analysis_folder = os.path.join(analysis_folder, 'data', mouse_id)
 
         # Make config files.
         training_days = find_training_days(mouse_id, data_folder)
@@ -543,14 +551,14 @@ if __name__ == '__main__':
             #if session_id not in sessions_to_do:
             #     continue
 
-            #if experimenter == 'AB' and day not in ['whisker_0']:
-            #    continue
-
-            if experimenter == 'AB' and 'whisker' not in day:
+            if experimenter == 'AB' and day != 'whisker_0':
                 continue
 
-            make_yaml_config(mouse_id, session_id, day, data_folder, analysis_folder,
-                             mouse_line='C57BL/6', gmo=False)
+            #if experimenter == 'AB' and 'whisker' not in day:
+            #    continue
+
+
+            make_yaml_config(mouse_id, session_id, day, data_folder, analysis_folder, mouse_line='C57BL/6', gmo=False)
 
             #add_metadata_to_config(mouse_id, session_id, experimenter)
 
