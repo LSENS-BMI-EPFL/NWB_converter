@@ -381,6 +381,9 @@ def get_anat_probe_track_folder(config_file):
     if experimenter == 'Axel_Bisi':
         if int(mouse_name[2:]) < 90:
             probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', mouse_name, 'brainreg\\manual_segmentation') #older brainreg auto output
+        #if int(mouse_name[2:]) < 116:
+        if int(mouse_name[2:]) < 102:
+                probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', mouse_name, 'brainreg\\manual_segmentation') #older brainreg auto output
         else:
             probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', experimenter, mouse_name, 'fused\\registered\\segmentation')
     else:
@@ -489,12 +492,12 @@ def get_dlc_file_path(config_file):
     if initials == 'PB':
         experimenter = "Pol_Bech"
         dlc_folder = os.path.join(r"\\sv-nas1.rcp.epfl.ch\Petersen-Lab", "analysis", experimenter, "data", session_id.split("_")[0], session_id).replace("\\", "/")
-        dlc_file = glob.glob(dlc_folder + "/**/*.csv")
+        dlc_file = glob.glob(dlc_folder + "/**/*view.csv")
 
     elif initials == 'RD':
         experimenter = "Robin_Dard"
         dlc_folder = os.path.join(r"\\sv-nas1.rcp.epfl.ch\Petersen-Lab", "analysis", experimenter, "data", session_id.split("_")[0], session_id).replace("\\", "/")
-        dlc_file = glob.glob(dlc_folder + "/**/*.csv")
+        dlc_file = glob.glob(dlc_folder + "/**/*view.csv")
 
     elif initials == 'AB':
         experimenter = "Axel_Bisi"

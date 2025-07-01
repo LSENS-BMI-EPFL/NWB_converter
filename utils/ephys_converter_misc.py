@@ -653,15 +653,11 @@ def build_unit_table(imec_folder, sync_spike_times_path):
     # Note: Iterate over selected good cluster only !
     for c_id in cluster_info_df.cluster_id.values:
         spike_ids = spike_clusters_df[spike_clusters_df.cluster_id == c_id].index
-
         try:
             spike_times_per_cluster.append(np.array(spike_times_sync_df.iloc[spike_ids].spike_times))
-        except IndexError as e:
-            print('HERE 2')
-            print(e)
-            print('Spike ids', spike_ids)
-            print(spike_times_sync_df, spike_times_sync_df.index)
-            print('Cluster', c_id)
+        except:
+            print('Error with cluster {} - check kilosort output'.format(c_id))
+            spike_times_per_cluster.append(np.array([]))
     cluster_info_df['spike_times'] = spike_times_per_cluster
 
     unit_table['spike_times'] = cluster_info_df.loc[valid_cluster_ids].spike_times

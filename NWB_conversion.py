@@ -20,7 +20,7 @@ from converters.widefield_to_nwb import convert_widefield_recording
 from converters.DLC_to_nwb import convert_dlc_data
 from converters.facemap_to_nwb import convert_facemap_data
 from utils.behavior_converter_misc import find_training_days
-from utils.server_paths import (get_nwb_folder, get_subject_analysis_folder,
+from utils.server_paths import (get_nwb_folder, get_subject_analysis_folder, get_experimenter_analysis_folder,
                                 get_subject_data_folder, get_dlc_file_path, get_facemap_file_path)
 
 
@@ -115,7 +115,17 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True):
 if __name__ == '__main__':
 
     # Run the conversion
-    mouse_ids = ['AB104']
+    mouse_ids = ['AB092', 'AB093', 'AB094', 'AB095']
+    mouse_ids = ['AB093', 'AB094', 'AB095']
+    mouse_ids = ['AB080', 'AB082', 'AB085', 'AB086', 'AB087']
+    mouse_ids = ['AB152'] # last KS + missing version of the file
+    mouse_ids = ['PB191', 'PB192', 'PB193', 'PB194', 'PB195', 'PB196', 'PB197', 'PB198', 'PB200', 'PB201'] # PB mice
+    mouse_ids = ['PB191'] # PB mice
+    mouse_ids = ['AB152']
+    #mouse_ids = ['AB107'] # issue with spike indices
+    #mouse_ids = ['AB105'] # missing top videos preds fix video
+    mouse_ids = ['AB163', 'AB164', 'AB159', 'AB162']
+
     experimenter = 'AB'
     last_done_day = '20240506'
     last_done_day = None
@@ -137,7 +147,14 @@ if __name__ == '__main__':
             print(f"No mouse data folder for {mouse_id}.")
             continue
         analysis_folder = get_subject_analysis_folder(mouse_id)
+        if experimenter == 'AB' and mouse_id.startswith('PB'):
+            analysis_folder = get_experimenter_analysis_folder('AB')
+            analysis_folder = os.path.join(analysis_folder, 'data', mouse_id)
+
         nwb_folder = get_nwb_folder(mouse_id)
+        if experimenter == 'AB' and mouse_id.startswith('PB'):
+            nwb_folder = get_experimenter_analysis_folder('AB')
+            nwb_folder = os.path.join(nwb_folder, 'NWB')
 
         # Find session list and session description.
         if experimenter == 'GF':
@@ -158,9 +175,9 @@ if __name__ == '__main__':
 
 
             # Filter by date.
-            date_to_do = '20240217'
-            if date_to_do not in isession:
-              continue
+            #date_to_do = '20240217'
+            #if date_to_do not in isession:
+            #  continue
 
             # Filter by time since date.
             session_date = isession.split('_')[1]
@@ -173,9 +190,12 @@ if __name__ == '__main__':
 
 
             # Filter by session type.
-            if experimenter == 'AB' and iday != 'whisker_0':
+            last_session_type = training_days[-1][1]
+            if experimenter == 'AB' and iday not in ['whisker_0']:
                 continue
-            # print('Converting', isession)
+            elif experimenter == 'PB' and iday!=last_session_type:
+                continue
+            print('Converting', isession)
 
 
             # Find yaml config file and behavior results for this session.

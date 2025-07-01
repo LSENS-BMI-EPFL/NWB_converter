@@ -57,11 +57,11 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
 
     # Get number of probes used
     imec_probe_list = get_imec_probe_folder_list(config_file=config_file)
-
     # ------------------------------------------------------
     # Then, iterate over each probe/device used in recording
     # ------------------------------------------------------
-    for imec_id, imec_folder in enumerate(imec_probe_list):
+    for _, imec_folder in enumerate(imec_probe_list):
+        imec_id = int(pathlib.Path(imec_folder).stem[-1])
         print('Probe IMEC{}'.format(imec_id), imec_folder)
 
         # Check if recording is valid (otherwise skip)
@@ -104,13 +104,13 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
             location=str(location_dict),
         )
 
-        # Get saved channels information- number of shanks, channels, etc.
+        # Get saved channels information- number of shanks, channels, etc. #TODO: update for NP2
         coords = MetaToCoords(metaFullPath=pathlib.Path(imec_folder, ap_meta_file), outType=0, showPlot=False)
         xcoords = coords[0]
         ycoords = coords[1]
         shank_id = coords[2]
         shank_cols = np.tile([1, 3, 0, 2], reps=int(xcoords.shape[0] / 4))
-        shank_rows = np.divide(ycoords, 20)
+        shank_rows = np.divide(ycoords, 20) #TODO: to update for NP2
         connected = coords[3]  # whether they are bad channels
         n_chan_total = int(coords[4])  # includes SY sync channel 768
 
@@ -188,6 +188,7 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
 
         # Build unit table
         unit_table = build_unit_table(imec_folder=imec_folder, sync_spike_times_path=sync_spike_times_path)
+
         if unit_table is None:
             print('Skipping {} probe IMEC{} because no spike sorting.'.format(mouse_name, imec_id))
             continue

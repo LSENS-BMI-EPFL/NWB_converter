@@ -411,7 +411,6 @@ def create_ephys_metadata(subject_id):
 
     """
     mouse_number, initials = get_subject_mouse_number(subject_id)
-    setup = None
 
     # Set setup and paths here
     if initials in ['AB']:
@@ -428,7 +427,7 @@ def create_ephys_metadata(subject_id):
 
     # Set SpikeGLX-NIDQ channel mapping, experiment-dependent
     # Note: if the setup is changed, the channel mapping should be updated
-    # TODO: use it later on
+    # TODO: use it later on in preprocessing
     if initials in ['AB', 'MH'] and setup == 'Neuropixels setup 1 AI3209':
         ephys_channels_dict = {
             0: 'sync',
@@ -457,6 +456,8 @@ def create_ephys_metadata(subject_id):
 
     # Set which mice have processed neural data
     if initials == 'AB' and int(mouse_number) not in [159, 163, 164]:
+        processed = 0
+    elif subject_id in ['AB077', 'AB135', 'AB137']:
         processed = 0
     elif initials == 'PB':
         processed = 0
@@ -558,7 +559,8 @@ if __name__ == '__main__':
             #    continue
 
 
-            make_yaml_config(mouse_id, session_id, day, data_folder, analysis_folder, mouse_line='C57BL/6', gmo=False)
+            make_yaml_config(mouse_id, session_id, day, data_folder, analysis_folder,
+                             mouse_line='C57BL/6', gmo=False)
 
             #add_metadata_to_config(mouse_id, session_id, experimenter)
 
