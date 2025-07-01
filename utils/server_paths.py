@@ -35,6 +35,12 @@ def get_subject_analysis_folder(subject_id):
 
     return analysis_folder
 
+def get_experimenter_analysis_folder(experimenter):
+    analysis_folder = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis', EXPERIMENTER_MAP[experimenter])
+    if not os.path.exists(analysis_folder):
+        os.makedirs(analysis_folder)
+
+    return analysis_folder
 
 def get_subject_mouse_number(subject_id):
     """Get mouse number for integer comparison"""
@@ -373,7 +379,7 @@ def get_anat_probe_track_folder(config_file):
     experimenter = EXPERIMENTER_MAP[mouse_name[:2]]
     analysis_folder = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis', experimenter)
     if experimenter == 'Axel_Bisi':
-        if int(mouse_name[2:]) < 116:
+        if int(mouse_name[2:]) < 90:
             probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', mouse_name, 'brainreg\\manual_segmentation') #older brainreg auto output
         else:
             probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', experimenter, mouse_name, 'fused\\registered\\segmentation')
@@ -519,4 +525,6 @@ def get_facemap_file_path(config_file):
         return None
 
     return file_path
+
+
 
