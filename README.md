@@ -13,7 +13,7 @@ https://github.com/LSENS-BMI-EPFL/NWB_converter/wiki
 Create environment 
 
 ```
-conda create -n <env> python=3.9
+conda create -n <env> python=3.11
 
 conda activate <env>
 
