@@ -20,7 +20,8 @@ dependencies = [
     "read-roi (>=1.6.0,<2.0.0)",
     "dask (>=2025.7.0,<2026.0.0)",
     "dlc2kinematics (>=0.0.7,<0.0.8)",
-    "scipy (>=1.10,<2.0)"
+    "scipy (>=1.10,<2.0)",
+    "pyarrow (>=21.0.0,<22.0.0)"
 ]
 
 [tool.poetry]

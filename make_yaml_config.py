@@ -420,6 +420,18 @@ def create_ephys_metadata(subject_id, experimenter, session_date):
 
     Returns:
 
+
+    Notes: this function assumes that probe_insertion_info.xlsx has the following columns:
+        - mouse_name
+        - Setup
+        - valid
+        - catgt
+        - kilosort
+        - phy_bc
+        - tprime
+        - cwaves 
+        - imaging
+        - anatomy
     """
 
     experimenter_full = EXPERIMENTER_MAP[experimenter]
@@ -430,16 +442,32 @@ def create_ephys_metadata(subject_id, experimenter, session_date):
     mouse_rows = df_probe_info[df_probe_info['mouse_name'] == subject_id]
     mouse_rows = df_probe_info[df_probe_info['mouse_name'] == subject_id]
 
+    # Check for 'date' column and if any date is present for the selected mouse
     if 'date' in df_probe_info.columns and mouse_rows['date'].notnull().any():
         # Ensure 'date' is datetime
         df_probe_info['date'] = pd.to_datetime(df_probe_info['date'], errors='coerce')
-        setup = df_probe_info.loc[
-            (df_probe_info['date'].dt.date == session_date.date()) & (df_probe_info['mouse_name'] == subject_id), 'Setup'
+        # Select rows for this subject and date
+        selected_rows = df_probe_info[
+            (df_probe_info['date'].dt.date == session_date.date()) & (df_probe_info['mouse_name'] == subject_id)
         ]
+        setup = selected_rows['Setup']
         setup = setup.iloc[0] if not setup.empty else None
     else:
-        setup = df_probe_info.loc[df_probe_info['mouse_name'] == subject_id, 'Setup']
+        # Select rows for this subject (no date, probably only one recording)
+        selected_rows = df_probe_info[df_probe_info['mouse_name'] == subject_id]
+        setup = selected_rows['Setup']
         setup = setup.iloc[0] if not setup.empty else None
+
+    # Now, check if any row in selected_rows has all of the following columns == 1
+    required_cols = ['valid', 'catgt', 'kilosort', 'phy_bc', 'tprime', 'cwaves', 'imaging', 'anatomy']
+    processed = 0
+    if not selected_rows.empty and all(col in selected_rows.columns for col in required_cols):
+        # Check if any row has all required columns == 1
+        processed = int(
+            (selected_rows[required_cols] == 1).all(axis=1).any()
+        )
+    else:
+        processed = 0
 
     if setup is None:
         warnings.warn(f"Setup information not found for subject {subject_id} on date {session_date.strftime('%Y-%m-%d')}.")
@@ -449,6 +477,7 @@ def create_ephys_metadata(subject_id, experimenter, session_date):
 
     path_to_atlas_dict = {
         'AB': r'C:\Users\bisi\.brainglobe\allen_mouse_bluebrain_barrels_10um_v1.0',
+        'JL': r'/home/lebert/.brainglobe/allen_mouse_bluebrain_barrels_10um_v1.0',
     }
 
     path_to_atlas = path_to_atlas_dict.get(experimenter, None)
@@ -509,16 +538,6 @@ def create_ephys_metadata(subject_id, experimenter, session_date):
         channel_map = 'context'
 
     ephys_channels_dict = ephys_channels_dict_map[setup][channel_map]
-
-    # Set which mice have processed neural data
-    if mouse_initials == 'AB' and int(mouse_number) not in [159, 163, 164]:
-        processed = 0
-    elif subject_id in ['AB077', 'AB135', 'AB137']:
-        processed = 0
-    elif mouse_initials == 'PB':
-        processed = 0
-    else:
-        processed = 1
 
     ephys_metadata = {
         'setup': setup,

@@ -85,7 +85,7 @@ def get_subject_mouse_number(subject_id):
 
 
 def get_nwb_folder(subject_id, experimenter=None):
-    if experimenter is not None:
+    if experimenter is None:
         if subject_id in ['PB124']:
             experimenter = 'Robin_Dard'
         else:
@@ -201,6 +201,8 @@ def get_session_movie_files(config_file):
     data_folder = get_subject_data_folder(mouse_name)
     movies_path = os.path.join(data_folder, 'Recording', session_name, 'Video')
     if not os.path.exists(movies_path):
+        movies_path = os.path.join(data_folder, 'Recording', 'Video', session_name)
+    if not os.path.exists(movies_path):
         movies = None
         return movies
     movies = [os.path.join(movies_path, m) for m in os.listdir(movies_path) if
@@ -291,6 +293,8 @@ def get_raw_ephys_folder(config_file):
     session_name = config['session_metadata']['session_id']
     data_folder = get_subject_data_folder(mouse_name)
     raw_ephys_path = os.path.join(data_folder, 'Recording', session_name, 'Ephys')
+    if not os.path.exists(raw_ephys_path):
+        raw_ephys_path = os.path.join(data_folder, 'Recording', 'Ephys', session_name)
     run_name = [f for f in os.listdir(raw_ephys_path) if 'DS' not in f][0]
     raw_ephys_run_folder = os.path.join(raw_ephys_path, run_name)
 
@@ -305,13 +309,13 @@ def get_raw_ephys_nidq_files(config_file):
     return raw_nidq_meta, raw_nidq_bin
 
 
-def get_ephys_folder(config_file):
+def get_ephys_folder(config_file, experimenter=None):
     """Returns the path to the processed ephys folder for a given session."""
     with open(config_file, 'r', encoding='utf8') as stream:
         config = yaml.safe_load(stream)
     mouse_name = config['subject_metadata']['subject_id']
     session_name = config['session_metadata']['session_id']
-    data_folder = get_subject_analysis_folder(mouse_name)
+    data_folder = get_subject_analysis_folder(mouse_name, experimenter=experimenter)
     ephys_path = os.path.join(data_folder, session_name, 'Ephys')
     ephys_folder = [f for f in os.listdir(ephys_path) if 'catgt' in f][0]
     ephys_path = os.path.join(ephys_path, ephys_folder)
@@ -322,13 +326,13 @@ def get_ephys_folder(config_file):
         return ephys_path
 
 
-def get_imec_probe_folder_list(config_file):
+def get_imec_probe_folder_list(config_file, experimenter=None):
     """ Get list of all processed imec probe folders for a given session."""
     with open(config_file, 'r', encoding='utf8') as stream:
         config = yaml.safe_load(stream)
     mouse_name = config['subject_metadata']['subject_id']
     session_name = config['session_metadata']['session_id']
-    data_folder = get_ephys_folder(config_file)
+    data_folder = get_ephys_folder(config_file, experimenter=experimenter)
     imec_folder_list = [f for f in os.listdir(data_folder) if 'imec' in f]
     imec_folder_list = [os.path.join(data_folder, f) for f in imec_folder_list]
     if not imec_folder_list:
@@ -338,13 +342,16 @@ def get_imec_probe_folder_list(config_file):
         return imec_folder_list
 
 
-def get_sync_event_times_folder(config_file):
-    """ Get the path to the sync_event_times folder for a given session."""
+def get_sync_event_times_folder(config_file, experimenter=None):
+    """ 
+    Get the path to the sync_event_times folder for a given session.
+    Set experimenter manually if mouse initials are different than experimenter
+    """
     with open(config_file, 'r', encoding='utf8') as stream:
         config = yaml.safe_load(stream)
     mouse_name = config['subject_metadata']['subject_id']
     session_name = config['session_metadata']['session_id']
-    data_folder = get_ephys_folder(config_file)
+    data_folder = get_ephys_folder(config_file, experimenter=experimenter)
     sync_event_times_path = os.path.join(data_folder, 'sync_event_times')
     if not os.path.exists(sync_event_times_path):
         print(f"No sync_event_times folder found for {session_name} session from {mouse_name}")
@@ -392,12 +399,13 @@ def get_anat_images_files(config_file):
 
     return anat_images
 
-def get_anat_probe_track_folder(config_file):
+def get_anat_probe_track_folder(config_file, experimenter=None):
     """Returns path to folder with probe track estimates"""
     with open(config_file, 'r', encoding='utf8') as stream:
         config = yaml.safe_load(stream)
     mouse_name = config['subject_metadata']['subject_id']
-    experimenter = EXPERIMENTER_MAP[mouse_name[:2]]
+    if experimenter is None:
+        experimenter = EXPERIMENTER_MAP[mouse_name[:2]]
     analysis_folder = os.path.join(get_analysis_root(), experimenter)
     if experimenter == 'Axel_Bisi':
         if int(mouse_name[2:]) < 90:
@@ -406,8 +414,10 @@ def get_anat_probe_track_folder(config_file):
             probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', mouse_name, 'brainreg\\manual_segmentation')
         else:
             probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', experimenter, mouse_name, 'fused\\registered\\segmentation')
+    elif experimenter == 'Jules_Lebert':
+        probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', experimenter, mouse_name, 'fused', 'registered', 'segmentation')
     else:
-        probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', mouse_name, 'fused\\registered\\segmentation')
+        probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', mouse_name, 'fused', 'registered', 'segmentation')
         print('Unspecified experimenter for probe track folder.')
         print('Default:', probe_track_folder)
 

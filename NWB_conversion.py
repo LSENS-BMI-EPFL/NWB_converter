@@ -3,6 +3,7 @@
 import datetime
 import os
 import platform
+from pathlib import Path
 import numpy as np
 
 import yaml
@@ -24,10 +25,11 @@ from utils.server_paths import (get_nwb_folder, get_subject_analysis_folder, get
                                 get_subject_data_folder, get_dlc_file_path, get_facemap_file_path)
 
 
-def convert_data_to_nwb(config_file, output_folder, with_time_string=True):
+def convert_data_to_nwb(config_file, output_folder, with_time_string=True, experimenter=None):
     """
     :param config_file: Path to the yaml config file containing mouse ID and metadata for the session to convert
     :param output_folder: Path to the folder to save NWB files
+    :param experimenter: (Optional) experimenter initials, provide if experimenter and mouse initials are different
     :return: NWB file
     """
 
@@ -44,7 +46,8 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True):
     if config_dict['session_metadata']['experimenter'] != 'GF':
         timestamps_dict, _ = analyze_continuous_log(config_file=config_file,
                                                     do_plot=False, plot_start=1,
-                                                    plot_stop=100, camera_filtering=False)
+                                                    plot_stop=100, camera_filtering=False,
+                                                    experimenter=experimenter)
     else:
         timestamps_dict, _ = utils_gf.infer_timestamps_dict(
             config_file=config_file)
@@ -75,7 +78,9 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True):
              print(" ")
              print("Convert extracellular electrophysiology data")
              convert_ephys_recording(nwb_file=nwb_file,
-                                     config_file=config_file)
+                                     config_file=config_file,
+                                     experimenter=experimenter,
+                                     )
 
     # Check we are on WF computer
     platform_info = platform.uname()
@@ -115,20 +120,40 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True):
 if __name__ == '__main__':
 
     # Run the conversion
-    mouse_ids = ['AB092', 'AB093', 'AB094', 'AB095']
-    mouse_ids = ['AB093', 'AB094', 'AB095']
-    mouse_ids = ['AB080', 'AB082', 'AB085', 'AB086', 'AB087']
-    mouse_ids = ['AB152'] # last KS + missing version of the file
-    mouse_ids = ['PB191', 'PB192', 'PB193', 'PB194', 'PB195', 'PB196', 'PB197', 'PB198', 'PB200', 'PB201'] # PB mice
-    mouse_ids = ['PB191'] # PB mice
-    mouse_ids = ['AB152']
-    #mouse_ids = ['AB107'] # issue with spike indices
-    #mouse_ids = ['AB105'] # missing top videos preds fix video
-    mouse_ids = ['AB163', 'AB164', 'AB159', 'AB162']
+    mouse_ids = [
+        # 'PB191', 
+        # 'PB192', 
+        # 'PB195', 
+        # 'PB196', 
+        # 'PB201',
+        # 'RD076',
+        # 'RD077',
+        # 'RD072',
+        # 'JL002',
+        'PB191',
+        ]
 
-    experimenter = 'AB'
-    last_done_day = '20240506'
+    sessions_to_do = [
+        # 'PB191_20241210_110601',
+        # 'PB192_20241211_113347',
+        # 'PB195_20241214_114410',
+        # 'PB196_20241217_144715',
+        # 'PB201_20241212_192123',
+        # 'RD076_20250214_125235',
+        # 'RD072_20250305_131521',
+        # 'RD077_20250219_183425',
+        # 'RD077_20250221_102024',
+        # 'JL002_20250507_135553',
+        'PB191_20241210_110601',
+    ]
+
+
+    session_not_to_do = []
+    experimenter = 'JL'    
+    experimenter_full = 'Jules_Lebert'
+    # last_done_day = '20240506'
     last_done_day = None
+    skip_existing_files = False
 
 
     if experimenter == 'GF':
@@ -146,12 +171,12 @@ if __name__ == '__main__':
         else:
             print(f"No mouse data folder for {mouse_id}.")
             continue
-        analysis_folder = get_subject_analysis_folder(mouse_id)
-        if experimenter == 'AB' and mouse_id.startswith('PB'):
-            analysis_folder = get_experimenter_analysis_folder('AB')
-            analysis_folder = os.path.join(analysis_folder, 'data', mouse_id)
+        analysis_folder = get_subject_analysis_folder(mouse_id, experimenter=experimenter_full)
+        nwb_folder = get_nwb_folder(mouse_id, experimenter=experimenter_full)
 
-        nwb_folder = get_nwb_folder(mouse_id)
+        sessions_done = Path(nwb_folder).glob('*.nwb')
+        sessions_done = [f.stem for f in sessions_done]
+
         if experimenter == 'AB' and mouse_id.startswith('PB'):
             nwb_folder = get_experimenter_analysis_folder('AB')
             nwb_folder = os.path.join(nwb_folder, 'NWB')
@@ -170,9 +195,14 @@ if __name__ == '__main__':
 
             # Filter session ID to do.
             #session_to_do = ['AB105_20240314_115206']
-            #if isession not in session_to_do:
-            #    continue
+            if isession not in sessions_to_do:
+               continue
 
+            if skip_existing_files:
+                session_not_to_do = session_not_to_do + sessions_done
+            if isession in session_not_to_do:
+                print(f'Skipping {isession}')
+                continue
 
             # Filter by date.
             #date_to_do = '20240217'
@@ -206,4 +236,5 @@ if __name__ == '__main__':
             print(f"Session: {isession}")
             convert_data_to_nwb(config_file=config_yaml,
                                 output_folder=nwb_folder,
-                                with_time_string=False)
+                                with_time_string=False,
+                                experimenter=experimenter_full)
