@@ -28,7 +28,7 @@ elif os_name == 'Linux':
     SERVER_PATH = '/mnt'
 
 ON_HAAS = False
-if platform.node() == 'haas056.ds-a3-r10.cct.rcp.epfl.ch':
+if platform.node().startswith('haas'):
     ON_HAAS = True
 
 def get_data_root():
