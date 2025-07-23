@@ -117,50 +117,8 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True, exper
 
     return
 
-def process_session(mouse_id, isession, experimenter_full, 
-                   sessions_to_do, session_not_to_do, skip_existing_files, 
-                   last_done_day):
-    """Process a single session for a mouse."""
-    
-    data_folder = get_subject_data_folder(mouse_id)
-    if not os.path.exists(data_folder):
-        print(f"No mouse data folder for {mouse_id}.")
-        return None
-        
-    analysis_folder = get_subject_analysis_folder(mouse_id, experimenter=experimenter_full)
-    nwb_folder = get_nwb_folder(mouse_id, experimenter=experimenter_full)
-
-    sessions_done = Path(nwb_folder).glob('*.nwb')
-    sessions_done = [f.stem for f in sessions_done]
-
-    # Filter session ID to do.
-    if isession not in sessions_to_do:
-        return None
-
-    if skip_existing_files:
-        session_not_to_do_extended = session_not_to_do + sessions_done
-    else:
-        session_not_to_do_extended = session_not_to_do
-        
-    if isession in session_not_to_do_extended:
-        print(f'Skipping {isession}')
-        return None
-
-    # Filter by date.
-    session_date = isession.split('_')[1]
-    session_date = datetime.datetime.strptime(session_date, "%Y%m%d")
-    if last_done_day is not None:
-        if session_date <= datetime.datetime.strptime(last_done_day, "%Y%m%d"):
-            return None
-        else:
-            print('Converting', isession)
-      
-    print('Converting', isession)
-
-    # Find yaml config file and behavior results for this session.
-    config_yaml = os.path.join(analysis_folder, isession, f"config_{isession}.yaml")
-
-    # Make conversion.
+def convert_single_session(config_yaml, nwb_folder, experimenter_full, isession):
+    """Wrapper function to convert a single session to NWB format."""
     print(" ------------------ ")
     print(f"Session: {isession}")
     
@@ -171,51 +129,8 @@ def process_session(mouse_id, isession, experimenter_full,
                            experimenter=experimenter_full)
         return f"Successfully processed {isession}"
     except Exception as e:
+        print(f"Error processing {isession}: {str(e)}")
         return f"Error processing {isession}: {str(e)}"
-
-def process_mouse_sessions_parallel(mouse_ids, experimenter, experimenter_full, 
-                                  sessions_to_do, session_not_to_do, 
-                                  skip_existing_files, last_done_day,
-                                  n_jobs=2):
-    """
-    Process all mouse sessions in parallel.
-    
-    Parameters:
-    - n_jobs: Number of parallel jobs. -1 uses all available cores.
-    """
-    
-    # Collect all (mouse_id, session, day) combinations
-    all_tasks = []
-    
-    for mouse_id in mouse_ids:
-        data_folder = get_subject_data_folder(mouse_id)
-        if not os.path.exists(data_folder):
-            print(f"No mouse data folder for {mouse_id}.")
-            continue
-            
-        training_days = find_training_days(mouse_id, data_folder)
-        
-        # Add all sessions for this mouse to the task list
-        for isession, iday in training_days:
-            all_tasks.append((mouse_id, isession, iday))
-    
-    # Process all tasks in parallel
-    results = Parallel(n_jobs=n_jobs, verbose=1)(
-        delayed(process_session)(
-            mouse_id, isession, experimenter_full,
-            sessions_to_do, session_not_to_do, skip_existing_files,
-            last_done_day,
-        ) for mouse_id, isession, iday in all_tasks
-    )
-    
-    # Filter out None results and print summary
-    successful_results = [r for r in results if r is not None]
-    print(f"\nProcessing complete. {len(successful_results)} sessions processed.")
-    for result in successful_results:
-        if result.startswith("Error"):
-            print(result)
-    
-    return results
 
 if __name__ == '__main__':
 
@@ -252,16 +167,78 @@ if __name__ == '__main__':
     experimenter_full = 'Jules_Lebert'
     # last_done_day = '20240506'
     last_done_day = None
-    skip_existing_files = False
+    skip_existing_files = False # Overwrite if False
     n_jobs = 15
+    sessions_to_convert = []
 
-    results = process_mouse_sessions_parallel(
-        mouse_ids=mouse_ids,
-        experimenter=experimenter,
-        experimenter_full=experimenter_full,
-        sessions_to_do=sessions_to_do,
-        session_not_to_do=session_not_to_do,
-        skip_existing_files=skip_existing_files,
-        last_done_day=last_done_day,
-        n_jobs=n_jobs,
+    for mouse_id in mouse_ids:
+        data_folder = get_subject_data_folder(mouse_id)
+        if os.path.exists(data_folder):
+            pass
+        else:
+            print(f"No mouse data folder for {mouse_id}.")
+            continue
+        analysis_folder = get_subject_analysis_folder(mouse_id, experimenter=experimenter_full)
+        nwb_folder = get_nwb_folder(mouse_id, experimenter=experimenter_full)
+
+        sessions_done = Path(nwb_folder).glob('*.nwb')
+        sessions_done = [f.stem for f in sessions_done]
+
+        training_days = find_training_days(mouse_id, data_folder)
+
+        # Create NWB by looping over sessions.
+        for isession, iday in training_days:
+
+            # Filter session ID to do.
+            if isession not in sessions_to_do:
+                continue
+
+            if skip_existing_files:
+                session_not_to_do = session_not_to_do + sessions_done
+            if isession in session_not_to_do:
+                print(f'Skipping {isession}')
+                continue
+
+            # Filter by date.
+            session_date = isession.split('_')[1]
+            session_date = datetime.datetime.strptime(session_date, "%Y%m%d")
+            if last_done_day is not None:
+                if session_date <= datetime.datetime.strptime(last_done_day, "%Y%m%d"):
+                    continue
+                else:
+                    print('Converting', isession)
+
+            # Filter by session type.
+            last_session_type = training_days[-1][1]
+            if experimenter == 'AB' and iday not in ['whisker_0']:
+                continue
+            elif experimenter == 'PB' and iday!=last_session_type:
+                continue
+            print('Converting', isession)
+
+            # Find yaml config file and behavior results for this session.
+            config_yaml = os.path.join(analysis_folder, isession, f"config_{isession}.yaml")
+            
+            # Add to list of sessions to convert
+            sessions_to_convert.append((config_yaml, nwb_folder, experimenter_full, isession))
+
+    # Now run all conversions in parallel
+    print(f"Converting {len(sessions_to_convert)} sessions in parallel...")
+
+    results = Parallel(n_jobs=n_jobs, verbose=1)(
+        delayed(convert_single_session)(config_yaml, nwb_folder, experimenter_full, isession)
+        for config_yaml, nwb_folder, experimenter_full, isession in sessions_to_convert
     )
+
+    # Print results
+    successful = [r for r in results if r.startswith("Successfully")]
+    errors = [r for r in results if r.startswith("Error")]
+
+    print(f"\nProcessing complete:")
+    print(f"  - Successfully processed: {len(successful)} sessions")
+    print(f"  - Errors: {len(errors)} sessions")
+
+    if errors:
+        print("\nErrors encountered:")
+        for error in errors:
+            print(f"  {error}")
