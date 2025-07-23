@@ -3,7 +3,7 @@ import cv2
 import itertools
 import numpy as np
 import matplotlib as mpl
-mpl.use('TkAgg')
+# mpl.use('TkAgg') # Commented out because this causes problem on the server
 import matplotlib.pyplot as plt
 import scipy.signal as sci_si
 from scipy.ndimage import gaussian_filter1d

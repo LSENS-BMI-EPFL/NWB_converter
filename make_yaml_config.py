@@ -3,16 +3,23 @@
 import datetime
 import json
 import os
+from pathlib import Path
+import warnings
 
 import numpy as np
 import pandas as pd
 import yaml
 
 from utils.behavior_converter_misc import find_training_days
-from utils.server_paths import (get_ref_weight_folder,
-                                get_subject_analysis_folder,
-                                get_subject_data_folder,
-                                get_subject_mouse_number, get_experimenter_analysis_folder)
+from utils.server_paths import (
+    get_ref_weight_folder,
+    get_subject_analysis_folder,
+    get_subject_data_folder,
+    get_subject_mouse_number, 
+    get_experimenter_analysis_folder,
+    get_analysis_root,
+    EXPERIMENTER_MAP,
+    )
 from metadata_to_yaml import add_metadata_to_config
 
 # Update your keywords
@@ -27,12 +34,13 @@ KEYWORD_MAP = {
     'MM': [''],
     'LS': [''],
     'GF': ['optogenetics', 'widefield', 'two_photon', 'calcium_imaging', 'barrel_cortex'],
-    'MI': ['optogenetics', 'widefield', 'two_photon', 'calcium_imaging', 'barrel_cortex']
+    'MI': ['optogenetics', 'widefield', 'two_photon', 'calcium_imaging', 'barrel_cortex'],
+    'JL': ['electrophysiology', 'neuropixels'],
 }
 
 
 def make_yaml_config(subject_id, session_id, session_description, input_folder, output_folder,
-                     mouse_line='C57BL/6', gmo=True):
+                     mouse_line='C57BL/6', gmo=True, experimenter=None):
     """_summary_
 
     Args:
@@ -47,12 +55,15 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     # #################
 
     # Get mouse number and experimenter initials from subject ID.
-    _, experimenter = get_subject_mouse_number(subject_id)
+    if experimenter is None:
+        _, experimenter = get_subject_mouse_number(subject_id)
 
     # Select most recent metadata export from SLIMS folder.
     try:
         slims_csv = sorted(os.listdir(os.path.join(input_folder, 'SLIMS')))[
             0]  # post-euthanasia SLIMS file has more information
+        if experimenter == 'JL':
+            slims_csv = sorted(os.listdir(os.path.join(input_folder, 'SLIMS')))[-1]
         slims_csv_path = os.path.join(input_folder, 'SLIMS', slims_csv)
         slims = pd.read_csv(slims_csv_path, sep=';', engine='python')
     except IndexError:
@@ -239,7 +250,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     # Extracell. ephys. metadata.
     # ####################
     if experimenter in ['AB', 'PB', 'MH', 'RD', 'JL']:
-        ephys_metadata = create_ephys_metadata(subject_id=subject_id)
+        ephys_metadata = create_ephys_metadata(subject_id=subject_id, experimenter=experimenter, session_date=session_date)
 
     # Write to yaml file.
     # ###################
@@ -401,7 +412,7 @@ def create_behaviour_metadata(experimenter, path_to_json_config):
     return behaviour_metadata
 
 
-def create_ephys_metadata(subject_id):
+def create_ephys_metadata(subject_id, experimenter, session_date):
     """
     Make ephys metadata dictionary.
     Args:
@@ -409,67 +420,131 @@ def create_ephys_metadata(subject_id):
 
     Returns:
 
+
+    Notes: this function assumes that probe_insertion_info.xlsx has the following columns:
+        - mouse_name
+        - Setup
+        - valid
+        - catgt
+        - kilosort
+        - phy_bc
+        - tprime
+        - cwaves 
+        - imaging
+        - anatomy
     """
+
+    experimenter_full = EXPERIMENTER_MAP[experimenter]
     mouse_number, initials = get_subject_mouse_number(subject_id)
+    mouse_initials = initials[:2]
+    path_to_probe_info = Path(get_analysis_root()) / experimenter_full / 'mice_info' / 'probe_insertion_info.xlsx'
+    df_probe_info = pd.read_excel(path_to_probe_info)
+    mouse_rows = df_probe_info[df_probe_info['mouse_name'] == subject_id]
+    mouse_rows = df_probe_info[df_probe_info['mouse_name'] == subject_id]
 
-    # Set setup and paths here
-    if initials in ['AB']:
-        setup = 'Neuropixels setup 1 AI3209'
-        path_to_probe_info = r'M:\analysis\Axel_Bisi\mice_info\probe_insertion_info.xlsx'
-        path_to_atlas = r'C:\Users\bisi\.brainglobe\allen_mouse_bluebrain_barrels_10um_v1.0'
-    elif initials in ['PB']:
-        setup = 'Neuropixels setup 1 AI3209'
-        path_to_probe_info = r'M:\analysis\Axel_Bisi\mice_info\probe_insertion_info.xlsx'
-        path_to_atlas = r'C:\Users\bisi\.brainglobe\allen_mouse_bluebrain_barrels_10um_v1.0'
-
+    # Check for 'date' column and if any date is present for the selected mouse
+    if 'date' in df_probe_info.columns and mouse_rows['date'].notnull().any():
+        # Ensure 'date' is datetime
+        df_probe_info['date'] = pd.to_datetime(df_probe_info['date'], errors='coerce')
+        # Select rows for this subject and date
+        selected_rows = df_probe_info[
+            (df_probe_info['date'].dt.date == session_date.date()) & (df_probe_info['mouse_name'] == subject_id)
+        ]
+        setup = selected_rows['Setup']
+        setup = setup.iloc[0] if not setup.empty else None
     else:
-        setup = 'Neuropixels setup 2 AI3209'
+        # Select rows for this subject (no date, probably only one recording)
+        selected_rows = df_probe_info[df_probe_info['mouse_name'] == subject_id]
+        setup = selected_rows['Setup']
+        setup = setup.iloc[0] if not setup.empty else None
+
+    # Now, check if any row in selected_rows has all of the following columns == 1
+    required_cols = ['valid', 'catgt', 'kilosort', 'phy_bc', 'tprime', 'cwaves', 'imaging', 'anatomy']
+    processed = 0
+    if not selected_rows.empty and all(col in selected_rows.columns for col in required_cols):
+        # Check if any row has all required columns == 1
+        processed = int(
+            (selected_rows[required_cols] == 1).all(axis=1).any()
+        )
+    else:
+        processed = 0
+
+    if setup is None:
+        warnings.warn(f"Setup information not found for subject {subject_id} on date {session_date.strftime('%Y-%m-%d')}.")
+
+    setup = f'Neuropixels {setup}'
+
+
+    path_to_atlas_dict = {
+        'AB': r'C:\Users\bisi\.brainglobe\allen_mouse_bluebrain_barrels_10um_v1.0',
+        'JL': r'/home/lebert/.brainglobe/allen_mouse_bluebrain_barrels_10um_v1.0',
+    }
+
+    path_to_atlas = path_to_atlas_dict.get(experimenter, None)
+    if path_to_atlas is None:
+        warnings.warn(f'No path to atlas set for {experimenter}')
 
     # Set SpikeGLX-NIDQ channel mapping, experiment-dependent
     # Note: if the setup is changed, the channel mapping should be updated
     # TODO: use it later on in preprocessing
-    if initials in ['AB', 'MH'] and setup == 'Neuropixels setup 1 AI3209':
-        ephys_channels_dict = {
-            0: 'sync',
-            1: 'trial_TTL',
-            2: 'whisker_stim',
-            3: 'auditory_stim',
-            4: 'valve',
-            5: 'cam1',
-            6: 'cam2',
-            7: 'lick_trace'
-        }
-    elif initials == 'PB' and setup == 'Neuropixels setup 1 AI3209':
-        ephys_channels_dict = {
-            0: 'sync',
-            1: 'trial_TTL',
-            2: 'whisker_stim',
-            3: 'auditory_stim',
-            4: 'context_transition',
-            5: 'cam1',
-            6: 'cam2',
-            7: 'lick_trace'
-        }
-    elif initials in ['MH'] and setup == 'Neuropixels setup 2 AI3209':
-        print('WARNING - ADD CHANNEL MAPPING FOR NEUROPIXELS SETUP 2 AI3209')
-        ephys_channels_dict = {}
+    ephys_channels_dict_map = {
+        'Neuropixels setup 1 AI3209': {
+            'default': {
+                0: 'sync',
+                1: 'trial_TTL',
+                2: 'auditory_stim',
+                3: 'whisker_stim',
+                4: 'valve',
+                5: 'cam1',
+                6: 'cam2',
+                7: 'lick_trace'
+            },
+            'context': {
+                0: 'sync',
+                1: 'trial_TTL',
+                2: 'auditory_stim',
+                3: 'whisker_stim',
+                4: 'context_transition',
+                5: 'cam1',
+                6: 'cam2',
+                7: 'lick_trace'
+            },
+        },
+        'Neuropixels setup 2 AI3209': {
+            'default':{
+                0: 'sync',
+                1: 'trial_TTL',
+                2: 'whisker_stim',
+                3: 'lick_trace',
+                4: 'valve',
+                5: 'cam1',
+                6: 'cam2',
+                7: 'auditory_stim'
+            },
+            'context':{
+                0: 'sync',
+                1: 'trial_TTL',
+                2: 'whisker_stim',
+                3: 'lick_trace',
+                4: 'context_transition',
+                5: 'cam1',
+                6: 'cam2',
+                7: 'auditory_stim'
+            },
+        },
+    }
+    channel_map = 'default'
+    if initials in ['JL', 'PB', 'RD']:
+        channel_map = 'context'
 
-    # Set which mice have processed neural data
-    if initials == 'AB' and int(mouse_number) not in [159, 163, 164]:
-        processed = 0
-    elif subject_id in ['AB077', 'AB135', 'AB137']:
-        processed = 0
-    elif initials == 'PB':
-        processed = 0
-    else:
-        processed = 1
+    ephys_channels_dict = ephys_channels_dict_map[setup][channel_map]
 
     ephys_metadata = {
         'setup': setup,
         'ephys_channels_dict': ephys_channels_dict,
         'unit_table': 'standard',  # 'simple' or 'standard'
         'processed': processed, # 0 or 1
-        'path_to_probe_info': path_to_probe_info,
+        'path_to_probe_info': str(path_to_probe_info),
         'path_to_atlas': path_to_atlas,
     }
     return ephys_metadata
@@ -512,13 +587,16 @@ def create_wf_metadata(config_path):
 
 if __name__ == '__main__':
     # Select mouse IDs.
-    experimenter = 'AB'
-    mouse_ids = ['AB{}'.format(n) for n in range(151, 157)]
-    mouse_ids = ['AB105']
-    mouse_ids = ['AB080']
-    mouse_ids = ['PB191', 'PB192', 'PB193', 'PB194', 'PB195', 'PB196', 'PB197', 'PB198', 'PB200', 'PB201']
-    mouse_ids = ['PB191']
-    mouse_ids = ['AB159', 'AB162', 'AB163', 'AB164']
+    experimenter = 'JL'
+    experimenter_full = 'Jules_Lebert'
+    mouse_ids = [
+        'PB191', 
+        'JL007',
+    ]
+    sessions_to_do = [
+        'JL007_20250603_150143',
+        'PB191_20241210_110601',
+    ]
     #last_done_day = '20241210'
 
     for mouse_id in mouse_ids:
@@ -531,11 +609,7 @@ if __name__ == '__main__':
         else:
             print(f"No mouse data folder for {mouse_id}.")
             continue
-        analysis_folder = get_subject_analysis_folder(mouse_id)
-
-        if experimenter == 'AB' and mouse_id.startswith('PB'):
-            analysis_folder = get_experimenter_analysis_folder('AB')
-            analysis_folder = os.path.join(analysis_folder, 'data', mouse_id)
+        analysis_folder = get_subject_analysis_folder(mouse_id, experimenter=experimenter_full)
 
         # Make config files.
         training_days = find_training_days(mouse_id, data_folder)
@@ -548,9 +622,8 @@ if __name__ == '__main__':
             #     if session_date <= datetime.datetime.strptime(last_done_day, "%Y%m%d"):
             #         continue#
 
-            #sessions_to_do = []
-            #if session_id not in sessions_to_do:
-            #     continue
+            if session_id not in sessions_to_do:
+                continue
 
             if experimenter == 'AB' and day != 'whisker_0':
                 continue
@@ -560,7 +633,7 @@ if __name__ == '__main__':
 
 
             make_yaml_config(mouse_id, session_id, day, data_folder, analysis_folder,
-                             mouse_line='C57BL/6', gmo=False)
+                             mouse_line='C57BL/6', gmo=False, experimenter=experimenter)
 
             #add_metadata_to_config(mouse_id, session_id, experimenter)
 
