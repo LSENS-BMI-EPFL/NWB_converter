@@ -800,10 +800,6 @@ def build_area_table(config_file, imec_folder, experimenter=None):
     # Reverse order of rows (from probe tip upwards)
     area_table = area_table.iloc[::-1]  # reverse order (from probe tip upwards)
 
-    # Remove first 9 rows (probe tip without electrodes)
-    #if int(mouse_name[2:]) < 100: # TODO: remove for future mice (also see below)
-    #    area_table = area_table.iloc[9:, :]  # remove first 9 rows (probe tip)
-
     area_table = area_table.iloc[9:, :]  # remove first 9 rows (probe tip)
 
     max_position = np.max(area_table['shank_row'].values)
@@ -865,13 +861,10 @@ def build_area_table(config_file, imec_folder, experimenter=None):
     coords = coords[::-1]
     print('Probe track coordinates shape:', coords.shape)
 
-    #if int(mouse_name[2:]) < 100: # TODO: remove for future mice
-    #    coords = coords[9:, :]
-
     coords = coords[9:, :] # remove tip-length
 
     area_table['ccf_ap'] = coords[:, 0]
-    area_table['ccf_ml'] = coords[:, 1]
-    area_table['ccf_dv'] = coords[:, 2]
+    area_table['ccf_ml'] = coords[:, 2] # nota bene
+    area_table['ccf_dv'] = coords[:, 1]
 
     return area_table

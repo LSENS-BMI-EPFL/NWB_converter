@@ -1,7 +1,7 @@
 import os
 import numpy as np
 import pandas as pd
-import dlc2kinematics
+# import dlc2kinematics
 import matplotlib.pyplot as plt
 
 from scipy.signal import filtfilt, firwin
@@ -31,8 +31,8 @@ def get_dlc_dataframe(dlc_file_path):
     if len(side_path) != 0:
         filetype = side_path[0].split('.')[-1]
         if filetype == 'csv':
-            side_dlc = pd.read_csv(side_path[0], header=[1, 2])
-            side_dlc = side_dlc.drop(('bodyparts', 'coords'), axis=1)
+            side_dlc = pd.read_csv(side_path[0], header=[0, 1])
+            side_dlc = side_dlc.drop([('bodyparts', 'coords'), ('Unnamed: 0_level_0', 'Unnamed: 0_level_1'), ('split', 'Unnamed: 35_level_1')], axis=1)
             side_dlc.columns = ["_".join(a) for a in side_dlc.columns.to_flat_index()]
         elif filetype == 'h5':
             side_dlc, bodyparts, scorer = dlc2kinematics.load_data(side_path[0], smooth=True, filter_window=3, order=1)
@@ -45,8 +45,8 @@ def get_dlc_dataframe(dlc_file_path):
     if len(top_path) != 0:
         filetype = top_path[0].split('.')[-1]
         if filetype == 'csv':
-            top_dlc = pd.read_csv(top_path[0], header=[1, 2])
-            top_dlc = top_dlc.drop(('bodyparts', 'coords'), axis=1)
+            top_dlc = pd.read_csv(top_path[0], header=[0, 1])
+            top_dlc = top_dlc.drop([('bodyparts', 'coords'), ('Unnamed: 0_level_0', 'Unnamed: 0_level_1'), ('split', 'Unnamed: 17_level_1')], axis=1)
             top_dlc.columns = ["_".join(a) for a in top_dlc.columns.to_flat_index()]
         elif filetype == 'h5':
             top_dlc, bodyparts, scorer = dlc2kinematics.load_data(top_path[0], smooth=True, filter_window=3, order=1)
@@ -96,8 +96,8 @@ def compute_kinematics(df, view):
 
         ## Jaw kinematics
 
-        ref_x = np.percentile(np.where(df['jaw_likelihood'] > 0.8, df['jaw_x'], 0), 5)
-        ref_y = np.percentile(np.where(df['jaw_likelihood'] > 0.8, df['jaw_y'], 0), 5)
+        ref_x = np.percentile(np.where(df['jaw_likelihood'] > 0.6, df['jaw_x'], 0), 5)
+        ref_y = np.percentile(np.where(df['jaw_likelihood'] > 0.6, df['jaw_y'], 0), 5)
         df.loc[:, 'jaw_angle'] = np.degrees(np.arcsin((df['jaw_y'] - ref_y) /
                                                            (np.sqrt((df['jaw_y'] - ref_y) ** 2 + (
                                                                    df['jaw_x'] - df['jaw_ref_x'].median()) ** 2))))
@@ -116,8 +116,8 @@ def compute_kinematics(df, view):
 
         ## Nose kinematics
 
-        ref_x = np.percentile(np.where(df['nose_likelihood'] > 0.8, df['nose_x'], 0), 5)
-        ref_y = np.percentile(np.where(df['nose_likelihood'] > 0.8, df['nose_y'], 0), 5)
+        ref_x = np.percentile(np.where(df['nose_likelihood'] > 0.6, df['nose_x'], 0), 5)
+        ref_y = np.percentile(np.where(df['nose_likelihood'] > 0.6, df['nose_y'], 0), 5)
         df.loc[:, 'nose_angle'] = np.degrees(np.arcsin((df['nose_y'] - ref_y) /
                                                            (np.sqrt((df['nose_y'] - ref_y) ** 2 + (
                                                                    df['nose_x'] - df['nose_base_x'].median()) ** 2))))
@@ -133,10 +133,10 @@ def compute_kinematics(df, view):
             (np.dot(x['pupil_bottom_x'], x['pupil_left_y']) - np.dot(x['pupil_bottom_y'], x['pupil_left_x'])) +
             (np.dot(x['pupil_left_x'], x['pupil_top_y']) - np.dot(x['pupil_left_y'], x['pupil_top_x']))), axis=1
                                                 )
-        df.loc[:, 'pupil_likelihood'] = (df.loc[:, 'pupil_top_likelihood'] > 0.9) & \
-                                             (df.loc[:, 'pupil_right_likelihood'] > 0.9) & \
-                                             (df.loc[:, 'pupil_bottom_likelihood'] > 0.9) & \
-                                             (df.loc[:, 'pupil_left_likelihood'] > 0.9)
+        df.loc[:, 'pupil_likelihood'] = (df.loc[:, 'pupil_top_likelihood'] > 0.6) & \
+                                             (df.loc[:, 'pupil_right_likelihood'] > 0.6) & \
+                                             (df.loc[:, 'pupil_bottom_likelihood'] > 0.6) & \
+                                             (df.loc[:, 'pupil_left_likelihood'] > 0.6)
 
         df.loc[:, 'pupil_area_velocity'] = np.zeros_like(df['pupil_area'])
         df.loc[1:, 'pupil_area_velocity'] = np.diff(df['pupil_area'])
@@ -171,6 +171,7 @@ def compute_kinematics(df, view):
         df.loc[1:, 'nose_velocity'] = np.diff(df['nose_distance'])
 
     return df
+
 
 def compute_kinematics_alt(df, view):
 
