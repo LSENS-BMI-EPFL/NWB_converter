@@ -381,9 +381,8 @@ def get_anat_probe_track_folder(config_file):
     if experimenter == 'Axel_Bisi':
         if int(mouse_name[2:]) < 90:
             probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', mouse_name, 'brainreg\\manual_segmentation') #older brainreg auto output
-        #if int(mouse_name[2:]) < 116:
         if int(mouse_name[2:]) < 102:
-                probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', mouse_name, 'brainreg\\manual_segmentation') #older brainreg auto output
+            probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', mouse_name, 'brainreg\\manual_segmentation') #older brainreg auto output
         else:
             probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', experimenter, mouse_name, 'fused\\registered\\segmentation')
     else:

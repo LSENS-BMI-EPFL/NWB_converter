@@ -748,12 +748,6 @@ def build_area_table(config_file, imec_folder):
     mouse_name = config['subject_metadata']['subject_id']
     path_to_proc_anat = server_paths.get_anat_probe_track_folder(config_file)
 
-    # TODO: confirm location and update
-    #if int(mouse_name[2:]) < 116:
-    #    path_to_proc_anat = r'M:\analysis\Axel_Bisi\ImagedBrains\{}\brainreg\manual_segmentation'.format(mouse_name)
-    #else:
-    #    path_to_proc_anat = r'M:\analysis\Axel_Bisi\ImagedBrains\Axel_Bisi\{}\fused\registered\segmentation'.format(mouse_name)
-
     path_to_sample_space_track = os.path.join(path_to_proc_anat, 'sample_space\\tracks', 'imec{}.csv'.format(imec_id))
     area_table = pd.read_csv(path_to_sample_space_track)
 
@@ -775,10 +769,6 @@ def build_area_table(config_file, imec_folder):
 
     # Reverse order of rows (from probe tip upwards)
     area_table = area_table.iloc[::-1]  # reverse order (from probe tip upwards)
-
-    # Remove first 9 rows (probe tip without electrodes)
-    #if int(mouse_name[2:]) < 100: # TODO: remove for future mice (also see below)
-    #    area_table = area_table.iloc[9:, :]  # remove first 9 rows (probe tip)
 
     area_table = area_table.iloc[9:, :]  # remove first 9 rows (probe tip)
 
@@ -838,13 +828,10 @@ def build_area_table(config_file, imec_folder):
     coords = coords[::-1]
     print('Probe track coordinates shape:', coords.shape)
 
-    #if int(mouse_name[2:]) < 100: # TODO: remove for future mice
-    #    coords = coords[9:, :]
-
     coords = coords[9:, :] # remove tip-length
 
     area_table['ccf_ap'] = coords[:, 0]
-    area_table['ccf_ml'] = coords[:, 1]
-    area_table['ccf_dv'] = coords[:, 2]
+    area_table['ccf_ml'] = coords[:, 2] # nota bene
+    area_table['ccf_dv'] = coords[:, 1]
 
     return area_table

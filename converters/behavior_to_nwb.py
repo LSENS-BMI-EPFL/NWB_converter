@@ -250,7 +250,7 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
 
             # Get frame timestamps
             on_off_timestamps = timestamps_dict[cam_key]
-            if np.abs(len(on_off_timestamps) - video_length) > 2:
+            if np.abs(len(on_off_timestamps) - video_length) > 2 and subject_id!='AB151':
                 print(f"Difference in number of frames ({video_length}) vs detected frames ({len(on_off_timestamps)}) "
                       f"is {len(on_off_timestamps) - video_length} (larger than 2), do next video")
                 continue
