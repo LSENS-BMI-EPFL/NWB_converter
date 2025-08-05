@@ -13,11 +13,11 @@ https://github.com/LSENS-BMI-EPFL/NWB_converter/wiki
 Create environment 
 
 ```
-conda create -n <env> python=3.9
+conda create -n <env> python=3.11
 
 conda activate <env>
 
-pip install -r <petersenlab_to_nwb_env.txt>
+pip install -r pyproject.toml
 
 ```
 
