@@ -1,6 +1,7 @@
 import os
 import glob
 import yaml
+import socket
 
 
 EXPERIMENTER_MAP = {
@@ -16,9 +17,26 @@ EXPERIMENTER_MAP = {
 }
 
 
-def get_subject_data_folder(subject_id):
-    data_folder = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'data', subject_id)
+# Define base paths for server and local mounts
+LOCAL_ANALYSIS = r'//sv-nas1.rcp.epfl.ch/Petersen-Lab/analysis'
+LOCAL_DATA = r'//sv-nas1.rcp.epfl.ch/Petersen-Lab/data'
+SERVER_ANALYSIS = '/mnt/lsens-analysis'
+SERVER_DATA = '/mnt/lsens-data'
 
+def adjust_path_to_host(path):
+    host = socket.gethostname()
+    if 'haas' in host:
+        path = path.replace(SERVER_ANALYSIS, LOCAL_ANALYSIS)
+        path = path.replace(SERVER_DATA, LOCAL_DATA)
+    else:
+        path = path.replace(LOCAL_ANALYSIS, SERVER_ANALYSIS)
+        path = path.replace(LOCAL_DATA, SERVER_DATA)
+    return path
+
+def get_subject_data_folder(subject_id):
+    data_folder = os.path.join('//sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'data', subject_id)
+    data_folder = adjust_path_to_host(data_folder)
+    
     return data_folder
 
 
@@ -28,19 +46,14 @@ def get_subject_analysis_folder(subject_id):
     else:
         # Map initials to experimenter to get analysis folder path.
         experimenter = EXPERIMENTER_MAP[subject_id[:2]]
-    analysis_folder = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis',
+    analysis_folder = os.path.join('//sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis',
                                    experimenter, 'data', subject_id)
+    analysis_folder = adjust_path_to_host(analysis_folder)
     if not os.path.exists(analysis_folder):
         os.makedirs(analysis_folder)
 
     return analysis_folder
 
-def get_experimenter_analysis_folder(experimenter):
-    analysis_folder = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis', EXPERIMENTER_MAP[experimenter])
-    if not os.path.exists(analysis_folder):
-        os.makedirs(analysis_folder)
-
-    return analysis_folder
 
 def get_subject_mouse_number(subject_id):
     """Get mouse number for integer comparison"""
@@ -65,8 +78,9 @@ def get_nwb_folder(subject_id):
         experimenter = 'Robin_Dard'
     else:
         experimenter = EXPERIMENTER_MAP[subject_id[:2]]
-    nwb_folder = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis',
+    nwb_folder = os.path.join('//sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis',
                               experimenter, 'NWB')
+    nwb_folder = adjust_path_to_host(nwb_folder)
     if not os.path.exists(nwb_folder):
         os.makedirs(nwb_folder)
 
@@ -83,8 +97,9 @@ def get_ref_weight_folder(experimenter):
 
     """
 
-    ref_weight_folder = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis',
+    ref_weight_folder = os.path.join('//sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis',
                                      EXPERIMENTER_MAP[experimenter], 'mice_info')
+    ref_weight_folder = adjust_path_to_host(ref_weight_folder)
     if not os.path.exists(ref_weight_folder):
         os.makedirs(ref_weight_folder)
 
@@ -103,9 +118,10 @@ def get_behavior_results_file(config_file):
 
     if mouse_name[:2] in ['GF', 'MI']:
         if not os.path.exists(behavior_results_file):
-            behavior_results_file = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis',
+            behavior_results_file = os.path.join('//sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis',
                                                  'Anthony_Renard', 'data', mouse_name, 'Recordings', 'BehaviourData',
                                                  session_name, 'performanceResults.json')
+            behavior_results_file = adjust_path_to_host(behavior_results_file)
         # if not os.path.exists(behavior_results_file):
         #     behavior_results_file = os.path.join(data_folder, 'Recordings', 'BehaviourFiles',
         #                                          session_name, 'BehavResults.mat')
@@ -270,7 +286,7 @@ def get_raw_ephys_folder(config_file):
     session_name = config['session_metadata']['session_id']
     data_folder = get_subject_data_folder(mouse_name)
     raw_ephys_path = os.path.join(data_folder, 'Recording', session_name, 'Ephys')
-    run_name = [f for f in os.listdir(raw_ephys_path) if 'DS' not in f][0]
+    run_name = [f for f in os.listdir(raw_ephys_path)][0]
     raw_ephys_run_folder = os.path.join(raw_ephys_path, run_name)
 
     return raw_ephys_run_folder
@@ -371,30 +387,6 @@ def get_anat_images_files(config_file):
 
     return anat_images
 
-def get_anat_probe_track_folder(config_file):
-    """Returns path to folder with probe track estimates"""
-    with open(config_file, 'r', encoding='utf8') as stream:
-        config = yaml.safe_load(stream)
-    mouse_name = config['subject_metadata']['subject_id']
-    experimenter = EXPERIMENTER_MAP[mouse_name[:2]]
-    analysis_folder = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis', experimenter)
-    if experimenter == 'Axel_Bisi':
-        if int(mouse_name[2:]) < 90:
-            probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', mouse_name, 'brainreg\\manual_segmentation') #older brainreg auto output
-        if int(mouse_name[2:]) < 102:
-            probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', mouse_name, 'brainreg\\manual_segmentation') #older brainreg auto output
-        else:
-            probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', experimenter, mouse_name, 'fused\\registered\\segmentation')
-    else:
-        probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', mouse_name, 'fused\\registered\\segmentation')
-        print('Unspecified experimenter for probe track folder.')
-        print('Default:', probe_track_folder)
-
-    if not os.path.exists(probe_track_folder):
-        print(f"No probe track folder found for {mouse_name}")
-        return None
-
-    return probe_track_folder
 
 def get_opto_results_file(config_file):
     with open(config_file, 'r', encoding='utf8') as stream:
@@ -491,23 +483,22 @@ def get_dlc_file_path(config_file):
     if initials == 'PB':
         experimenter = "Pol_Bech"
         dlc_folder = os.path.join(r"\\sv-nas1.rcp.epfl.ch\Petersen-Lab", "analysis", experimenter, "data", session_id.split("_")[0], session_id).replace("\\", "/")
-        dlc_file = glob.glob(dlc_folder + "/**/*view.csv")
+        dlc_folder = adjust_path_to_host(dlc_folder)
+        dlc_file = glob.glob(dlc_folder + "/**/*.csv")
 
     elif initials == 'RD':
         experimenter = "Robin_Dard"
         dlc_folder = os.path.join(r"\\sv-nas1.rcp.epfl.ch\Petersen-Lab", "analysis", experimenter, "data", session_id.split("_")[0], session_id).replace("\\", "/")
-        dlc_file = glob.glob(dlc_folder + "/**/*view.csv")
+        dlc_folder = adjust_path_to_host(dlc_folder)
+        dlc_file = glob.glob(dlc_folder + "/**/*.csv")
 
     elif initials == 'AB':
-        experimenter = "Axel_Bisi"
-        dlc_folder = os.path.join(r"\\sv-nas1.rcp.epfl.ch\Petersen-Lab", "analysis", experimenter, "data", session_id.split("_")[0], session_id, 'Video').replace("\\", "/")
-        dlc_file = glob.glob(dlc_folder + "/*filtered.h5")
+        dlc_file = None
 
     else:
         dlc_file = None
 
     if dlc_file is not None and len(dlc_file) == 0:
-        print('No DLC file found for session {}'.format(session_id))
         dlc_file = None
 
     return dlc_file
@@ -523,10 +514,6 @@ def get_facemap_file_path(config_file):
     data_folder = os.path.join(get_subject_analysis_folder(mouse_name), session_name)
 
     file_path = os.path.join(data_folder, f'{session_name}_sideview_proc.npy')
-    if not os.path.exists(file_path):
-        return None
 
     return file_path
-
-
 
