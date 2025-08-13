@@ -761,6 +761,7 @@ def build_area_table(config_file, imec_folder, probe_info):
 
     # Format table for future shank row matching
     area_table.rename(columns={'Position':'shank_row',
+                               'Distance from first position [um]':'distance',  # brainreg-segmentation output update
                                'Index':'shank_row', # brainreg-segmentation output update                               'Region ID': 'ccf_id',
                                'Region ID': 'ccf_id',
                                'Region acronym': 'ccf_acronym',
@@ -779,12 +780,13 @@ def build_area_table(config_file, imec_folder, probe_info):
 
     # Compare insertion depth and trace reconstruction depth to identify potential interpolation issues
     physical_depth = probe_info['depth'].values[0]
-    max_position = np.max(area_table['shank_row'].values)
-    if abs(physical_depth - max_position) > 500:
-        print(f'Warning: physical depth ({physical_depth}) and max. track depth ({max_position}) differ by more than 500 um,\
+    interp_depth = area_table['distance'].max()
+    if abs(physical_depth - interp_depth) > 500:
+        print(f'Warning: physical depth ({physical_depth}) and max. track depth ({interp_depth}) differ by more than 500 um,\
         check the extent of annotations/interpolated track.')
 
     # Make values start at 0 to match probe geometry
+    max_position = np.max(area_table['shank_row'].values)
     area_table['shank_row'] = max_position - area_table['shank_row'].values  # make values start at 0
 
     # Add atlas metadata

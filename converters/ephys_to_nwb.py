@@ -119,7 +119,7 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
         # ----------------------------------
 
         # Build table with anatomical location estimates of each electrode
-        area_table = build_area_table(config_file=config_file, imec_folder=imec_folder)
+        area_table = build_area_table(config_file=config_file, imec_folder=imec_folder, probe_info=probe_row)
 
         # Reindex to match shank electrode order
         area_table = area_table.sort_values(by=['shank_row'], ascending=True, axis=0)
