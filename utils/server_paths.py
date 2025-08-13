@@ -1,7 +1,7 @@
 import os
 import glob
 import yaml
-
+import socket
 
 EXPERIMENTER_MAP = {
     'AR': 'Anthony_Renard',
