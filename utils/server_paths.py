@@ -530,6 +530,15 @@ def get_dlc_file_path(config_file):
         dlc_folder = adjust_path_to_host(dlc_folder)
         dlc_file = glob.glob(dlc_folder + "/**/*view.csv")
 
+        if config['ephys_metadata'] is not None:
+            dlc_folder = os.path.join(r"////sv-nas1.rcp.epfl.ch/Petersen-Lab", "analysis", "Axel_Bisi", "data", session_id.split("_")[0], session_id, 'Video').replace("//", "/")
+            print(dlc_folder)
+            dlc_folder_2 = adjust_path_to_host(dlc_folder)
+            print(dlc_folder_2)
+            print(os.listdir(dlc_folder))
+            dlc_file = glob.glob(dlc_folder + "/*filtered.h5")
+            print('HERE dlc_file', dlc_file)
+
     elif initials == 'RD':
         experimenter = "Robin_Dard"
         dlc_folder = os.path.join(r"//sv-nas1.rcp.epfl.ch/Petersen-Lab", "analysis", experimenter, "data", session_id.split("_")[0], session_id).replace("//", "/")
@@ -540,10 +549,6 @@ def get_dlc_file_path(config_file):
         experimenter = "Axel_Bisi"
         dlc_folder = os.path.join(r"//sv-nas1.rcp.epfl.ch/Petersen-Lab", "analysis", experimenter, "data", session_id.split("_")[0], session_id, 'Video').replace("//", "/")
         dlc_folder = adjust_path_to_host(dlc_folder)
-        dlc_file = glob.glob(dlc_folder + "/*filtered.h5")
-    elif initials == 'PB' and config['ephys_metadata'] is not None:
-        experimenter = "Axel_Bisi"
-        dlc_folder = os.path.join(r"\\sv-nas1.rcp.epfl.ch\Petersen-Lab", "analysis", experimenter, "data", session_id.split("_")[0], session_id, 'Video').replace("\\", "/")
         dlc_file = glob.glob(dlc_folder + "/*filtered.h5")
 
     else:
