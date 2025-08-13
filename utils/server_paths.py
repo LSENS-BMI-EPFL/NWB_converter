@@ -25,6 +25,8 @@ def get_subject_data_folder(subject_id):
 def get_subject_analysis_folder(subject_id):
     if subject_id == 'PB124':
         experimenter = 'Robin_Dard'
+    elif subject_id in ['PB191', 'PB192', 'PB193', 'PB194', 'PB195', 'PB196', 'PB197', 'PB198', 'PB200', 'PB201']:
+        experimenter = 'Axel_Bisi'
     else:
         # Map initials to experimenter to get analysis folder path.
         experimenter = EXPERIMENTER_MAP[subject_id[:2]]
@@ -178,7 +180,10 @@ def get_session_movie_files(config_file):
     #analysis_folder = get_subject_analysis_folder(mouse_name)
     #movies_path = os.path.join(analysis_folder, session_name, 'Video')
     data_folder = get_subject_data_folder(mouse_name)
-    movies_path = os.path.join(data_folder, 'Recording', session_name, 'Video')
+    if mouse_name in ['PB{}'.format(str(i)) for i in range(191,202)]:
+        movies_path = os.path.join(data_folder, 'Recording', 'Video', session_name)
+    else:
+        movies_path = os.path.join(data_folder, 'Recording', session_name, 'Video')
     if not os.path.exists(movies_path):
         movies = None
         return movies
@@ -269,7 +274,11 @@ def get_raw_ephys_folder(config_file):
     mouse_name = config['subject_metadata']['subject_id']
     session_name = config['session_metadata']['session_id']
     data_folder = get_subject_data_folder(mouse_name)
-    raw_ephys_path = os.path.join(data_folder, 'Recording', session_name, 'Ephys')
+    if mouse_name in ['PB{}'.format(str(i)) for i in range(191,202)]:
+        # For PB191-PB201, the ephys data is stored in a different folder structure
+        raw_ephys_path = os.path.join(data_folder, 'Recording', 'Ephys', session_name)
+    else:
+        raw_ephys_path = os.path.join(data_folder, 'Recording', session_name, 'Ephys')
     run_name = [f for f in os.listdir(raw_ephys_path) if 'DS' not in f][0]
     raw_ephys_run_folder = os.path.join(raw_ephys_path, run_name)
 
@@ -378,17 +387,22 @@ def get_anat_probe_track_folder(config_file):
     mouse_name = config['subject_metadata']['subject_id']
     experimenter = EXPERIMENTER_MAP[mouse_name[:2]]
     analysis_folder = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis', experimenter)
+    if mouse_name in ['PB{}'.format(str(i)) for i in range(191,202)]:
+        analysis_folder = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis', 'Axel_Bisi')
     if experimenter == 'Axel_Bisi':
-        if int(mouse_name[2:]) < 90:
-            probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', mouse_name, 'brainreg\\manual_segmentation') #older brainreg auto output
-        if int(mouse_name[2:]) < 102:
+        #if int(mouse_name[2:]) < 70:
+        #    probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', mouse_name, 'brainreg\\manual_segmentation') #older brainreg auto output
+        if int(mouse_name[2:]) < 70:
             probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', mouse_name, 'brainreg\\manual_segmentation') #older brainreg auto output
         else:
             probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', experimenter, mouse_name, 'fused\\registered\\segmentation')
     else:
-        probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', mouse_name, 'fused\\registered\\segmentation')
-        print('Unspecified experimenter for probe track folder.')
-        print('Default:', probe_track_folder)
+        if mouse_name in ['PB{}'.format(str(i)) for i in range(191,202)]:
+            probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', 'Axel_Bisi', mouse_name, 'fused\\registered\\segmentation')
+        else:
+            probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', mouse_name, 'fused\\registered\\segmentation')
+            print('Unspecified experimenter for probe track folder.')
+            print('Default:', probe_track_folder)
 
     if not os.path.exists(probe_track_folder):
         print(f"No probe track folder found for {mouse_name}")
@@ -499,6 +513,10 @@ def get_dlc_file_path(config_file):
         dlc_file = glob.glob(dlc_folder + "/**/*view.csv")
 
     elif initials == 'AB':
+        experimenter = "Axel_Bisi"
+        dlc_folder = os.path.join(r"\\sv-nas1.rcp.epfl.ch\Petersen-Lab", "analysis", experimenter, "data", session_id.split("_")[0], session_id, 'Video').replace("\\", "/")
+        dlc_file = glob.glob(dlc_folder + "/*filtered.h5")
+    elif initials == 'PB' and config['ephys_metadata'] is not None:
         experimenter = "Axel_Bisi"
         dlc_folder = os.path.join(r"\\sv-nas1.rcp.epfl.ch\Petersen-Lab", "analysis", experimenter, "data", session_id.split("_")[0], session_id, 'Video').replace("\\", "/")
         dlc_file = glob.glob(dlc_folder + "/*filtered.h5")
