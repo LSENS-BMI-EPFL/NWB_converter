@@ -53,11 +53,12 @@ def get_probe_insertion_info(config_file):
         config = yaml.load(f, Loader=yaml.FullLoader)
 
     # This is experimenter-specific tracking of that information
-    try: # TODO: temporary for yaml files containing this info
+    #try: # TODO: temporary for yaml files containing this info
+    if 'path_to_probe_info' in config.get('ephys_metadata').keys():
         path_to_probe_info = config.get('ephys_metadata').get('path_to_probe_info')
         probe_info_df = pd.read_excel(path_to_probe_info)
-    except KeyError:
-        print('Yaml file ephys_metadata does not contain path to probe insertion info.')
+    #except KeyError:
+    #    print('Yaml file ephys_metadata does not contain path to probe insertion info.')
     else:
 
         if config.get('session_metadata').get('experimenter') == 'AB':
@@ -142,7 +143,7 @@ def read_ephys_binary_data(bin_file, meta_file):
 
     # Parameters about what data to read
     # This can be user-specific
-    # TODO: read a config file ephys_channel_dict
+    # TODO: read a config file ephys_channel_dict from the yaml file
 
     t_start = 0
     t_end = -1
@@ -819,7 +820,7 @@ def build_area_table(config_file, imec_folder):
     # Load ccf coordinates (ccf standard space)
     # -----------------------------------------
 
-    if int(mouse_name[2:]) < 90:
+    if int(mouse_name[2:]) < 70:
         path_to_atlas_space_track = os.path.join(path_to_proc_anat, 'standard_space\\tracks')
     else:
         path_to_atlas_space_track = os.path.join(path_to_proc_anat, 'atlas_space\\tracks')
