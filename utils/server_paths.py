@@ -16,9 +16,26 @@ EXPERIMENTER_MAP = {
 }
 
 
-def get_subject_data_folder(subject_id):
-    data_folder = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'data', subject_id)
+# Define base paths for server and local mounts
+LOCAL_ANALYSIS = r'//sv-nas1.rcp.epfl.ch/Petersen-Lab/analysis'
+LOCAL_DATA = r'//sv-nas1.rcp.epfl.ch/Petersen-Lab/data'
+SERVER_ANALYSIS = '/mnt/lsens-analysis'
+SERVER_DATA = '/mnt/lsens-data'
 
+def adjust_path_to_host(path):
+    host = socket.gethostname()
+    if 'haas' in host:
+        path = path.replace(SERVER_ANALYSIS, LOCAL_ANALYSIS)
+        path = path.replace(SERVER_DATA, LOCAL_DATA)
+    else:
+        path = path.replace(LOCAL_ANALYSIS, SERVER_ANALYSIS)
+        path = path.replace(LOCAL_DATA, SERVER_DATA)
+    return path
+
+def get_subject_data_folder(subject_id):
+    data_folder = os.path.join('//sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'data', subject_id)
+    data_folder = adjust_path_to_host(data_folder)
+    
     return data_folder
 
 
@@ -30,15 +47,17 @@ def get_subject_analysis_folder(subject_id):
     else:
         # Map initials to experimenter to get analysis folder path.
         experimenter = EXPERIMENTER_MAP[subject_id[:2]]
-    analysis_folder = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis',
+    analysis_folder = os.path.join('//sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis',
                                    experimenter, 'data', subject_id)
+    analysis_folder = adjust_path_to_host(analysis_folder)
     if not os.path.exists(analysis_folder):
         os.makedirs(analysis_folder)
 
     return analysis_folder
 
 def get_experimenter_analysis_folder(experimenter):
-    analysis_folder = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis', EXPERIMENTER_MAP[experimenter])
+    analysis_folder = os.path.join('//sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis', EXPERIMENTER_MAP[experimenter])
+    analysis_folder = adjust_path_to_host(analysis_folder)    
     if not os.path.exists(analysis_folder):
         os.makedirs(analysis_folder)
 
@@ -67,8 +86,9 @@ def get_nwb_folder(subject_id):
         experimenter = 'Robin_Dard'
     else:
         experimenter = EXPERIMENTER_MAP[subject_id[:2]]
-    nwb_folder = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis',
+    nwb_folder = os.path.join('//sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis',
                               experimenter, 'NWB')
+    nwb_folder = adjust_path_to_host(nwb_folder)
     if not os.path.exists(nwb_folder):
         os.makedirs(nwb_folder)
 
@@ -85,8 +105,9 @@ def get_ref_weight_folder(experimenter):
 
     """
 
-    ref_weight_folder = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis',
+    ref_weight_folder = os.path.join('//sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis',
                                      EXPERIMENTER_MAP[experimenter], 'mice_info')
+    ref_weight_folder = adjust_path_to_host(ref_weight_folder)
     if not os.path.exists(ref_weight_folder):
         os.makedirs(ref_weight_folder)
 
@@ -105,9 +126,10 @@ def get_behavior_results_file(config_file):
 
     if mouse_name[:2] in ['GF', 'MI']:
         if not os.path.exists(behavior_results_file):
-            behavior_results_file = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis',
+            behavior_results_file = os.path.join('//sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'analysis',
                                                  'Anthony_Renard', 'data', mouse_name, 'Recordings', 'BehaviourData',
                                                  session_name, 'performanceResults.json')
+            behavior_results_file = adjust_path_to_host(behavior_results_file)
         # if not os.path.exists(behavior_results_file):
         #     behavior_results_file = os.path.join(data_folder, 'Recordings', 'BehaviourFiles',
         #                                          session_name, 'BehavResults.mat')
@@ -504,17 +526,20 @@ def get_dlc_file_path(config_file):
 
     if initials == 'PB':
         experimenter = "Pol_Bech"
-        dlc_folder = os.path.join(r"\\sv-nas1.rcp.epfl.ch\Petersen-Lab", "analysis", experimenter, "data", session_id.split("_")[0], session_id).replace("\\", "/")
+        dlc_folder = os.path.join(r"//sv-nas1.rcp.epfl.ch/Petersen-Lab", "analysis", experimenter, "data", session_id.split("_")[0], session_id).replace("//", "/")
+        dlc_folder = adjust_path_to_host(dlc_folder)
         dlc_file = glob.glob(dlc_folder + "/**/*view.csv")
 
     elif initials == 'RD':
         experimenter = "Robin_Dard"
-        dlc_folder = os.path.join(r"\\sv-nas1.rcp.epfl.ch\Petersen-Lab", "analysis", experimenter, "data", session_id.split("_")[0], session_id).replace("\\", "/")
+        dlc_folder = os.path.join(r"//sv-nas1.rcp.epfl.ch/Petersen-Lab", "analysis", experimenter, "data", session_id.split("_")[0], session_id).replace("//", "/")
+        dlc_folder = adjust_path_to_host(dlc_folder)
         dlc_file = glob.glob(dlc_folder + "/**/*view.csv")
 
     elif initials == 'AB':
         experimenter = "Axel_Bisi"
-        dlc_folder = os.path.join(r"\\sv-nas1.rcp.epfl.ch\Petersen-Lab", "analysis", experimenter, "data", session_id.split("_")[0], session_id, 'Video').replace("\\", "/")
+        dlc_folder = os.path.join(r"//sv-nas1.rcp.epfl.ch/Petersen-Lab", "analysis", experimenter, "data", session_id.split("_")[0], session_id, 'Video').replace("//", "/")
+        dlc_folder = adjust_path_to_host(dlc_folder)
         dlc_file = glob.glob(dlc_folder + "/*filtered.h5")
     elif initials == 'PB' and config['ephys_metadata'] is not None:
         experimenter = "Axel_Bisi"
