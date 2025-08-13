@@ -35,7 +35,9 @@ AREA_COORDINATES_MAP = {
     'dCA1': (-2.7, 2),
     'tjM1': (2, 2),
     'DLS': (0, 3.5),
-    'SC':  (-3.8, 0.5)
+    'SC':  (-3.8, 0.5),
+    'RSP': (-1.5, 0.5),
+    'tjS1': (0.6, 3.8)
 }
 
 
@@ -114,7 +116,7 @@ def get_target_location(config_file, device_name):
             ap, ml = (np.nan, np.nan)
 
     else:
-        print('No standard coordinates found for this target area. Setting to NaN')
+        print(f'No standard coordinates found for this target ({target_area}) area. Setting to NaN')
         ap, ml = (np.nan, np.nan)
 
     # Create ephys target location dictionary
@@ -726,12 +728,13 @@ def build_unit_table(imec_folder, sync_spike_times_path):
     return unit_table
 
 
-def build_area_table(config_file, imec_folder):
+def build_area_table(config_file, imec_folder, probe_info):
     """
     Build area table from brainreg output.
     Args:
         config_file: path to config file
         imec_folder: path to imec folder processed neural data
+        probe_info: pd.DataFrame with probe insertion information
 
     Returns:
 
@@ -773,7 +776,15 @@ def build_area_table(config_file, imec_folder):
 
     area_table = area_table.iloc[9:, :]  # remove first 9 rows (probe tip)
 
+
+    # Compare insertion depth and trace reconstruction depth to identify potential interpolation issues
+    physical_depth = probe_info['depth'].values[0]
     max_position = np.max(area_table['shank_row'].values)
+    if abs(physical_depth - max_position) > 500:
+        print(f'Warning: physical depth ({physical_depth}) and max. track depth ({max_position}) differ by more than 500 um,\
+        check the extent of annotations/interpolated track.')
+
+    # Make values start at 0 to match probe geometry
     area_table['shank_row'] = max_position - area_table['shank_row'].values  # make values start at 0
 
     # Add atlas metadata

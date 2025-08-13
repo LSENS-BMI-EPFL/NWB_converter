@@ -126,6 +126,13 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
         area_table.set_index(keys='shank_row', drop=True, inplace=True)
         area_table = area_table.reindex(labels=np.arange(0, np.max(shank_rows)+1), fill_value=np.nan, axis=0)
 
+        # Compare physical number of electrode rows with interpolated rows in area table
+        physical_rows = probe_row['n_rows'].values[0]
+        interpolated_rows = len(area_table)
+        if abs(physical_rows - area_table.shape[0]) > 500:
+            print(f'Warning: physical number of rows inserted ({physical_rows}) is very different from interpolated rows in area table ({interpolated_rows}), \
+                  this may be due to an error during the probe track interpolation.')
+
         # --------------------------------
         # Add electrodes to ElectrodeTable
         # --------------------------------
