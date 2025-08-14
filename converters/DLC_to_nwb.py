@@ -47,7 +47,8 @@ def convert_dlc_data(nwb_file, config_file, video_timestamps):
         ValueError("DLC data can't be found or needs to be analyzed")
 
     # Compute kinematics for each of the views.
-    if config['session_metadata']['experimenter'] == 'AB':
+    if (config['session_metadata']['experimenter'] == 'AB'
+            or (config['session_metadata']['experimenter'] == 'PB' and config['ephys_metadata']['setup']=='Neuropixels setup 1 AI3209')):
         side_dlc = compute_kinematics_alt(side_dlc, 'sideview')
         top_dlc = compute_kinematics_alt(top_dlc, 'topview')
         pcutoff_tongue = 0.5
