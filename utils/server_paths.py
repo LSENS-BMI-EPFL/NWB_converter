@@ -34,9 +34,12 @@ def adjust_path_to_host(path):
 
 def get_subject_data_folder(subject_id):
     data_folder = os.path.join('//sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'data', subject_id)
-    data_folder = adjust_path_to_host(data_folder)
-    
-    return data_folder
+    if subject_id.startswith('AB'):
+        data_folder = os.path.join('\\\\sv-nas1.rcp.epfl.ch', 'Petersen-Lab', 'data', subject_id)
+        return data_folder
+    else:
+        data_folder = adjust_path_to_host(data_folder)
+        return data_folder
 
 
 def get_subject_analysis_folder(subject_id):
@@ -531,13 +534,9 @@ def get_dlc_file_path(config_file):
         dlc_file = glob.glob(dlc_folder + "/**/*view.csv")
 
         if config['ephys_metadata'] is not None:
-            dlc_folder = os.path.join(r"////sv-nas1.rcp.epfl.ch/Petersen-Lab", "analysis", "Axel_Bisi", "data", session_id.split("_")[0], session_id, 'Video').replace("//", "/")
-            print(dlc_folder)
+            dlc_folder = os.path.join(r"\\sv-nas1.rcp.epfl.ch\Petersen-Lab", "analysis", "Axel_Bisi", "data", session_id.split("_")[0], session_id, 'Video').replace("//", "/")
             dlc_folder_2 = adjust_path_to_host(dlc_folder)
-            print(dlc_folder_2)
-            print(os.listdir(dlc_folder))
             dlc_file = glob.glob(dlc_folder + "/*filtered.h5")
-            print('HERE dlc_file', dlc_file)
 
     elif initials == 'RD':
         experimenter = "Robin_Dard"
@@ -547,8 +546,8 @@ def get_dlc_file_path(config_file):
 
     elif initials == 'AB':
         experimenter = "Axel_Bisi"
-        dlc_folder = os.path.join(r"//sv-nas1.rcp.epfl.ch/Petersen-Lab", "analysis", experimenter, "data", session_id.split("_")[0], session_id, 'Video').replace("//", "/")
-        dlc_folder = adjust_path_to_host(dlc_folder)
+        dlc_folder = os.path.join("\\\\sv-nas1.rcp.epfl.ch\Petersen-Lab", "analysis", experimenter, "data",
+                                  session_id.split("_")[0], session_id, 'Video')
         dlc_file = glob.glob(dlc_folder + "/*filtered.h5")
 
     else:
