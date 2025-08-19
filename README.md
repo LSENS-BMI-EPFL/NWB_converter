@@ -21,6 +21,18 @@ pip install -r pyproject.toml
 
 ```
 
+**Old method**
+
+_Note that this method will not work out of the box and will require you to comment out some functions with missing modules or install these modules manually_
+
+```
+conda create -n <env> python=3.9
+
+conda activate <env>
+
+pip install -r <petersenlab_to_nwb_env.txt>
+```
+
 # **How to use**
 
 1. Create '.yaml' files for each session using 'make_yaml_config.py'
