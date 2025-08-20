@@ -778,7 +778,12 @@ def build_area_table(config_file, imec_folder, experimenter=None):
     #else:
     #    path_to_proc_anat = r'M:\analysis\Axel_Bisi\ImagedBrains\Axel_Bisi\{}\fused\registered\segmentation'.format(mouse_name)
 
-    path_to_sample_space_track = os.path.join(path_to_proc_anat, 'sample_space', 'tracks', 'imec{}.csv'.format(imec_id))
+    # Handle multiple recording sessions
+    # Assumes that the session's tracks are stored in sample_space/tracks/session_id/imec{}.csv
+    path_to_sample_space_track_folder = pathlib.Path(path_to_proc_anat) / 'sample_space' / 'tracks'
+    if (path_to_sample_space_track_folder / config['session_metadata']['session_id']).exists():
+        path_to_sample_space_track_folder = path_to_sample_space_track_folder / config['session_metadata']['session_id']
+    path_to_sample_space_track = path_to_sample_space_track_folder / 'imec{}.csv'.format(imec_id)
     area_table = pd.read_csv(path_to_sample_space_track)
 
     # -------------------------------------------------------
@@ -849,13 +854,18 @@ def build_area_table(config_file, imec_folder, experimenter=None):
     # Load ccf coordinates (ccf standard space)
     # -----------------------------------------
 
-    if int(mouse_name[2:]) < 90:
-        path_to_atlas_space_track = os.path.join(path_to_proc_anat, 'standard_space', 'tracks')
-    else:
-        path_to_atlas_space_track = os.path.join(path_to_proc_anat, 'atlas_space', 'tracks')
 
-    if experimenter == 'Jules_Lebert':
-        path_to_atlas_space_track = os.path.join(path_to_proc_anat, 'atlas_space', 'tracks')
+    if config['session_metadata']['experimenter'] == 'AB':
+        if int(mouse_name[2:]) < 90:
+            path_to_atlas_space_track = os.path.join(path_to_proc_anat, 'standard_space', 'tracks')
+        else:
+            path_to_atlas_space_track = os.path.join(path_to_proc_anat, 'atlas_space', 'tracks')
+
+    else:
+        # Handle multiple recording sessions
+        path_to_atlas_space_track = pathlib.Path(path_to_proc_anat) / 'atlas_space' / 'tracks'
+        if (path_to_atlas_space_track / config['session_metadata']['session_id']).exists():
+            path_to_atlas_space_track = path_to_atlas_space_track / config['session_metadata']['session_id']
 
     coords = np.load(os.path.join(path_to_atlas_space_track, 'imec{}.npy'.format(imec_id)))
     coords = coords[::-1]
