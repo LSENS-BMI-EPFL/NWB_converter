@@ -579,6 +579,15 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
         # Ensure string formatting of context
         standard_trial_table['context'] = standard_trial_table['context'].astype(str)
 
+        # Handle a few cases where formatting went wrong on trial type
+        if any(standard_trial_table['trial_type'].isna()):
+            print('Warning: some trial types may have been misformatted to NaN. Correcting.')
+            print(standard_trial_table.to_string())
+            mask_nan_to_whisker = standard_trial_table['trial_type'].isna() & standard_trial_table['whisker_stim_duration'].notnull()
+            standard_trial_table.loc[mask_nan_to_whisker, 'trial_type'] = 'whisker_trial'
+            mask_nan_to_auditory = standard_trial_table['trial_type'].isna() & standard_trial_table['auditory_stim_duration'].notnull()
+            standard_trial_table.loc[mask_nan_to_auditory, 'trial_type'] = 'auditory_trial'
+
     return standard_trial_table
 
 

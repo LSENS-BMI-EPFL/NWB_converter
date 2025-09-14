@@ -8,8 +8,9 @@
 
 # Imports
 import os
+import json
 import pathlib
-
+import pandas as pd
 import numpy as np
 import yaml
 
@@ -37,7 +38,7 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
     Returns:
 
     """
-    # TODO: this will require modifications for other types of Neuropixels probes
+    # TODO: this will require modifications for other types of Neuropixels probes (see TODOs)
 
     with open(config_file, 'r') as stream:
         config = yaml.safe_load(stream)
@@ -129,7 +130,7 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
         # Compare physical number of electrode rows with interpolated rows in area table
         physical_rows = probe_row['n_rows'].values[0]
         interpolated_rows = len(area_table)
-        if abs(physical_rows - area_table.shape[0]) > 500:
+        if abs(physical_rows - area_table.shape[0]) > 1000:
             print(f'Warning: physical number of rows inserted ({physical_rows}) is very different from interpolated rows in area table ({interpolated_rows}), \
                   this may be due to an error during the probe track interpolation.')
 
@@ -207,13 +208,52 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
         cols_to_str = [c for c in unit_table.columns if c not in ['spike_times', 'waveform_mean']]
         unit_table[cols_to_str] = unit_table[cols_to_str].astype(str) # convert to string to avoid error when adding to NWB file
 
+        # --------------------------------------------------------
+        # Load anatomical data after IBL ephys-atlas GUI alignment
+        # --------------------------------------------------------
+        path_channel_loc = pathlib.Path(imec_folder, 'ibl_format', 'channel_locations.json')
+        if is_valid_probe:
+            if os.path.exists(path_channel_loc):
+                with open(path_channel_loc, "r") as f:
+                    data = json.load(f)
+            else:
+                print(f'Warning: No ibl_format/channel_locations.json found for {mouse_name} IMEC{imec_id}, '
+                      f'skipping ephys-atlas alignment.')
+
+        ephys_align_df = pd.DataFrame.from_dict(data, orient='index')  # flatten dict and create df
+
+        # Transform coordinates from bregma-centry to absolute CCF space
+        bregma_xyz = ephys_align_df.loc['origin', 'bregma'] # get bregma coords in CCF space
+        bregma_xyz = np.array(bregma_xyz).astype(float)
+        ephys_align_df['x'] = ephys_align_df['x'].map(lambda x: float(x) + bregma_xyz[0])  # ML
+        ephys_align_df['y'] = ephys_align_df['y'].map(lambda y: -float(y) + bregma_xyz[1])  # AP
+        ephys_align_df['z'] = ephys_align_df['z'].map(lambda z: -float(z) + bregma_xyz[2])  # DV
+        ephys_align_df = ephys_align_df[ephys_align_df.index != 'origin'] # remove bregma origin entry
+
+        # Match index on channel id
+        ephys_align_df.reset_index(inplace=True)  # reset index to move channels into column
+        ephys_align_df.rename(columns={'index': 'peak_channel'}, inplace=True)  # rename to existing column from neural df
+        ephys_align_df['peak_channel'] = ephys_align_df['peak_channel'].map(lambda x: int(x.split('_')[-1])) # keep int
+        col_mapper = {
+            'x': 'ccf_atlas_ml', #x=ML
+            'y': 'ccf_atlas_ap', #y=AP
+            'z': 'ccf_atlas_dv', #z=DV
+            'brain_region_id': 'ccf_atlas_id',
+            'brain_region': 'ccf_atlas_acronym',
+        }
+        ephys_align_df = ephys_align_df.rename(columns=col_mapper)  # rename columns to match existing anatomical columns
+
+        # Join ephys-aligned anatomical info to each unit channel using 'ch' col
+        unit_table['peak_channel'] = unit_table['peak_channel'].astype(int)
+        unit_table = unit_table.merge(ephys_align_df, left_on='peak_channel', right_on='peak_channel', how='left')
+
+
         # -----------------------
         # Add units to Unit table
         # -----------------------
 
         n_neurons = len(unit_table)
         for neuron_id in range(n_neurons):
-
             nwb_file.add_unit(
                 id=neuron_counter,
                 cluster_id=unit_table['cluster_id'].values[neuron_id],
@@ -238,6 +278,11 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
                 ccf_parent_id=unit_table['ccf_parent_id'].values[neuron_id],
                 ccf_parent_acronym=unit_table['ccf_parent_acronym'].values[neuron_id],
                 ccf_parent_name=unit_table['ccf_parent_name'].values[neuron_id],
+                ccf_atlas_dv=unit_table['ccf_atlas_dv'].values[neuron_id],
+                ccf_atlas_ml=unit_table['ccf_atlas_ml'].values[neuron_id],
+                ccf_atlas_ap=unit_table['ccf_atlas_ap'].values[neuron_id],
+                ccf_atlas_id=unit_table['ccf_atlas_id'].values[neuron_id],
+                ccf_atlas_acronym=unit_table['ccf_atlas_acronym'].values[neuron_id],
                 maxChannels=unit_table['maxChannels'].values[neuron_id],
                 bc_cluster_id=unit_table['bc_cluster_id'].values[neuron_id],
                 useTheseTimesStart=unit_table['useTheseTimesStart'].values[neuron_id],

@@ -544,6 +544,11 @@ def create_unit_table(nwb_file):
         'ccf_parent_id': 'ccf parent region ID',
         'ccf_parent_acronym': 'ccf parent region acronym',
         'ccf_parent_name': 'ccf parent region name',
+        'ccf_atlas_ml': 'ccf atlas coordinate in ml axis after ephys-atlas alignment',
+        'ccf_atlas_ap': 'ccf atlas coordinate in ap axis after ephys-atlas alignment',
+        'ccf_atlas_dv': 'ccf atlas coordinate in dv axis after ephys-atlas alignment',
+        'ccf_atlas_id': 'ccf atlas region ID after ephys-atlas alignment',
+        'ccf_atlas_acronym': 'ccf atlas region acronym after ephys-atlas alignment',
     }
     for col_key, col_desc in dict_columns_to_add.items():
         nwb_file.add_unit_column(name=col_key, description=col_desc)
@@ -782,8 +787,8 @@ def build_area_table(config_file, imec_folder, probe_info):
     physical_depth = probe_info['depth'].values[0]
     interp_depth = area_table['distance'].max()
     if abs(physical_depth - interp_depth) > 500:
-        print(f'Warning: physical depth ({physical_depth}) and max. track depth ({interp_depth}) differ by more than 500 um,\
-        check the extent of annotations/interpolated track.')
+        print(f'Warning: physical depth ({physical_depth}) and max. track depth ({interp_depth}) differ by more than 500 um (brain shrinking),\
+        you may want to the extent of annotations/interpolated track.')
 
     # Make values start at 0 to match probe geometry
     max_position = np.max(area_table['shank_row'].values)
@@ -847,5 +852,7 @@ def build_area_table(config_file, imec_folder, probe_info):
     area_table['ccf_ap'] = coords[:, 0]
     area_table['ccf_ml'] = coords[:, 2] # nota bene
     area_table['ccf_dv'] = coords[:, 1]
+
+
 
     return area_table

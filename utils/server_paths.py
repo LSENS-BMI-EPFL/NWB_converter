@@ -376,6 +376,7 @@ def get_cwaves_folder(imec_probe_folder):
         return cwaves_folder
 
 
+
 def get_anatomy_folder(config_file):
     """ Get path to raw data mouse anatomy folder."""
     with open(config_file, 'r', encoding='utf8') as stream:
@@ -434,6 +435,7 @@ def get_anat_probe_track_folder(config_file):
         return None
 
     return probe_track_folder
+
 
 def get_opto_results_file(config_file):
     with open(config_file, 'r', encoding='utf8') as stream:

@@ -140,7 +140,7 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
         behavior_events.add_timeseries(lick_timeseries)
         print(f"Adding {len(data_to_store)} piezo lick times to BehavioralEvents")
 
-    # Get context timestamps if they exist #TODO: potentially what follows this with passive/active
+    # Get context timestamps if they exist
     context_timestamps_dict, context_sound_dict = get_context_timestamps_dict(timestamps_dict=timestamps_dict,
                                                                               nwb_trial_table=trial_table)
     # If context, add context timestamps to NWB file
