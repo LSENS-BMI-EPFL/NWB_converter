@@ -212,28 +212,6 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
         # Load anatomical data after IBL ephys-atlas GUI alignment
         # --------------------------------------------------------
         path_channel_loc = pathlib.Path(imec_folder, 'ibl_format', 'channel_locations.json')
-        if is_valid_probe:
-            if os.path.exists(path_channel_loc):
-                with open(path_channel_loc, "r") as f:
-                    data = json.load(f)
-            else:
-                print(f'Warning: No ibl_format/channel_locations.json found for {mouse_name} IMEC{imec_id}, '
-                      f'skipping ephys-atlas alignment.')
-
-        ephys_align_df = pd.DataFrame.from_dict(data, orient='index')  # flatten dict and create df
-
-        # Transform coordinates from bregma-centry to absolute CCF space
-        bregma_xyz = ephys_align_df.loc['origin', 'bregma'] # get bregma coords in CCF space
-        bregma_xyz = np.array(bregma_xyz).astype(float)
-        ephys_align_df['x'] = ephys_align_df['x'].map(lambda x: float(x) + bregma_xyz[0])  # ML
-        ephys_align_df['y'] = ephys_align_df['y'].map(lambda y: -float(y) + bregma_xyz[1])  # AP
-        ephys_align_df['z'] = ephys_align_df['z'].map(lambda z: -float(z) + bregma_xyz[2])  # DV
-        ephys_align_df = ephys_align_df[ephys_align_df.index != 'origin'] # remove bregma origin entry
-
-        # Match index on channel id
-        ephys_align_df.reset_index(inplace=True)  # reset index to move channels into column
-        ephys_align_df.rename(columns={'index': 'peak_channel'}, inplace=True)  # rename to existing column from neural df
-        ephys_align_df['peak_channel'] = ephys_align_df['peak_channel'].map(lambda x: int(x.split('_')[-1])) # keep int
         col_mapper = {
             'x': 'ccf_atlas_ml', #x=ML
             'y': 'ccf_atlas_ap', #y=AP
@@ -241,12 +219,38 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
             'brain_region_id': 'ccf_atlas_id',
             'brain_region': 'ccf_atlas_acronym',
         }
+        cols = ['peak_channel'] + list(col_mapper.values())
+        ephys_align_df = pd.DataFrame(columns=cols) # init. default empty df
+
+        if is_valid_probe and os.path.exists(path_channel_loc):
+            if os.path.exists(path_channel_loc):
+                with open(path_channel_loc, "r") as f:
+                    data = json.load(f)
+
+                if data:
+                    ephys_align_df = pd.DataFrame.from_dict(data, orient='index')  # flatten dict and create df
+
+                    # Transform coordinates from bregma-centry to absolute CCF space
+                    bregma_xyz = ephys_align_df.loc['origin', 'bregma']  # get bregma coords in CCF space
+                    bregma_xyz = np.array(bregma_xyz).astype(float)
+                    ephys_align_df['x'] = ephys_align_df['x'].map(lambda x: float(x) + bregma_xyz[0])  # ML
+                    ephys_align_df['y'] = ephys_align_df['y'].map(lambda y: -float(y) + bregma_xyz[1])  # AP
+                    ephys_align_df['z'] = ephys_align_df['z'].map(lambda z: -float(z) + bregma_xyz[2])  # DV
+                    ephys_align_df = ephys_align_df.drop(index='origin')
+
+            else:
+                print(f'Warning: No ibl_format/channel_locations.json found for {mouse_name} IMEC{imec_id}, '
+                      f'skipping ephys-atlas alignment.')
+
+        # Match index on channel id
+        ephys_align_df.reset_index(inplace=True)  # reset index to move channels into column
+        ephys_align_df.rename(columns={'index': 'peak_channel'}, inplace=True)  # rename to existing column from neural df
+        ephys_align_df['peak_channel'] = ephys_align_df['peak_channel'].map(lambda x: int(x.split('_')[-1])) # keep int
         ephys_align_df = ephys_align_df.rename(columns=col_mapper)  # rename columns to match existing anatomical columns
 
         # Join ephys-aligned anatomical info to each unit channel using 'ch' col
         unit_table['peak_channel'] = unit_table['peak_channel'].astype(int)
         unit_table = unit_table.merge(ephys_align_df, left_on='peak_channel', right_on='peak_channel', how='left')
-
 
         # -----------------------
         # Add units to Unit table
