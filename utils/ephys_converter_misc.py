@@ -786,9 +786,9 @@ def build_area_table(config_file, imec_folder, probe_info):
     # Compare insertion depth and trace reconstruction depth to identify potential interpolation issues
     physical_depth = probe_info['depth'].values[0]
     interp_depth = area_table['distance'].max()
-    if abs(physical_depth - interp_depth) > 500:
-        print(f'Warning: physical depth ({physical_depth}) and max. track depth ({interp_depth}) differ by more than 500 um,\
-        you may want to the extent of annotations/interpolated track.')
+    #if abs(physical_depth - interp_depth) > 500:
+        #print(f'Warning: physical depth ({physical_depth}) and max. track depth ({interp_depth}) differ by more than 500 um,\
+        #you may want to check the extent of annotations/interpolated track.')
 
     # Make values start at 0 to match probe geometry
     max_position = np.max(area_table['shank_row'].values)

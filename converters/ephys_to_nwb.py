@@ -242,14 +242,29 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
                     ephys_align_df = ephys_align_df.drop(index='origin')
                     ephys_align_df = ephys_align_df.drop(columns=['bregma'])
 
+                #Debug: also load channelsLoca
+                path_channel_coords = pathlib.Path(imec_folder, 'ibl_format', 'channels.localCoordinates.npy')
+                ch_local_coords = np.load(path_channel_coords)
+
+                path_channel_coords = pathlib.Path(imec_folder, 'ibl_format', 'channels.rawInd.npy')
+                ch_raw_ind = np.load(path_channel_coords)
+
+                path_ks_channel_map = pathlib.Path(imec_folder, 'kilosort2', 'channel_map.npy')
+                ks_ch_map = np.load(path_ks_channel_map)
+
             else:
                 print(f'Warning: No ibl_format/channel_locations.json found for {mouse_name} IMEC{imec_id}, '
                       f'skipping ephys-atlas alignment.')
 
         # Match index on channel id
         ephys_align_df.reset_index(inplace=True)  # reset index to move channels into column
-        ephys_align_df.rename(columns={'index': 'peak_channel'}, inplace=True)  # rename to existing column from neural df
-        ephys_align_df['peak_channel'] = ephys_align_df['peak_channel'].map(lambda x: int(x.split('_')[-1])) # keep int
+        ephys_align_df.rename(columns={'index': 'channel'}, inplace=True)  # rename to existing column from neural df
+        ephys_align_df['channel'] = ephys_align_df['channel'].map(lambda x: int(x.split('_')[-1])) # keep int
+
+        # Map channel to raw channel index (KS filters out "bad" channels with < 0.1Hz) from channel to ks_ch_map
+        ephys_align_df['peak_channel'] = ephys_align_df['channel'].map(lambda x: int(ks_ch_map[x]))
+
+
         ephys_align_df = ephys_align_df.rename(columns=col_mapper)  # rename columns to match existing anatomical columns
         ephys_align_df = ephys_align_df.astype(str) # ensure all cols are object for NWB
 
