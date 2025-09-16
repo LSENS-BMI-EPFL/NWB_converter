@@ -264,16 +264,15 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
         # Map channel to raw channel index (KS filters out "bad" channels with < 0.1Hz) from channel to ks_ch_map
         ephys_align_df['peak_channel'] = ephys_align_df['channel'].map(lambda x: int(ks_ch_map[x]))
 
-
         ephys_align_df = ephys_align_df.rename(columns=col_mapper)  # rename columns to match existing anatomical columns
         ephys_align_df = ephys_align_df.astype(str) # ensure all cols are object for NWB
 
         # Check for missing peak_channels between unit table and ephys_align_df
-        ephys_align_ch = set(ephys_align_df['peak_channel'].unique())
-        unit_ch = set(unit_table['peak_channel'].unique())
-        missing_ch = sorted(unit_ch-ephys_align_ch) # channels in unit table but not in ephys_align_df
+        ephys_align_ch = set(ephys_align_df['peak_channel'].unique().astype(int))
+        unit_ch = set(unit_table['peak_channel'].unique().astype(int))
+        missing_ch = sorted(unit_ch - ephys_align_ch) # channels in unit table but not in ephys_align_df
 
-        if missing_ch:
+        if missing_ch: #there should not be after mapping to correct channel
             missing_units_areas = unit_table[unit_table['peak_channel'].isin(missing_ch)][
                 ['cluster_id', 'bc_label', 'peak_channel', 'ccf_acronym']]
             print(f'Warning: missing ephys-aligned anatomical info for {len(missing_ch)} channels: {missing_ch}.')
