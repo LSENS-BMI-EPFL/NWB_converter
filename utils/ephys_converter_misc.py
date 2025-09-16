@@ -611,6 +611,9 @@ def build_unit_table(imec_folder, sync_spike_times_path):
     # ----------------------------
 
     cluster_info_path = pathlib.Path(imec_folder, 'kilosort2', 'cluster_info.tsv')
+    #channel_map = np.load(pathlib.Path(imec_folder, 'kilosort2', 'channel_map.npy')).flatten()
+    #missing_ch = [ch for ch in range(384) if ch not in channel_map]
+
     try:
         cluster_info_df = pd.read_csv(cluster_info_path, sep='\t')
     except FileNotFoundError:
@@ -638,10 +641,13 @@ def build_unit_table(imec_folder, sync_spike_times_path):
     valid_cluster_ids = cluster_info_df[cluster_info_df.bc_label.isin(['good', 'mua', 'non-soma'])].index  # dataframe indices
     cluster_info_df_sub = cluster_info_df.loc[valid_cluster_ids, :]
 
+    # Get channel indices on probe using channel map
+    #cluster_info_df_sub['peak_channel'] = cluster_info_df_sub['ch'].apply(lambda x: channel_map[x])
+
     # Add cluster information
     unit_table['cluster_id'] = cluster_info_df_sub['cluster_id']
     unit_table['peak_channel'] = cluster_info_df_sub['ch']
-    unit_table['depth'] = cluster_info_df_sub['depth']
+    #unit_table['depth'] = cluster_info_df_sub['depth']
     unit_table['ks_label'] = cluster_info_df_sub['ks_label']  # "group" is the Phy-curated label, "KSLabel" is the KS raw label
     unit_table['group'] = cluster_info_df_sub['group']  # "group" is the Phy-curated label, "KSLabel" is the KS raw label
     unit_table['bc_label'] = cluster_info_df_sub['bc_label']  # automatic curation from bombcell

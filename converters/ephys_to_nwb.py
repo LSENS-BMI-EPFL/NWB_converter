@@ -200,6 +200,9 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
         # Build unit table
         unit_table = build_unit_table(imec_folder=imec_folder, sync_spike_times_path=sync_spike_times_path)
 
+        # Add real depth based on peak_channel y-coord
+        #unit_table['depth'] = unit_table['peak_channel'].map(lambda x: int(ycoords[x]))
+
         if unit_table is None:
             print('Skipping {} probe IMEC{} because no spike sorting.'.format(mouse_name, imec_id))
             continue
@@ -250,20 +253,26 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
                 ch_raw_ind = np.load(path_channel_coords)
 
                 path_ks_channel_map = pathlib.Path(imec_folder, 'kilosort2', 'channel_map.npy')
-                ks_ch_map = np.load(path_ks_channel_map)
+                ch_ks_ch_map = np.load(path_ks_channel_map)
+                ch_ks_ch_map = np.squeeze(ch_ks_ch_map)
+
+                path_ks_templates = pathlib.Path(imec_folder, 'kilosort2', 'templates.npy')
+                ch_ks_templates = np.load(path_ks_templates)
 
             else:
                 print(f'Warning: No ibl_format/channel_locations.json found for {mouse_name} IMEC{imec_id}, '
                       f'skipping ephys-atlas alignment.')
 
-        # Match index on channel id
+        # Transform index to channel id
         ephys_align_df.reset_index(inplace=True)  # reset index to move channels into column
         ephys_align_df.rename(columns={'index': 'channel'}, inplace=True)  # rename to existing column from neural df
         ephys_align_df['channel'] = ephys_align_df['channel'].map(lambda x: int(x.split('_')[-1])) # keep int
 
         # Map channel to raw channel index (KS filters out "bad" channels with < 0.1Hz) from channel to ks_ch_map
-        ephys_align_df['peak_channel'] = ephys_align_df['channel'].map(lambda x: int(ks_ch_map[x]))
+        #ephys_align_df['peak_channel'] = ephys_align_df['channel'].map(lambda x: int(ch_ks_ch_map[x]))
+        ephys_align_df['peak_channel'] = ephys_align_df['channel']
 
+        # Ens
         ephys_align_df = ephys_align_df.rename(columns=col_mapper)  # rename columns to match existing anatomical columns
         ephys_align_df = ephys_align_df.astype(str) # ensure all cols are object for NWB
 
@@ -272,7 +281,7 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
         unit_ch = set(unit_table['peak_channel'].unique().astype(int))
         missing_ch = sorted(unit_ch - ephys_align_ch) # channels in unit table but not in ephys_align_df
 
-        if missing_ch: #there should not be after mapping to correct channel
+        if missing_ch:
             missing_units_areas = unit_table[unit_table['peak_channel'].isin(missing_ch)][
                 ['cluster_id', 'bc_label', 'peak_channel', 'ccf_acronym']]
             print(f'Warning: missing ephys-aligned anatomical info for {len(missing_ch)} channels: {missing_ch}.')
@@ -283,14 +292,22 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
             }) # unravel existing cols
             ephys_align_df = pd.concat([ephys_align_df, missing_df], ignore_index=True)
 
-        unit_table['peak_channel'] = unit_table['peak_channel'].astype(str)
 
         # Join ephys-aligned anatomical info to each unit channel using 'ch' col
+        unit_table['peak_channel'] = unit_table['peak_channel'].astype(int)
+        ephys_align_df['peak_channel'] = ephys_align_df['peak_channel'].astype(int)
         unit_table = unit_table.merge(ephys_align_df, left_on='peak_channel', right_on='peak_channel', how='left')
+
+        # Use real physical channel indices / depth  using channel pa
+        unit_table['peak_channel'] = unit_table['peak_channel'].map(lambda x: str(ch_ks_ch_map[int(x)]))
+        ycoords = np.squeeze(ycoords)
+        unit_table['depth'] = unit_table['peak_channel'].map(lambda x: str(ycoords.flatten()[int(x)]))
 
         # -----------------------
         # Add units to Unit table
         # -----------------------
+
+        unit_table = unit_table[unit_table['ccf_atlas_acronym']!='void']  # remove void units (outside brain)
 
         n_neurons = len(unit_table)
         for neuron_id in range(n_neurons):
