@@ -638,18 +638,17 @@ def build_unit_table(imec_folder, sync_spike_times_path):
     cluster_info_df['bc_label'] = cluster_info_df['bc_label'].str.lower()
 
     # Get valid cluster indices only based on automatic curation
-    valid_cluster_ids = cluster_info_df[cluster_info_df.bc_label.isin(['good', 'mua', 'non-soma'])].index  # dataframe indices
-    cluster_info_df_sub = cluster_info_df.loc[valid_cluster_ids, :]
+    #valid_cluster_ids = cluster_info_df[cluster_info_df.bc_label.isin(['good', 'mua', 'non-soma'])].index  # dataframe indices
+    valid_cluster_ids = cluster_info_df[cluster_info_df.bc_label.isin(['good', 'mua', 'non-soma', 'noise'])].index  # dataframe indices
+    cluster_info_df_sub = cluster_info_df.iloc[valid_cluster_ids, :]
 
-    # Get channel indices on probe using channel map
-    #cluster_info_df_sub['peak_channel'] = cluster_info_df_sub['ch'].apply(lambda x: channel_map[x])
 
     # Add cluster information
     unit_table['cluster_id'] = cluster_info_df_sub['cluster_id']
     unit_table['peak_channel'] = cluster_info_df_sub['ch']
     #unit_table['depth'] = cluster_info_df_sub['depth']
-    unit_table['ks_label'] = cluster_info_df_sub['ks_label']  # "group" is the Phy-curated label, "KSLabel" is the KS raw label
-    unit_table['group'] = cluster_info_df_sub['group']  # "group" is the Phy-curated label, "KSLabel" is the KS raw label
+    unit_table['ks_label'] = cluster_info_df_sub['ks_label']  # "KSLabel" is the KS raw label
+    unit_table['group'] = cluster_info_df_sub['group']  # "group" is the Phy-curated label
     unit_table['bc_label'] = cluster_info_df_sub['bc_label']  # automatic curation from bombcell
     unit_table['firing_rate'] = cluster_info_df_sub['fr']
 
@@ -734,7 +733,7 @@ def build_unit_table(imec_folder, sync_spike_times_path):
     unit_table['pt_ratio'] = mean_wf_metrics.loc[valid_cluster_ids].pt_ratio.values
 
     # Filter final table to remove noise clusters based on bombcell output
-    unit_table = unit_table[~unit_table.bc_label.isin(['noise'])]
+    #unit_table = unit_table[~unit_table.bc_label.isin(['noise'])]
 
     return unit_table
 
