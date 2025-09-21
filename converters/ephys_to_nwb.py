@@ -336,12 +336,10 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
                         nearest_idx = distances.idxmin()
                         filled_values.append(df_complete.loc[nearest_idx, info_col])
 
-                    # Assign filled values back to df_missing
-                    df_missing.loc[:, info_col] = filled_values
-                    # Combine back into one dataframe
-                    df_filled = pd.concat([df_complete, df_missing]).sort_index()
-
+                    df_missing.loc[:, info_col] = filled_values # assign filled values to df_missing
+                    df_filled = pd.concat([df_complete, df_missing]).sort_index() # combine
                     return df_filled
+
                 ephys_align_df = fill_missing_nearest(ephys_align_df, 'brain_region')
                 ephys_align_df = fill_missing_nearest(ephys_align_df, 'brain_region_id')
 
@@ -368,52 +366,56 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
                     plt.savefig(fig_path, dpi=300)
                     plt.close()
 
+
+            # Rename columns, add parent info
+            ephys_align_df['peak_channel'] = ephys_align_df['ch_id']
+            ephys_align_df = ephys_align_df.rename(columns=col_mapper)
+            ephys_align_df = add_ccf_parent_info(df=ephys_align_df, config=config)
+            #ephys_align_df = ephys_align_df.astype(str) # ensure all cols are object for NWB
+
+
+            #ephys_align_ch = set(ephys_align_df['peak_channel'].unique().astype(str))
+            #unit_ch = set(unit_table['peak_channel'].unique().astype(str))
+            #missing_ch = sorted(unit_ch - ephys_align_ch) # channels in unit table but not in ephys_align_df
+            #extra_ch = sorted(ephys_align_ch - unit_ch) # channels in ephys_align_df but not in unit table
+
+            #if missing_ch:
+            #    missing_units_areas = unit_table[unit_table['peak_channel'].isin(missing_ch)][
+            #        ['cluster_id', 'bc_label', 'peak_channel', 'ccf_acronym']]
+            #    print(f'Warning: ch missing in ephys-aligned anatomical info for {len(missing_ch)} channels: {missing_ch}.')
+            #    if len(missing_units_areas) > 200:
+            #        print(f'Warning: {len(missing_ch)} channels in unit table missing ephys-aligned anatomical info, alignment likely not performed.')
+
+            #if extra_ch:
+            #    extra_unit_areas = unit_table[unit_table['peak_channel'].isin(extra_ch)][
+            #        ['cluster_id', 'bc_label', 'peak_channel', 'ccf_acronym']]
+            #    print(f'Warning: ch extra in ephys-aligned anatomical info for {len(extra_ch)} channels: {extra_ch}.')
+            #    print(f'Clusters {extra_unit_areas}')
+
+
+            # Join ephys-aligned anatomical info to each unit channel using 'ch' col
+            unit_table['peak_channel'] = unit_table['peak_channel'].astype(int)
+            ephys_align_df = ephys_align_df.dropna(subset=['peak_channel']) # remove any remaining NaNs
+            ephys_align_df['peak_channel'] = ephys_align_df['peak_channel'].astype(int)
+            unit_table = unit_table.merge(right=ephys_align_df, how='left', on='peak_channel')
+            unit_table.drop(columns=['ch_id','added'], inplace=True)
+            unit_table['depth'] = unit_table['axial']
+
+            # Filter units
+            unit_table = unit_table[(unit_table['ccf_atlas_acronym'] != 'void')
+                                & (unit_table['bc_label'] != 'noise')]
+
         else:
             print(f'Warning: No ibl_format/channel_locations.json found for {mouse_name} IMEC{imec_id}, '
-                    f'skipping ephys-atlas alignment - or invalid probe.')
+                    f'skipping ephys-atlas alignment - or invalid probe - including only histology esttimate.')
 
-
-        # Rename columns, add parent info
-        ephys_align_df['peak_channel'] = ephys_align_df['ch_id']
-        ephys_align_df = ephys_align_df.rename(columns=col_mapper)
-        ephys_align_df = add_ccf_parent_info(df=ephys_align_df, config=config)
-        #ephys_align_df = ephys_align_df.astype(str) # ensure all cols are object for NWB
-
-
-       #ephys_align_ch = set(ephys_align_df['peak_channel'].unique().astype(str))
-       #unit_ch = set(unit_table['peak_channel'].unique().astype(str))
-       #missing_ch = sorted(unit_ch - ephys_align_ch) # channels in unit table but not in ephys_align_df
-       #extra_ch = sorted(ephys_align_ch - unit_ch) # channels in ephys_align_df but not in unit table
-
-       #if missing_ch:
-       #    missing_units_areas = unit_table[unit_table['peak_channel'].isin(missing_ch)][
-       #        ['cluster_id', 'bc_label', 'peak_channel', 'ccf_acronym']]
-       #    print(f'Warning: ch missing in ephys-aligned anatomical info for {len(missing_ch)} channels: {missing_ch}.')
-       #    if len(missing_units_areas) > 200:
-       #        print(f'Warning: {len(missing_ch)} channels in unit table missing ephys-aligned anatomical info, alignment likely not performed.')
-
-       #if extra_ch:
-       #    extra_unit_areas = unit_table[unit_table['peak_channel'].isin(extra_ch)][
-       #        ['cluster_id', 'bc_label', 'peak_channel', 'ccf_acronym']]
-       #    print(f'Warning: ch extra in ephys-aligned anatomical info for {len(extra_ch)} channels: {extra_ch}.')
-       #    print(f'Clusters {extra_unit_areas}')
-
-
-        # Join ephys-aligned anatomical info to each unit channel using 'ch' col
-        unit_table['peak_channel'] = unit_table['peak_channel'].astype(int)
-        ephys_align_df = ephys_align_df.dropna(subset=['peak_channel']) # remove any remaining NaNs
-        ephys_align_df['peak_channel'] = ephys_align_df['peak_channel'].astype(int)
-        unit_table = unit_table.merge(right=ephys_align_df, how='left', on='peak_channel')
-        unit_table.drop(columns=['ch_id','added'], inplace=True)
-        unit_table['depth'] = unit_table['axial'] 
 
         # -----------------------
         # Add units to Unit table
         # -----------------------
 
         # Filter units
-        unit_table = unit_table[(unit_table['ccf_atlas_acronym']!='void')
-                        & (unit_table['bc_label']!='noise')]
+        unit_table = unit_table[unit_table['bc_label']!='noise']
 
         n_neurons = len(unit_table)
         for neuron_id in range(n_neurons):
