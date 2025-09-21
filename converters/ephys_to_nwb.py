@@ -22,7 +22,8 @@ from utils.ephys_converter_misc import (build_unit_table,
                                         create_simplified_unit_table,
                                         create_unit_table,
                                         get_probe_insertion_info,
-                                        get_target_location)
+                                        get_target_location,
+                                        add_ccf_parent_info, fill_missing_ccf_coords, linear_interpolate_coords)
 from utils.server_paths import (get_imec_probe_folder_list,
                                 get_sync_event_times_folder)
 from utils.sglx_meta_to_coords import MetaToCoords, readMeta
@@ -109,6 +110,7 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
 
         # Get channel map (KS output), coords
         channel_map = np.load(pathlib.Path(imec_folder, 'kilosort2', 'channel_map.npy')).flatten()
+        print(f'Info: Number of channels in channel map: {len(channel_map)}')
 
         # Get saved channels information- number of shanks, channels, etc. #TODO: update for NP2
         coords = MetaToCoords(metaFullPath=pathlib.Path(imec_folder, ap_meta_file), outType=0, showPlot=False)
@@ -126,7 +128,7 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
             colors = ['grey' if ch in channel_map else 'r' for ch in range(384)]
 
             plt.figure(figsize=(6, 10))
-            plt.scatter(xcoords, ycoords, c=colors, marker='s', s=15)
+            plt.scatter(xcoords, ycoords, c=colors, marker='s', s=10)
             for i, ch in enumerate(range(384)):
                 plt.text(xcoords[i]+1, ycoords[i], str(ch), color='k', fontsize=6, ha='center', va='center')
             plt.title(f'Probe geometry IMEC{imec_id} - red channels not in channel map')
@@ -144,6 +146,7 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
 
         # Build table with anatomical location estimates of each electrode
         area_table = build_area_table(config_file=config_file, imec_folder=imec_folder, probe_info=probe_info)
+        area_table = add_ccf_parent_info(df=area_table, config=config)
 
         # Reindex to match shank electrode order
         area_table = area_table.sort_values(by=['shank_row'], ascending=True, axis=0)
@@ -221,6 +224,7 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
 
         # Build unit table
         unit_table = build_unit_table(imec_folder=imec_folder, sync_spike_times_path=sync_spike_times_path)
+        print('Info: Number of channels in unit table: {}'.format(len(unit_table['peak_channel'].unique())))
 
 
         if unit_table is None:
@@ -237,6 +241,7 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
         # --------------------------------------------------------
         # Load anatomical data after IBL ephys-atlas GUI alignment
         # --------------------------------------------------------
+
         path_channel_loc = pathlib.Path(imec_folder, 'ibl_format', 'channel_locations.json')
         col_mapper = {
             'x': 'ccf_atlas_ml', #x=ML
@@ -249,69 +254,158 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
         ephys_align_df = pd.DataFrame(columns=cols) # init. default empty df
 
         if is_valid_probe and os.path.exists(path_channel_loc):
-            if os.path.exists(path_channel_loc):
-                with open(path_channel_loc, "r") as f:
-                    data = json.load(f)
+            print('Loading ephys-aligned histology data from {}'.format(path_channel_loc))
+            with open(path_channel_loc, "r") as f:
+                data = json.load(f)
 
-                if data:
-                    ephys_align_df = pd.DataFrame.from_dict(data, orient='index')  # flatten dict and create df
+            if data:
+                ephys_align_df = pd.DataFrame.from_dict(data, orient='index')  # flatten dict and create df
 
-                    # Transform coordinates from bregma-centry to absolute CCF space
-                    bregma_xyz = ephys_align_df.loc['origin', 'bregma']  # get bregma coords in CCF space
-                    bregma_xyz = np.array(bregma_xyz).astype(float)
-                    ephys_align_df['x'] = ephys_align_df['x'].map(lambda x: float(x) + bregma_xyz[0])  # ML
-                    ephys_align_df['y'] = ephys_align_df['y'].map(lambda y: -float(y) + bregma_xyz[1])  # AP
-                    ephys_align_df['z'] = ephys_align_df['z'].map(lambda z: -float(z) + bregma_xyz[2])  # DV
-                    ephys_align_df = ephys_align_df.drop(index='origin')
-                    ephys_align_df = ephys_align_df.drop(columns=['bregma'])
+                # Transform coordinates from bregma-centry to absolute CCF space
+                bregma_xyz = ephys_align_df.loc['origin', 'bregma']  # get bregma coords in CCF space
+                bregma_xyz = np.array(bregma_xyz).astype(float)
+                ephys_align_df['x'] = ephys_align_df['x'].map(lambda x: float(x) + bregma_xyz[0])  # ML
+                ephys_align_df['y'] = ephys_align_df['y'].map(lambda y: -float(y) + bregma_xyz[1])  # AP
+                ephys_align_df['z'] = ephys_align_df['z'].map(lambda z: -float(z) + bregma_xyz[2])  # DV
+                ephys_align_df = ephys_align_df.drop(index='origin')
+                ephys_align_df = ephys_align_df.drop(columns=['bregma'])
 
-            else:
-                print(f'Warning: No ibl_format/channel_locations.json found for {mouse_name} IMEC{imec_id}, '
-                      f'skipping ephys-atlas alignment.')
+                # Get index as channel column
+                ephys_align_df.reset_index(inplace=True)  # reset index to move channels into column
+                ephys_align_df['ch_id'] = ephys_align_df['index'].map(lambda x: int(x.split('_')[-1]))
+                print(f'Info: Number of channels with ephys-aligned anatomical info: {len(ephys_align_df)}')
 
-        # Load KS channel map to match ephys-aligned channels to raw channel indices
-        path_ks_channel_map = pathlib.Path(imec_folder, 'kilosort2', 'channel_map.npy')
-        ch_ks_ch_map = np.load(path_ks_channel_map)
-        ch_ks_ch_map = np.squeeze(ch_ks_ch_map)
+                # Mirror all axial coordinates to match probe orientation horizontally
+                #mirror_map = {11.0:59.0,59.0:11.0,27.0:43.0,43.0:27.0}
+                #ephys_align_df['lateral'] = ephys_align_df['lateral'].replace(mirror_map) #seems like no need
 
-        # Transform index to channel id
-        ephys_align_df.reset_index(inplace=True)  # reset index to move channels into column
-        ephys_align_df.rename(columns={'index': 'channel'}, inplace=True)  # rename to existing column from neural df
-        ephys_align_df['channel'] = ephys_align_df['channel'].map(lambda x: int(x.split('_')[-1])) # keep int
+                # Find present channel ids from coordinates using probe geometry
+                def find_channel_from_coords(row):
+                    """Uses probe geometry to find present channel."""
+                    lat = row['lateral']
+                    ax = row['axial']
+                    matches = np.where((xcoords == lat) & (ycoords == ax))[0]
+                    if len(matches) > 0:
+                        return int(matches[0])
+                    else:
+                        return np.nan
+                ephys_align_df['ch_id'] = ephys_align_df.apply(lambda x: find_channel_from_coords(x), axis=1)
 
-        # Map channel to raw channel index (KS filters out "bad" channels with < 0.1Hz) from channel to ks_ch_map
-        ephys_align_df['peak_channel'] = ephys_align_df['channel']
+                # Add missing channels (not in ephys-alignment)
+                full_coords_df = pd.DataFrame({
+                    'ch_id': np.arange(0, 384),
+                    'lateral': xcoords,
+                    'axial': ycoords,
+                })
+                cols_to_match = ['lateral', 'axial']
+                missing_df = full_coords_df.merge(ephys_align_df[cols_to_match],
+                                                  on=cols_to_match,
+                                                  how='left',
+                                                  indicator=True)
+                missing_df = missing_df[missing_df['_merge'] == 'left_only'].drop(columns=['_merge'])
+                missing_df['added'] = True
+                ephys_align_df['added'] = False
+                ephys_align_df = pd.concat([ephys_align_df, missing_df], ignore_index=True)
 
-        # Ens
-        ephys_align_df = ephys_align_df.rename(columns=col_mapper)  # rename columns to match existing anatomical columns
-        ephys_align_df = ephys_align_df.astype(str) # ensure all cols are object for NWB
 
-        # Check for missing peak_channels between unit table and ephys_align_df
-        ephys_align_df['peak_channel'] = ephys_align_df['peak_channel'].map(lambda x: ch_ks_ch_map[int(x)])
+                # For missing channels, fill anatomical info with neighboring channels (nearest channel location using axial/lateral coords)
+                def fill_missing_nearest(df, info_col):
+                    """
+                    Fill missing values in `info_col` using the nearest neighbor
+                    based on Euclidean distance in 'lateral' and 'axial'.
 
-        ephys_align_ch = set(ephys_align_df['peak_channel'].unique().astype(int))
-        unit_ch = set(unit_table['peak_channel'].unique().astype(int))
-        missing_ch = sorted(unit_ch - ephys_align_ch) # channels in unit table but not in ephys_align_df
+                    Only fills rows where `info_col` is NaN.
+                    """
+                    df = df.reset_index(drop=True)  # Ensure clean, continuous indexing
 
-        if missing_ch:
-            missing_units_areas = unit_table[unit_table['peak_channel'].isin(missing_ch)][
-                ['cluster_id', 'bc_label', 'peak_channel', 'ccf_acronym']]
-            print(f'Warning: missing ephys-aligned anatomical info for {len(missing_ch)} channels: {missing_ch}.')
-            print(f'Clusters (outside the brain) {missing_units_areas}')
-            missing_df = pd.DataFrame({
-                'peak_channel': missing_ch,
-                **{col: 'nan' for col in col_mapper.values()}
-            }) # unravel existing cols
-            ephys_align_df = pd.concat([ephys_align_df, missing_df], ignore_index=True)
+                    # Separate complete and missing rows
+                    df_complete = df[df[info_col].notna()].copy()
+                    df_missing = df[df[info_col].isna()].copy()
+
+                    if df_complete.empty:
+                        raise ValueError("No valid data available to fill missing values.")
+
+                    # For each missing row, find nearest neighbor in complete rows
+                    filled_values = []
+                    for _, row in df_missing.iterrows():
+                        # Compute Euclidean distance to all complete rows
+                        distances = np.sqrt(
+                            (df_complete['lateral'] - row['lateral']) ** 2 +
+                            (df_complete['axial'] - row['axial']) ** 2
+                        )
+                        nearest_idx = distances.idxmin()
+                        filled_values.append(df_complete.loc[nearest_idx, info_col])
+
+                    # Assign filled values back to df_missing
+                    df_missing.loc[:, info_col] = filled_values
+                    # Combine back into one dataframe
+                    df_filled = pd.concat([df_complete, df_missing]).sort_index()
+
+                    return df_filled
+                ephys_align_df = fill_missing_nearest(ephys_align_df, 'brain_region')
+                ephys_align_df = fill_missing_nearest(ephys_align_df, 'brain_region_id')
+
+                # Fill missing channels, fill ccf location with linear interpolation along the shank axial direction
+                ephys_align_df = linear_interpolate_coords(ephys_align_df, axial_col='axial', coord_cols=['x', 'y', 'z'])
+
+
+                debug=False
+                if debug:
+
+                    # Plot channels present/absent ephys-aligned data
+                    fig = plt.figure(figsize=(6, 10))
+                    ax = fig.add_subplot(111)
+                    colors= ['purple' if added else 'grey' for added in ephys_align_df['added']] # purple=absent
+                    ax.scatter(ephys_align_df['lateral'], ephys_align_df['axial'], c=colors, marker='s', s=10)
+                    for i, ch in enumerate(ephys_align_df.index):
+                        ch = ephys_align_df['ch_id'].values[i]
+                        ax.text(ephys_align_df['lateral'].values[i]+1, ephys_align_df['axial'].values[i], str(ch), color='k', fontsize=6, ha='center', va='center')
+                    ax.set_title(f'Probe geometry IMEC{imec_id} - ephys-aligned channel positions - corrected')
+                    ax.set_xlabel('X (um)')
+                    ax.set_ylabel('Y (um)')
+                    # Save figure
+                    fig_path = pathlib.Path(imec_folder, f'probe_imec{imec_id}_ibl_channel_positions_corrected.png')
+                    plt.savefig(fig_path, dpi=300)
+                    plt.close()
+
+        else:
+            print(f'Warning: No ibl_format/channel_locations.json found for {mouse_name} IMEC{imec_id}, '
+                    f'skipping ephys-atlas alignment - or invalid probe.')
+
+
+        # Rename columns, add parent info
+        ephys_align_df['peak_channel'] = ephys_align_df['ch_id']
+        ephys_align_df = ephys_align_df.rename(columns=col_mapper)
+        ephys_align_df = add_ccf_parent_info(df=ephys_align_df, config=config)
+        #ephys_align_df = ephys_align_df.astype(str) # ensure all cols are object for NWB
+
+
+       #ephys_align_ch = set(ephys_align_df['peak_channel'].unique().astype(str))
+       #unit_ch = set(unit_table['peak_channel'].unique().astype(str))
+       #missing_ch = sorted(unit_ch - ephys_align_ch) # channels in unit table but not in ephys_align_df
+       #extra_ch = sorted(ephys_align_ch - unit_ch) # channels in ephys_align_df but not in unit table
+
+       #if missing_ch:
+       #    missing_units_areas = unit_table[unit_table['peak_channel'].isin(missing_ch)][
+       #        ['cluster_id', 'bc_label', 'peak_channel', 'ccf_acronym']]
+       #    print(f'Warning: ch missing in ephys-aligned anatomical info for {len(missing_ch)} channels: {missing_ch}.')
+       #    if len(missing_units_areas) > 200:
+       #        print(f'Warning: {len(missing_ch)} channels in unit table missing ephys-aligned anatomical info, alignment likely not performed.')
+
+       #if extra_ch:
+       #    extra_unit_areas = unit_table[unit_table['peak_channel'].isin(extra_ch)][
+       #        ['cluster_id', 'bc_label', 'peak_channel', 'ccf_acronym']]
+       #    print(f'Warning: ch extra in ephys-aligned anatomical info for {len(extra_ch)} channels: {extra_ch}.')
+       #    print(f'Clusters {extra_unit_areas}')
 
 
         # Join ephys-aligned anatomical info to each unit channel using 'ch' col
         unit_table['peak_channel'] = unit_table['peak_channel'].astype(int)
+        ephys_align_df = ephys_align_df.dropna(subset=['peak_channel']) # remove any remaining NaNs
         ephys_align_df['peak_channel'] = ephys_align_df['peak_channel'].astype(int)
-        unit_table = unit_table.merge(ephys_align_df, left_on='peak_channel', right_on='peak_channel', how='left')
-
-        # Use real physical channel indices / depth  using channel map
-        unit_table['depth'] = unit_table['peak_channel'].map(lambda x: str(ycoords.flatten()[int(x)]))
+        unit_table = unit_table.merge(right=ephys_align_df, how='left', on='peak_channel')
+        unit_table.drop(columns=['ch_id','added'], inplace=True)
+        unit_table['depth'] = unit_table['axial'] 
 
         # -----------------------
         # Add units to Unit table
@@ -377,12 +471,12 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
 
         print('Done adding spike data for IMEC{}'.format(imec_id))
 
+        # ------------------------
+        # Add LFP data to NWB file
+        # ------------------------
+
         add_recordings = False
         if add_recordings:
-
-            # ------------------------
-            # Add LFP data to NWB file
-            # ------------------------
 
             # Read LFP data and metadata
             lfp_meta_file = [f for f in os.listdir(imec_folder) if 'lf.meta' in f][0]

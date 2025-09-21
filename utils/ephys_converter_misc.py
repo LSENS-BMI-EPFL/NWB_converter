@@ -14,6 +14,8 @@ import numpy as np
 import pandas as pd
 import yaml
 import re
+from scipy.spatial import cKDTree
+
 
 from utils import server_paths
 from utils.continuous_processing import detect_piezo_lick_times
@@ -55,12 +57,9 @@ def get_probe_insertion_info(config_file):
         config = yaml.load(f, Loader=yaml.FullLoader)
 
     # This is experimenter-specific tracking of that information
-    #try: # TODO: temporary for yaml files containing this info
     if 'path_to_probe_info' in config.get('ephys_metadata').keys():
         path_to_probe_info = config.get('ephys_metadata').get('path_to_probe_info')
         probe_info_df = pd.read_excel(path_to_probe_info)
-    #except KeyError:
-    #    print('Yaml file ephys_metadata does not contain path to probe insertion info.')
     else:
 
         if config.get('session_metadata').get('experimenter') == 'AB':
@@ -129,7 +128,6 @@ def get_target_location(config_file, device_name):
         'elevation': location_df['elevation'].values[0],
         'depth': location_df['depth'].values[0],
     }
-
     return location_dict
 
 def read_ephys_binary_data(bin_file, meta_file):
@@ -611,8 +609,6 @@ def build_unit_table(imec_folder, sync_spike_times_path):
     # ----------------------------
 
     cluster_info_path = pathlib.Path(imec_folder, 'kilosort2', 'cluster_info.tsv')
-    #channel_map = np.load(pathlib.Path(imec_folder, 'kilosort2', 'channel_map.npy')).flatten()
-    #missing_ch = [ch for ch in range(384) if ch not in channel_map]
 
     try:
         cluster_info_df = pd.read_csv(cluster_info_path, sep='\t')
@@ -737,6 +733,213 @@ def build_unit_table(imec_folder, sync_spike_times_path):
 
     return unit_table
 
+def add_ccf_parent_info(df, config):
+    """
+    For each entry with ccf_id, add its parent structure info (id, acronym, name).
+    :param df: pd.DataFrame with ccf_id column
+    :param config: config dictionary
+    :return: area_table with added parent structure columns
+    """
+
+    # Load structures data
+    path_to_atlas = config['ephys_metadata']['path_to_atlas']
+    with open(os.path.join(path_to_atlas, 'structures.json')) as f:
+        structures = json.load(f)
+
+    avail_cols = df.columns.tolist()
+    ccf_id_col = [col for col in avail_cols if '_id' in col][0]
+    is_atlas_space = True if 'ccf_atlas_id' in avail_cols else False
+
+    ccf_ids = df[ccf_id_col].astype(int).values
+
+    # Create a quick lookup for structures by ID
+    structures_by_id = {s['id']: s for s in structures}
+    structures_by_id.update({0: {'acronym':'void', 'id':0, 'name':'void', 'rgb_triplet':[255,255,255], 'structure_id_path':[0]}}) #from IBL GUI
+
+    # Determine each CCF region's parent ID (or root/void = 997)
+    # Like above but also root and void
+    parent_ids = {
+        ccf_id: (structures_by_id[ccf_id]['structure_id_path'][-2]
+                 if structures_by_id[ccf_id]['name'] not in ['root', 'void'] else ccf_id)
+        for ccf_id in ccf_ids
+    }
+
+    # Build parent lookups
+    parent_info = {
+        pid: structures_by_id[pid] for pid in set(parent_ids.values())
+    }
+
+    # Add to area_table
+    if is_atlas_space:
+        df['ccf_atlas_parent_id'] = [parent_info[parent_ids[ccf_id]]['id'] for ccf_id in ccf_ids]
+        df['ccf_atlas_parent_acronym'] = [parent_info[parent_ids[ccf_id]]['acronym'] for ccf_id in ccf_ids]
+        df['ccf_atlas_parent_name'] = [parent_info[parent_ids[ccf_id]]['name'] for ccf_id in ccf_ids]
+    else:
+        df['ccf_parent_id'] = [parent_info[parent_ids[ccf_id]]['id'] for ccf_id in ccf_ids]
+        df['ccf_parent_acronym'] = [parent_info[parent_ids[ccf_id]]['acronym'] for ccf_id in ccf_ids]
+        df['ccf_parent_name'] = [parent_info[parent_ids[ccf_id]]['name'] for ccf_id in ccf_ids]
+
+    return df
+
+def fill_missing_ccf_coords(df,
+                            axial_col='axial',
+                            lateral_col='lateral',
+                            coord_cols=('x', 'y', 'z'),
+                            shank_col=None,
+                            method='nearest',
+                            k=1,
+                            max_distance=None):
+    """
+    Fill missing CCF anatomical coordinates (x, y, z) in a dataframe
+    using nearest neighbor or weighted interpolation based on physical
+    probe coordinates (axial, lateral).
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input dataframe containing at least axial, lateral, and optionally shank columns.
+    axial_col : str, default='axial'
+        Name of the column representing axial (depth) coordinates in microns.
+    lateral_col : str, default='lateral'
+        Name of the column representing lateral coordinates in microns.
+    coord_cols : tuple, default=('x', 'y', 'z')
+        Names of the columns containing anatomical CCF coordinates to be filled.
+    shank_col : str or None, default=None
+        If provided, ensures that nearest neighbors are only searched within the same shank.
+    method : str, {'nearest', 'weighted'}, default='nearest'
+        - 'nearest': Assigns missing values from the closest known neighbor.
+        - 'weighted': Interpolates using inverse-distance weighting from k neighbors.
+    k : int, default=1
+        Number of neighbors to consider when `method='weighted'`.
+    max_distance : float or None, default=None
+        Maximum allowed distance (in microns) for neighbor assignment.
+        If None, no distance cutoff is applied.
+
+    Returns
+    -------
+    pd.DataFrame
+        A copy of the dataframe with missing `x, y, z` filled in where possible.
+    """
+
+    df = df.copy()  # Avoid modifying original
+
+    # Check columns exist
+    required_cols = [axial_col, lateral_col] + list(coord_cols)
+    for col in required_cols:
+        if col not in df.columns:
+            raise ValueError(f"Required column '{col}' is missing from dataframe.")
+
+    # Separate known and missing entries
+    known = df.dropna(subset=coord_cols).copy()
+    missing = df[df[list(coord_cols)].isnull().any(axis=1)].copy()
+
+    if known.empty:
+        raise ValueError("No known CCF coordinates available for interpolation.")
+    if missing.empty:
+        return df  # Nothing to fill
+
+    # Prepare storage for updated coordinates
+    filled_coords = missing[list(coord_cols)].copy()
+
+    # Helper: build KDTree per shank if needed
+    def build_tree(sub_df):
+        coords = sub_df[[axial_col, lateral_col]].values
+        return cKDTree(coords), coords
+
+    # Function to fill for one subset (either per shank or all data)
+    def process_subset(miss_subset, known_subset):
+        tree, _ = build_tree(known_subset)
+
+        query_coords = miss_subset[[axial_col, lateral_col]].values
+
+        if method == 'nearest':
+            # k=1 is enforced here
+            distances, indices = tree.query(query_coords, k=1)
+            new_vals = known_subset.iloc[indices][list(coord_cols)].values
+
+            if max_distance is not None:
+                mask = distances <= max_distance
+                new_vals[~mask] = np.nan  # Set too-far matches to NaN
+
+        elif method == 'weighted':
+            distances, indices = tree.query(query_coords, k=k)
+
+            # Handle case where k=1 to avoid shape issues
+            if k == 1:
+                distances = distances[:, np.newaxis]
+                indices = indices[:, np.newaxis]
+
+            weights = 1.0 / (distances + 1e-9)  # Avoid divide-by-zero
+            weights /= weights.sum(axis=1, keepdims=True)  # Normalize
+
+            known_vals = known_subset.iloc[indices.flatten()][list(coord_cols)].values
+            known_vals = known_vals.reshape(indices.shape[0], indices.shape[1], len(coord_cols))
+
+            new_vals = np.sum(known_vals * weights[..., np.newaxis], axis=1)
+
+            if max_distance is not None:
+                # Check distance of closest neighbor
+                too_far = distances[:, 0] > max_distance
+                new_vals[too_far] = np.nan
+
+        else:
+            raise ValueError("Invalid method. Use 'nearest' or 'weighted'.")
+
+        return new_vals
+
+    # Process either per shank or globally
+    if shank_col and shank_col in df.columns:
+        for shank_id in missing[shank_col].unique():
+            miss_subset = missing[missing[shank_col] == shank_id]
+            known_subset = known[known[shank_col] == shank_id]
+            if known_subset.empty:
+                continue
+            filled_coords.loc[miss_subset.index] = process_subset(miss_subset, known_subset)
+    else:
+        filled_coords[:] = process_subset(missing, known)
+
+    # Merge back into the dataframe
+    df.loc[filled_coords.index, list(coord_cols)] = filled_coords
+    return df
+
+def linear_interpolate_coords(df,
+                              axial_col='axial',
+                              coord_cols=['x', 'y', 'z'],
+                              shank_col=None):
+    """
+    Linearly interpolate missing CCF coordinates (x, y, z) along the axial axis of the probe.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Dataframe containing axial positions and CCF coordinates (x, y, z).
+    axial_col : str
+        Column name for the axial positions (depth along probe).
+    coord_cols : tuple
+        Columns to interpolate.
+    shank_col : str or None
+        If provided, interpolation is done separately for each shank.
+
+    Returns
+    -------
+    pd.DataFrame
+        Copy of dataframe with missing coordinates filled by linear interpolation.
+    """
+    df_out = df.copy()
+
+    if shank_col and shank_col in df.columns:
+        # Interpolate per shank
+        for shank_id, group in df_out.groupby(shank_col):
+            df_out.loc[group.index, coord_cols] = group.sort_values(axial_col).interpolate(
+                method='linear', axis=0, limit_direction='both')[coord_cols]
+    else:
+        # Interpolate globally along axial axis
+        df_out = df_out.sort_values(axial_col)
+        df_out[coord_cols] = df_out[coord_cols].interpolate(
+            method='linear', axis=0, limit_direction='both')[coord_cols]
+
+    return df_out
+
 
 def build_area_table(config_file, imec_folder, probe_info):
     """
@@ -772,7 +975,7 @@ def build_area_table(config_file, imec_folder, probe_info):
     # Format table for future shank row matching
     area_table.rename(columns={'Position':'shank_row',
                                'Distance from first position [um]':'distance',  # brainreg-segmentation output update
-                               'Index':'shank_row', # brainreg-segmentation output update                               'Region ID': 'ccf_id',
+                               'Index':'shank_row', # brainreg-segmentation output update
                                'Region ID': 'ccf_id',
                                'Region acronym': 'ccf_acronym',
                                'Region name': 'ccf_name'}, inplace=True)
@@ -800,7 +1003,6 @@ def build_area_table(config_file, imec_folder, probe_info):
     area_table['shank_row'] = max_position - area_table['shank_row'].values  # make values start at 0
 
     # Add atlas metadata
-    #path_to_atlas = r'C:\Users\bisi\.brainglobe\allen_mouse_bluebrain_barrels_10um_v1.0'
     path_to_atlas = config['ephys_metadata']['path_to_atlas']
     with open(os.path.join(path_to_atlas, 'metadata.json')) as f:
         atlas_metadata = json.load(f)
@@ -812,32 +1014,33 @@ def build_area_table(config_file, imec_folder, probe_info):
     # Simplify CCF hierarchical nomenclature with parent structure
     # Relevant for cortical layers <-> cortical area
     # ------------------------------------------------------------
+    #area_table = add_ccf_parent_info(area_table, path_to_atlas)
 
-    with open(os.path.join(path_to_atlas, 'structures.json')) as f:
-        structures_dict_list = json.load(f)
+    #with open(os.path.join(path_to_atlas, 'structures.json')) as f:
+    #    structures_dict_list = json.load(f)
 
     # For each region_id, get parent structures
-    ccf_ids = np.array(area_table['ccf_id'].values, dtype=int)
-    present_structures = {i['id']: i for i in structures_dict_list if i['id'] in ccf_ids}  # all present structures
+    #ccf_ids = np.array(area_table['ccf_id'].values, dtype=int)
+    #present_structures = {i['id']: i for i in structures_dict_list if i['id'] in ccf_ids}  # all present structures
 
     # Get corresponding parent structure IDs
-    ccf_parent_ids = {ccf_id: (struct['structure_id_path'][-2] if struct['name']!='root' else 997)
-                      for ccf_id, struct in present_structures.items()}
+    #ccf_parent_ids = {ccf_id: (struct['structure_id_path'][-2] if struct['name']!='root' else 997)
+    #                  for ccf_id, struct in present_structures.items()}
 
     # Map region to parent structure
-    ccf_parent_dict = {i['id']: i for i in structures_dict_list if i['id'] in ccf_parent_ids.values()}  # parent structures
+    #ccf_parent_dict = {i['id']: i for i in structures_dict_list if i['id'] in ccf_parent_ids.values()}  # parent structures
 
     # Make hierarchical mappers: cff area <-> ccf parent area information
-    ccf_parent_id_mapper = {ccf_id: ccf_parent_dict[ccf_parent_ids[ccf_id]]['id'] for ccf_id in ccf_parent_ids.keys()}
-    ccf_parent_acronym_mapper = {ccf_id: ccf_parent_dict[ccf_parent_ids[ccf_id]]['acronym'] for ccf_id in
-                                 ccf_parent_ids.keys()}
-    ccf_parent_name_mapper = {ccf_id: ccf_parent_dict[ccf_parent_ids[ccf_id]]['name'] for ccf_id in
-                              ccf_parent_ids.keys()}
+    #ccf_parent_id_mapper = {ccf_id: ccf_parent_dict[ccf_parent_ids[ccf_id]]['id'] for ccf_id in ccf_parent_ids.keys()}
+    #ccf_parent_acronym_mapper = {ccf_id: ccf_parent_dict[ccf_parent_ids[ccf_id]]['acronym'] for ccf_id in
+    #                             ccf_parent_ids.keys()}
+    #ccf_parent_name_mapper = {ccf_id: ccf_parent_dict[ccf_parent_ids[ccf_id]]['name'] for ccf_id in
+    #                          ccf_parent_ids.keys()}
 
     # Add parent structure information
-    area_table['ccf_parent_id'] = [ccf_parent_id_mapper[ccf_id] for ccf_id in ccf_ids]
-    area_table['ccf_parent_acronym'] = [ccf_parent_acronym_mapper[ccf_id] for ccf_id in ccf_ids]
-    area_table['ccf_parent_name'] = [ccf_parent_name_mapper[ccf_id] for ccf_id in ccf_ids]
+    #area_table['ccf_parent_id'] = [ccf_parent_id_mapper[ccf_id] for ccf_id in ccf_ids]
+    #area_table['ccf_parent_acronym'] = [ccf_parent_acronym_mapper[ccf_id] for ccf_id in ccf_ids]
+    #area_table['ccf_parent_name'] = [ccf_parent_name_mapper[ccf_id] for ccf_id in ccf_ids]
 
     # -----------------------------------------
     # Load ccf coordinates (ccf standard space)
@@ -857,7 +1060,5 @@ def build_area_table(config_file, imec_folder, probe_info):
     area_table['ccf_ap'] = coords[:, 0]
     area_table['ccf_ml'] = coords[:, 2] # nota bene
     area_table['ccf_dv'] = coords[:, 1]
-
-
 
     return area_table
