@@ -146,7 +146,7 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
 
         # Build table with anatomical location estimates of each electrode
         area_table = build_area_table(config_file=config_file, imec_folder=imec_folder, probe_info=probe_info)
-        area_table = add_ccf_parent_info(df=area_table, config=config)
+        area_table = add_ccf_parent_info(df=area_table, config=config, ccf_id_col='ccf_id')
 
         # Reindex to match shank electrode order
         area_table = area_table.sort_values(by=['shank_row'], ascending=True, axis=0)
@@ -370,7 +370,7 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
             # Rename columns, add parent info
             ephys_align_df['peak_channel'] = ephys_align_df['ch_id']
             ephys_align_df = ephys_align_df.rename(columns=col_mapper)
-            ephys_align_df = add_ccf_parent_info(df=ephys_align_df, config=config)
+            ephys_align_df = add_ccf_parent_info(df=ephys_align_df, config=config, ccf_id_col='ccf_atlas_id')
             #ephys_align_df = ephys_align_df.astype(str) # ensure all cols are object for NWB
 
 
@@ -448,6 +448,10 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
                 ccf_atlas_ap=unit_table['ccf_atlas_ap'].values[neuron_id],
                 ccf_atlas_id=unit_table['ccf_atlas_id'].values[neuron_id],
                 ccf_atlas_acronym=unit_table['ccf_atlas_acronym'].values[neuron_id],
+                ccf_atlas_name=unit_table['ccf_atlas_name'].values[neuron_id],
+                ccf_atlas_parent_id=unit_table['ccf_atlas_parent_id'].values[neuron_id],
+                ccf_atlas_parent_acronym=unit_table['ccf_atlas_parent_acronym'].values[neuron_id],
+                ccf_atlas_parent_name=unit_table['ccf_atlas_parent_name'].values[neuron_id],
                 maxChannels=unit_table['maxChannels'].values[neuron_id],
                 bc_cluster_id=unit_table['bc_cluster_id'].values[neuron_id],
                 useTheseTimesStart=unit_table['useTheseTimesStart'].values[neuron_id],
