@@ -409,6 +409,7 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
     if experimenter in ['GF', 'MI']:
         trial_table = utils_gf.map_result_columns(trial_table)
 
+
     trial_type_list = list_standard_trial_type(results_table=trial_table)
     n_trials = trial_table['perf'].size
     print(f"Read '.csv' file to build trial NWB trial table ({n_trials} trials)")
@@ -576,6 +577,7 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
         standard_trial_table = standard_trial_table.reset_index(drop=True)
 
     if experimenter == 'AB':
+
         # Ensure string formatting of context
         standard_trial_table['context'] = standard_trial_table['context'].astype(str)
 
@@ -587,6 +589,21 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
             standard_trial_table.loc[mask_nan_to_whisker, 'trial_type'] = 'whisker_trial'
             mask_nan_to_auditory = standard_trial_table['trial_type'].isna() & standard_trial_table['auditory_stim_duration'].notnull()
             standard_trial_table.loc[mask_nan_to_auditory, 'trial_type'] = 'auditory_trial'
+
+        # Get overstriked times
+        overstrike_file = server_paths.get_overstrike_file(config_file=config_file)
+        print(overstrike_file)
+        if overstrike_file is not None:
+            with open(overstrike_file,'r') as f:
+                overstrike = yaml.load(f, Loader=yaml.FullLoader)
+                overstrike_periods = overstrike['timespans_list']
+
+            # Modify perf to 6 for all trials start time in overstrike periods
+            for period in overstrike_periods:
+                print('Marking overstriked trials as excluded (perf=6) for period: {}'.format(period))
+                mask_overstrike = (standard_trial_table['start_time'] >= period[0]) & (standard_trial_table['start_time'] <= period[1])
+                standard_trial_table.loc[mask_overstrike, 'perf'] = 6
+
 
     return standard_trial_table
 

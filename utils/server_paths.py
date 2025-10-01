@@ -577,5 +577,22 @@ def get_facemap_file_path(config_file):
 
     return file_path
 
+def get_overstrike_file(config_file):
+    with open(config_file, 'r', encoding='utf8') as stream:
+        config = yaml.safe_load(stream)
+
+    mouse_name = config['subject_metadata']['subject_id']
+    session_name = config['session_metadata']['session_id']
+
+    data_folder = get_subject_analysis_folder(mouse_name)
+    ephys_path = os.path.join(data_folder, session_name, 'Ephys')
+    overstrike_path = os.path.join(ephys_path, 'overstrike_info.yaml')
+    if os.path.exists(overstrike_path):
+        print(f"Overstrike file found for {session_name} session from {mouse_name}")
+        return overstrike_path
+    else:
+        return None
+
+
 
 
