@@ -547,6 +547,11 @@ def create_unit_table(nwb_file):
         'ccf_atlas_dv': 'ccf atlas coordinate in dv axis after ephys-atlas alignment',
         'ccf_atlas_id': 'ccf atlas region ID after ephys-atlas alignment',
         'ccf_atlas_acronym': 'ccf atlas region acronym after ephys-atlas alignment',
+        'ccf_atlas_name': 'ccf atlas region name after ephys-atlas alignment',
+        'ccf_atlas_parent_id': 'ccf atlas parent region ID after ephys-atlas alignment',
+        'ccf_atlas_parent_acronym': 'ccf atlas parent region acronym after',
+        'ccf_atlas_parent_name': 'ccf atlas parent region name after ephys-atlas alignment',
+
     }
     for col_key, col_desc in dict_columns_to_add.items():
         nwb_file.add_unit_column(name=col_key, description=col_desc)
@@ -733,11 +738,13 @@ def build_unit_table(imec_folder, sync_spike_times_path):
 
     return unit_table
 
-def add_ccf_parent_info(df, config):
+
+def add_ccf_parent_info(df, config, ccf_id_col):
     """
     For each entry with ccf_id, add its parent structure info (id, acronym, name).
-    :param df: pd.DataFrame with ccf_id column
+    :param df: pd.DataFrame with a ccf_id column
     :param config: config dictionary
+    :param ccf_id_col: name of the column with ccf_id
     :return: area_table with added parent structure columns
     """
 
@@ -747,8 +754,9 @@ def add_ccf_parent_info(df, config):
         structures = json.load(f)
 
     avail_cols = df.columns.tolist()
-    ccf_id_col = [col for col in avail_cols if '_id' in col][0]
-    is_atlas_space = True if 'ccf_atlas_id' in avail_cols else False
+    #ccf_id_col = [col for col in avail_cols if '_id' in col][0]
+    #is_atlas_space = True if 'ccf_atlas_id' in avail_cols else False
+    is_atlas_space = True if ccf_id_col=='ccf_atlas_id' else False
 
     ccf_ids = df[ccf_id_col].astype(int).values
 
@@ -769,7 +777,11 @@ def add_ccf_parent_info(df, config):
         pid: structures_by_id[pid] for pid in set(parent_ids.values())
     }
 
-    # Add to area_table
+    # Add missing column for ccf_atlas_name
+    if is_atlas_space:
+        df['ccf_atlas_name'] = [structures_by_id[ccf_id]['name'] for ccf_id in ccf_ids]
+
+    # Add to tabke
     if is_atlas_space:
         df['ccf_atlas_parent_id'] = [parent_info[parent_ids[ccf_id]]['id'] for ccf_id in ccf_ids]
         df['ccf_atlas_parent_acronym'] = [parent_info[parent_ids[ccf_id]]['acronym'] for ccf_id in ccf_ids]
