@@ -167,7 +167,8 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
                                                    description=description,
                                                    control=None, control_description=None)
 
-    if config_dict.get("two_photon_metadata") is not None:
+    if (config_dict.get("two_photon_metadata") is not None and
+            config_dict.get('session_metadata').get('experimenter') in ['GF', 'AR']):
         # Get motivated/unmotivated timestamps
         motivated_timestamps_dict = get_motivated_epoch_ts(timestamps_dict=timestamps_dict, nwb_trial_table=trial_table)
 

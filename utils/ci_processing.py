@@ -116,20 +116,25 @@ def get_processed_ci(suite2p_folder):
     return stat, is_cell, F_raw, F_neu, F0_cor, F0_raw, dff
 
 
-def get_roi_labels(rois_label_folder):
+def get_roi_labels(rois_label_folder, default_info_dict=None):
     far_red_rois = np.load(os.path.join(rois_label_folder, 'FarRedRois.npy'), allow_pickle=True)
     red_rois = np.load(os.path.join(rois_label_folder, 'RedRois.npy'), allow_pickle=True)
     un_rois = np.load(os.path.join(rois_label_folder, 'UNRois.npy'), allow_pickle=True)
     info_file = os.path.join(rois_label_folder, 'CTBInjectionsInfo.txt')
 
-    info = {}
-    with open(info_file) as f:
-        for line in f:
-            key, val = line.split()
-            info[key] = val
-    info = {color: area for area, color in info.items()}
+    if os.path.exists(info_file):
+        info = {}
+        with open(info_file) as f:
+            for line in f:
+                key, val = line.split()
+                info[key] = val
+        info = {color: area for area, color in info.items()}
 
-    return far_red_rois, red_rois, un_rois, info
+        return far_red_rois, red_rois, un_rois, info
+    else:
+        if default_info_dict is None:
+            default_info_dict = {'CTB-594': 'wM1'}
+        return far_red_rois, red_rois, un_rois, default_info_dict
 
 
 def get_wf_roi_pixel_mask(roi_file, img_shape):

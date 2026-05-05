@@ -25,9 +25,10 @@ def convert_ci_movie(nwb_file, config_file, movie_format, add_movie_data_or_link
         config = yaml.safe_load(stream)
     two_p_metadata = config['two_photon_metadata']
 
-    device = Device(two_p_metadata['device'])
+    device = Device(name=two_p_metadata['device'])
     nwb_file.add_device(device)
-    optical_channel = OpticalChannel('optical_channel', 'GreenPMT', two_p_metadata['emission_lambda'])
+    optical_channel = OpticalChannel(name='optical_channel', description='GreenPMT',
+                                     emission_lambda=two_p_metadata['emission_lambda'])
     excitation_lambda = two_p_metadata['excitation_lambda']
     indicator = two_p_metadata['indicator']
     image_plane_location = two_p_metadata['image_plane_location']

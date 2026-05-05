@@ -2,6 +2,8 @@ import os
 import glob
 import yaml
 import socket
+from natsort import natsorted
+
 
 EXPERIMENTER_MAP = {
     'AR': 'Anthony_Renard',
@@ -251,8 +253,11 @@ def get_imaging_file(config_file):
         tiff_file = [os.path.join(reg_tiff_path, m) for m in os.listdir(reg_tiff_path)
                      if os.path.splitext(m)[1] in ['.tif', '.tiff']]
         # Sort this list
-        f = lambda x: int(os.path.basename(x).split('_')[0][6:])
-        tiff_file = sorted(tiff_file, key=f)    
+        if '_' in os.path.basename(tiff_file[0]):
+            f = lambda x: int(os.path.basename(x).split('_')[0][6:])
+            tiff_file = sorted(tiff_file, key=f)
+        else:
+            tiff_file = natsorted(tiff_file)
         if not tiff_file:
             add_raw_movie = True
         else:
@@ -516,10 +521,14 @@ def get_rois_label_folder(config_file):
         config = yaml.safe_load(stream)
     mouse_name = config['subject_metadata']['subject_id']
     folder = get_subject_analysis_folder(mouse_name)
-    folder = os.path.join(folder, 'projection_neurons')
-    
-    if os.path.exists(folder):
+    if os.path.exists(os.path.join(folder, 'projection_neurons')):
+        folder = os.path.join(folder, 'projection_neurons')
         return folder
+    else:
+        session = config['session_metadata']['session_id']
+        if os.path.exists(os.path.join(folder, session, 'projection_neurons')):
+            folder = os.path.join(folder, session, 'projection_neurons')
+            return folder
 
 
 def get_dlc_file_path(config_file):

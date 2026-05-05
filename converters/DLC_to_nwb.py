@@ -65,24 +65,24 @@ def convert_dlc_data(nwb_file, config_file, video_timestamps):
         for name, data in side_dlc.items():
             ts = [timestamp[0] for timestamp in video_timestamps['cam1']]
             rate = np.round(1 / np.median(np.diff(ts[0:200])), 2)
-            if 'velocity' in name: # scale frame difference wrt. to sampling rate
+            if 'velocity' in name:  # scale frame difference wrt. to sampling rate
                 data = data * rate
 
             # Add times series for bodybarts
             timeseries = TimeSeries(name=f'{name}',
-                                            data=data.to_numpy(),
-                                            unit='seconds',
-                                            resolution=-1.0,
-                                            conversion=[1/px_ref[key].values[0] for key in px_ref.keys() if "side" in key][0],
-                                            offset=0.0,
-                                            timestamps=[timestamp[0] for timestamp in video_timestamps['cam1']],
-                                            starting_time=None,
-                                            rate=None,
-                                            comments='no comments',
-                                            description=f'no description',
-                                            control=None,
-                                            control_description=None,
-                                            continuity='continuous')
+                                    data=data.to_numpy(),
+                                    unit='seconds',
+                                    resolution=-1.0,
+                                    conversion=[1/px_ref[key].values[0] for key in px_ref.keys() if "side" in key][0],
+                                    offset=0.0,
+                                    timestamps=[timestamp[0] for timestamp in video_timestamps['cam1']],
+                                    starting_time=None,
+                                    rate=None,
+                                    comments='no comments',
+                                    description=f'no description',
+                                    control=None,
+                                    control_description=None,
+                                    continuity='continuous')
 
             behavior_t_series.add_timeseries(timeseries)
 
@@ -98,19 +98,19 @@ def convert_dlc_data(nwb_file, config_file, video_timestamps):
 
             # Add times series for bodybarts
             timeseries = TimeSeries(name=f'{name}',
-                                            data=data.to_numpy(),
-                                            unit='seconds',
-                                            resolution=-1.0,
-                                            conversion=[1/px_ref[key].values[0] for key in px_ref.keys() if "top" in key][0],
-                                            offset=0.0,
-                                            timestamps=[timestamp[0] for timestamp in video_timestamps['cam2']],
-                                            starting_time=None,
-                                            rate=None,
-                                            comments='no comments',
-                                            description=f'no description',
-                                            control=None,
-                                            control_description=None,
-                                            continuity='continuous')
+                                    data=data.to_numpy(),
+                                    unit='seconds',
+                                    resolution=-1.0,
+                                    conversion=[1/px_ref[key].values[0] for key in px_ref.keys() if "top" in key][0],
+                                    offset=0.0,
+                                    timestamps=[timestamp[0] for timestamp in video_timestamps['cam2']],
+                                    starting_time=None,
+                                    rate=None,
+                                    comments='no comments',
+                                    description=f'no description',
+                                    control=None,
+                                    control_description=None,
+                                    continuity='continuous')
 
             behavior_t_series.add_timeseries(timeseries)
 
