@@ -7,6 +7,7 @@ import numpy as np
 
 import yaml
 import json
+import numpy as np
 
 import utils.utils_gf as utils_gf
 from continuous_log_analysis import analyze_continuous_log
@@ -16,6 +17,7 @@ from converters.ephys_to_nwb import convert_ephys_recording
 from converters.nwb_saving import save_nwb_file
 from converters.subject_to_nwb import create_nwb_file
 from converters.suite2p_to_nwb import convert_suite2p_data
+from converters.images_to_nwb import convert_images_data
 from converters.widefield_to_nwb import convert_widefield_recording
 from converters.DLC_to_nwb import convert_dlc_data
 from converters.facemap_to_nwb import convert_facemap_data
@@ -28,6 +30,7 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True):
     """
     :param config_file: Path to the yaml config file containing mouse ID and metadata for the session to convert
     :param output_folder: Path to the folder to save NWB files
+    :param with_time_string: Add timestring in nwb filename
     :return: NWB file
     """
 
@@ -43,7 +46,7 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True):
 
     if config_dict['session_metadata']['experimenter'] != 'GF':
         timestamps_dict, _ = analyze_continuous_log(config_file=config_file,
-                                                    do_plot=False, plot_start=1,
+                                                    do_plot=False, plot_start=0,
                                                     plot_stop=100, camera_filtering=False)
     else:
         timestamps_dict, _ = utils_gf.infer_timestamps_dict(
@@ -70,12 +73,17 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True):
                              config_file=config_file,
                              ci_frame_timestamps=timestamps_dict['galvo_position'])
 
+        print(" ")
+        print("Convert fixed images to NWB")
+        convert_images_data(nwb_file=nwb_file,
+                            config_file=config_file)
+
     if config_dict.get("ephys_metadata") is not None:
         if config_dict.get("ephys_metadata").get("processed") == 1:
-             print(" ")
-             print("Convert extracellular electrophysiology data")
-             convert_ephys_recording(nwb_file=nwb_file,
-                                     config_file=config_file)
+            print(" ")
+            print("Convert extracellular electrophysiology data")
+            convert_ephys_recording(nwb_file=nwb_file,
+                                    config_file=config_file)
 
     # Check we are on WF computer
     platform_info = platform.uname()

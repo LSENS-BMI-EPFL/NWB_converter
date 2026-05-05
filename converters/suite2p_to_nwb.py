@@ -1,7 +1,7 @@
 import os
 import yaml
 import numpy as np
-from pynwb.ophys import Fluorescence, ImageSegmentation
+from pynwb.ophys import Fluorescence, ImageSegmentation, RoiResponseSeries
 
 
 import utils.utils_gf as utils_gf
@@ -68,6 +68,8 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
     # Create Fluorescence object to store fluorescence data
     fl = Fluorescence(name="fluorescence_all_cells")
     ophys_module.add_data_interface(fl)
+
+    # Create rt region (dynamical table to store roi information)
     n_cells = (is_cell[:, 0] == 1).sum()
     rt_region = ps.create_roi_table_region('all cells', region=list(np.arange(n_cells)))
 
@@ -135,21 +137,28 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
         if d is not None:
 
             if cell_type_codes is not None and cell_type_names is not None:
-                fl.create_roi_response_series(name=l,
-                                              data=np.transpose(d),
-                                              unit='lumens',
-                                              rois=rt_region, timestamps=ci_frame_timestamps,
-                                              description=desc,
-                                              control=cell_type_codes,
-                                              control_description=cell_type_names)
+                roi_resp_series = RoiResponseSeries(
+                    name=l,
+                    description=desc,
+                    data=np.transpose(d),
+                    rois=rt_region,
+                    unit="lumens",
+                    timestamps=ci_frame_timestamps,
+                    control=cell_type_codes,
+                    control_description=cell_type_names
+                )
+                fl.add_roi_response_series(roi_resp_series)
             else:
-                fl.create_roi_response_series(name=l,
-                                              data=np.transpose(d),
-                                              unit='lumens',
-                                              rois=rt_region, timestamps=ci_frame_timestamps,
-                                              description=desc)
-            print(f"- Creating Roi Response Series with: {desc}"
+                roi_resp_series = RoiResponseSeries(
+                    name=l,
+                    description=desc,
+                    data=np.transpose(d),
+                    rois=rt_region,
+                    unit="lumens",
+                    timestamps=ci_frame_timestamps
+                )
+                fl.add_roi_response_series(roi_resp_series)
+            print(f"- Adding Roi Response Series with: {desc}"
                 f"shape: {(np.transpose(d)).shape}")
-
 
 

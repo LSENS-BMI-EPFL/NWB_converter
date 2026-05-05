@@ -381,8 +381,8 @@ def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scan
                 n_frames_dict[key] = len(end_filtered_ci_frame_times)
             else:
                 # Remove the 2 last detected frames
-                # Todo : always true so far but check every time
-                filtered_ci_frame_times = ci_frame_times[0: -2]
+                # Todo : always true so far but check every time this could be either -1 or -2
+                filtered_ci_frame_times = ci_frame_times[0: -1]
                 # Save this
                 timestamps_dict[key] = filtered_ci_frame_times
                 n_frames_dict[key] = len(filtered_ci_frame_times)
