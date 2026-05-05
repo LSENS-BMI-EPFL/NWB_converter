@@ -135,7 +135,14 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
     # todo : add control (list of int code for cell type) and control_description (list of str for name of cell type)
     for d, l, desc in zip(data, data_labels, descriptions):
         if d is not None:
-
+            if  d.shape[1] == len(ci_frame_timestamps):
+                ci_frame_timestamps_corr = ci_frame_timestamps
+            elif d.shape[1] < len(ci_frame_timestamps):
+                print(f'Found {len(ci_frame_timestamps) - d.shape[1]} more timestamps than imaging frames')
+                ci_frame_timestamps_corr = ci_frame_timestamps[:-int(len(ci_frame_timestamps) - d.shape[1])]
+            else:
+                print('Found more frames than timestamps. Not adding RRS')
+                return
             if cell_type_codes is not None and cell_type_names is not None:
                 roi_resp_series = RoiResponseSeries(
                     name=l,
@@ -143,7 +150,7 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
                     data=np.transpose(d),
                     rois=rt_region,
                     unit="lumens",
-                    timestamps=ci_frame_timestamps,
+                    timestamps=ci_frame_timestamps_corr,
                     control=cell_type_codes,
                     control_description=cell_type_names
                 )
@@ -155,10 +162,10 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
                     data=np.transpose(d),
                     rois=rt_region,
                     unit="lumens",
-                    timestamps=ci_frame_timestamps
+                    timestamps=ci_frame_timestamps_corr
                 )
                 fl.add_roi_response_series(roi_resp_series)
-            print(f"- Adding Roi Response Series with: {desc}"
+            print(f"- Adding Roi Response Series with: {desc} "
                 f"shape: {(np.transpose(d)).shape}")
 
 
