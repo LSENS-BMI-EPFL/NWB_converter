@@ -52,7 +52,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     # Select most recent metadata export from SLIMS folder.
     try:
         slims_csv = sorted(os.listdir(os.path.join(input_folder, 'SLIMS')))[
-            0]  # post-euthanasia SLIMS file has more information
+            -1]  # post-euthanasia SLIMS file has more information
         slims_csv_path = os.path.join(input_folder, 'SLIMS', slims_csv)
         slims = pd.read_csv(slims_csv_path, sep=';', engine='python')
     except IndexError:

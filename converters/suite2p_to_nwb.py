@@ -42,6 +42,15 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
     if image_series is None:
         print("No calcium imaging movie named 'motion_corrected_ci_movie' found in nwb_file")
 
+    # Load Suite2p data
+    print('Loading suite2p data.')
+    # Assumes that non-cells are already filtered out.
+    stat, is_cell, F_raw, F_neu, F0_cor, F0_raw, dff = utils_ci.get_processed_ci(suite2p_folder)
+    if dff is None:
+        print('Suite 2p data is not processed, no dff yet. Return')
+        return
+
+    # Only if we are going to add data
     img_seg = ImageSegmentation(name="all_cells")
     ophys_module.add_data_interface(img_seg)
     imaging_plane = nwb_file.get_imaging_plane("my_imaging_plane")
@@ -49,12 +58,6 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
     ps = img_seg.create_plane_segmentation(description='output from segmenting',
                                            imaging_plane=imaging_plane, name='my_plane_segmentation',
                                            reference_images=image_series)
-
-    # Load Suite2p data
-    print('Loading suite2p data.')
-    # Assumes that non-cells are already filtered out.
-    stat, is_cell, F_raw, F_neu, F0_cor, F0_raw, dff = utils_ci.get_processed_ci(suite2p_folder)
-
     # Extract image dimensions
     if image_series is not None:
         dim_y, dim_x = image_series.dimension[1:]

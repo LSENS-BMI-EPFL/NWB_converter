@@ -356,6 +356,17 @@ def list_standard_trial_type(results_table):
 
     return trial_type_list
 
+def map_strength_from_volts(wh_stim_volts, behavior_results_file):
+    file_dir = os.path.dirname(behavior_results_file)
+    mt_list_file = os.path.join(file_dir, 'psychometric_mt_values.csv')
+    if not os.path.exists(mt_list_file):
+        return None
+    else:
+        ranked_volt = np.sort(np.unique(wh_stim_volts))
+        ranked_mt_values = np.sort(pd.read_csv(mt_list_file)['mT'].values[:])
+
+        return [ranked_mt_values[np.where(ranked_volt == amp)[0]] if amp != 0 else 0 for amp in wh_stim_volts]
+
 
 def build_standard_trial_table(config_file, behavior_results_file, timestamps_dict):
     """
@@ -476,6 +487,12 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
     standard_trial_table['whisker_stim'] = trial_table['is_whisker']
 
     standard_trial_table['whisker_stim_amplitude'] = trial_table['wh_stim_amp']
+    if 'wh_stim_amp_mT' in trial_table.columns:
+        standard_trial_table['whisker_stim_strength'] = trial_table['wh_stim_amp_mT']
+    else:
+        wh_stim_strength = map_strength_from_volts(trial_table['wh_stim_amp'].values[:], behavior_results_file)
+        if wh_stim_strength is not None:
+            standard_trial_table['whisker_stim_strength'] = wh_stim_strength
     standard_trial_table['whisker_stim_duration'] = trial_table['wh_stim_duration']
     standard_trial_table['whisker_stim_time'] = whisker_stim_time
 
