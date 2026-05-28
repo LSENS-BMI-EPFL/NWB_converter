@@ -312,7 +312,8 @@ def create_channels_threshold_dict(experimenter, json_config, session_type):
         #    channels_dict.pop('empty_2')
         #    threshold_dict.pop('empty_2')
 
-    elif json_config['twophoton_session'] or (session_type in ['pharma_session', 'behaviour_only_session']):
+    elif json_config['twophoton_session'] or (session_type in ['pharma_session',
+                                                               'behaviour_only_session', 'ttl_session']):
         channels_dict = {
             'trial_TTL': 2,
             'lick_trace': 0,
@@ -356,7 +357,7 @@ def create_channels_threshold_dict(experimenter, json_config, session_type):
         threshold_dict.update({'context': 4})
 
     # Add TTL session (if pdco experiment)
-    if 'TTL_session' in json_config:
+    if 'ttl_session' in json_config:
         channels_dict.update({'pdco_on': 6,
                               'pdco_off': 7,
                               'dummy_1': 8,
