@@ -265,7 +265,6 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
         widefield_metadata = create_wf_metadata(config_path=os.path.join(input_folder, 'Training', session_id))
         main_dict.update({'widefield_metadata': widefield_metadata})
 
-
     main_dict.update({'behaviour_metadata': behaviour_metadata})
 
     analysis_session_folder = os.path.join(output_folder, session_id)
@@ -356,6 +355,15 @@ def create_channels_threshold_dict(experimenter, json_config, session_type):
         channels_dict.update({'context': 5})
         threshold_dict.update({'context': 4})
 
+    # Add TTL session (if pdco experiment)
+    if 'TTL_session' in json_config:
+        channels_dict.update({'pdco_on': 6,
+                              'pdco_off': 7,
+                              'dummy_1': 8,
+                              'dummy_2': 9,
+                              })
+        threshold_dict.update({'pdco_on': 4,
+                               'pdco_off': 4,})
 
     # elif experimenter in ['PB'] and json_config['mouse_name']!='PB124':
     # ...

@@ -144,7 +144,7 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
                 print(f'Found {len(ci_frame_timestamps) - d.shape[1]} more timestamps than imaging frames')
                 ci_frame_timestamps_corr = ci_frame_timestamps[:-int(len(ci_frame_timestamps) - d.shape[1])]
             else:
-                print('Found more frames than timestamps. Not adding RRS')
+                print(f'Found {d.shape[1] - len(ci_frame_timestamps)} more imaging frames than timestamps - Not adding RRS')
                 return
             if cell_type_codes is not None and cell_type_names is not None:
                 roi_resp_series = RoiResponseSeries(

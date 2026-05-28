@@ -319,7 +319,7 @@ def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scan
     for key, data in continuous_data_dict.items():
 
         # Do not extract timestamps for these keys
-        if key in ["timestamps", 'empty_1', 'empty_2']:
+        if key in ["timestamps", 'empty_1', 'empty_2', 'dummy_1', 'dummy_2']:
             continue
 
         if key == "lick_trace":
