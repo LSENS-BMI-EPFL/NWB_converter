@@ -2,7 +2,7 @@ import json
 import os
 from collections import defaultdict
 from datetime import datetime
-
+import re
 import numpy as np
 import pandas as pd
 import yaml
@@ -26,6 +26,10 @@ def find_training_days(subject_id, input_folder):
     print('Finding training days for subject {}:'.format(subject_id))
     sessions_list = os.listdir(os.path.join(input_folder, 'Training'))
     sessions_list = [s for s in sessions_list if os.path.isdir(os.path.join(input_folder, 'Training', s))]
+
+    # Keep only folders like: MP097_20260210_120827
+    pattern = re.compile(rf'^{re.escape(subject_id)}_\d{{8}}_\d{{6}}$')
+    sessions_list = [s for s in sessions_list if pattern.match(s)]
 
     # Ordering in time with lexicographic ordering assumes %Y%m%d data format in session id
     sessions_list = sorted(sessions_list)
@@ -362,10 +366,9 @@ def map_strength_from_volts(wh_stim_volts, behavior_results_file):
     if not os.path.exists(mt_list_file):
         return None
     else:
-        ranked_volt = np.sort(np.unique(wh_stim_volts))
+        ranked_volt = np.sort(np.unique(wh_stim_volts))[1:]
         ranked_mt_values = np.sort(pd.read_csv(mt_list_file)['mT'].values[:])
-
-        return [ranked_mt_values[np.where(ranked_volt == amp)[0]] if amp != 0 else 0 for amp in wh_stim_volts]
+    return [ranked_mt_values[np.where(ranked_volt == amp)[0][0]] if amp != 0 else 0 for amp in wh_stim_volts]
 
 
 def build_standard_trial_table(config_file, behavior_results_file, timestamps_dict):
@@ -493,6 +496,8 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
         wh_stim_strength = map_strength_from_volts(trial_table['wh_stim_amp'].values[:], behavior_results_file)
         if wh_stim_strength is not None:
             standard_trial_table['whisker_stim_strength'] = wh_stim_strength
+        else:
+            standard_trial_table['whisker_stim_strength'] = 'na'
     standard_trial_table['whisker_stim_duration'] = trial_table['wh_stim_duration']
     standard_trial_table['whisker_stim_time'] = whisker_stim_time
 
@@ -706,6 +711,7 @@ def add_trials_standard_to_nwb(nwb_file, trial_table):
 
                            whisker_stim=trial_table['whisker_stim'].values[trial],
                            whisker_stim_amplitude=trial_table['whisker_stim_amplitude'].values[trial],
+                           whisker_stim_strength=trial_table['whisker_stim_strength'].values[trial],
                            whisker_stim_duration=trial_table['whisker_stim_duration'].values[trial],
                            whisker_stim_time=trial_table['whisker_stim_time'].values[trial],
 
