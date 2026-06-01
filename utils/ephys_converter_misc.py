@@ -39,7 +39,6 @@ AREA_COORDINATES_MAP = {
     'DLS': (0, 3.5),
     'SC':  (-3.8, 0.5),
     'RSP': (-1.5, 0.5),
-    'tjS1': (0.6, 3.8)
 }
 
 
@@ -60,13 +59,12 @@ def get_probe_insertion_info(config_file):
     if 'path_to_probe_info' in config.get('ephys_metadata').keys():
         path_to_probe_info = config.get('ephys_metadata').get('path_to_probe_info')
         probe_info_df = pd.read_excel(path_to_probe_info)
-    else:
-
+    except KeyError:
+        print('Yaml file ephys_metadata does not contain path to probe insertion info.')
         if config.get('session_metadata').get('experimenter') == 'AB':
             # Load probe insertion table
             path_to_probe_info = r'M:\analysis\Axel_Bisi\mice_info\probe_insertion_info.xlsx'
             probe_info_df = pd.read_excel(path_to_probe_info)
-
         else:
             print('No probe insertion information found for this experimenter.')
             raise NotImplementedError
@@ -196,7 +194,7 @@ def read_ephys_binary_data(bin_file, meta_file):
 
     return conv_data_dict
 
-def load_ephys_sync_timestamps(config_file, log_timestamps_dict):
+def load_ephys_sync_timestamps(config_file, log_timestamps_dict, experimenter=None):
     """
     Load sync timestamps derived from CatGT/TPrime from config file.
     Add and compare timestamps with log_continuous.bin timestamps.
@@ -217,7 +215,7 @@ def load_ephys_sync_timestamps(config_file, log_timestamps_dict):
     }
 
     # List event times existing in folder
-    sync_event_times_folder = server_paths.get_sync_event_times_folder(config_file)
+    sync_event_times_folder = server_paths.get_sync_event_times_folder(config_file, experimenter=experimenter)
     event_files = [f for f in os.listdir(sync_event_times_folder) if f.endswith('.txt')]
     event_keys = [f.split('.')[0] for f in event_files]
     print('Existing sync event times:', event_keys)
@@ -267,8 +265,8 @@ def format_ephys_timestamps(config_file, ephys_timestamps_dict, n_frames_dict):
 
     if config.get('behaviour_metadata').get('camera_flag'):
         movie_files = server_paths.get_session_movie_files(config_file)
-        print(f'Movie files {len(movie_files)} during ephys:', [os.path.basename(f) for f in movie_files])
         if movie_files is not None:
+            print(f'Movie files {len(movie_files)} during ephys:', [os.path.basename(f) for f in movie_files])
             movie_file_names = [os.path.basename(f) for f in movie_files]
             movie_file_suffix = [f.split('-')[0] for f in movie_file_names]
             movie_file_suffix = [f.split('_')[1] for f in movie_file_suffix]
@@ -392,7 +390,7 @@ def get_sglx_behaviour_log_delay(log_timestamps_dict, ephys_timestamps_dict):
     return time_delay
 
 
-def extract_ephys_timestamps(config_file, continuous_data_dict, threshold_dict, log_timestamps_dict, n_frames_dict):
+def extract_ephys_timestamps(config_file, continuous_data_dict, threshold_dict, log_timestamps_dict, n_frames_dict, experimenter=None):
     """
     Load and format ephys timestamps for continuous_log_analysis.
     Args:
@@ -401,6 +399,7 @@ def extract_ephys_timestamps(config_file, continuous_data_dict, threshold_dict, 
         threshold_dict: dictionary of thresholds for continuous data processing
         log_timestamps_dict: dictionary of timestamps from log_continuous.bin
         n_frames_dict: dictionary of number of frames for each camera
+        experimenter: (Optional) experimenter initials, provide if experimenter and mouse initials are different
 
     Returns:
 
@@ -408,7 +407,7 @@ def extract_ephys_timestamps(config_file, continuous_data_dict, threshold_dict, 
     print("Extract ephys timestamps")
 
     # Load and format existing timestamps extracted by CatGT and TPrime
-    timestamps_dict = load_ephys_sync_timestamps(config_file, log_timestamps_dict)
+    timestamps_dict = load_ephys_sync_timestamps(config_file, log_timestamps_dict, experimenter=experimenter)
     timestamps_dict = format_ephys_timestamps(config_file, timestamps_dict, n_frames_dict)
 
     # Extract timestamps from ephys-related binary files
@@ -612,9 +611,33 @@ def build_unit_table(imec_folder, sync_spike_times_path):
     # ----------------------------
     # Load Kilosort cluster table
     # ----------------------------
+    imec_folder = pathlib.Path(imec_folder)
+    kilosort_outputs = list(imec_folder.glob('kilosort*'))
+    if len(kilosort_outputs) > 1: # if multiple kilosort versions, get the latest
+        versions = []
+        for folder in kilosort_outputs:
+            # Extract version number after 'kilosort'
+            match = re.search(r'kilosort(\d+(?:\.\d+)*)', folder.name.lower())
+            version_str = match.group(1)
+            # Convert to tuple of integers for proper comparison (e.g., "2.5" -> (2, 5))
+            version_tuple = tuple(map(int, version_str.split('.')))
+            
+            versions.append((version_tuple, folder))
+        
+        # Find the folder with the highest version
+        kilosort_output = max(versions, key=lambda x: x[0])[1]
+        print(f"Multiple kilosort versions found. Using latest: {kilosort_output.name}")
+    elif len(kilosort_outputs) == 1:
+        kilosort_output = kilosort_outputs[0]
+    else:
+        print('No spike sorting at: {}'.format(imec_folder))
+        return None        
 
-    cluster_info_path = pathlib.Path(imec_folder, 'kilosort2', 'cluster_info.tsv')
+    # Spikeinterface adds another folder 'sorter_output' in the kilosort folder
+    if (kilosort_output / 'sorter_output').exists():
+        kilosort_output = kilosort_output / 'sorter_output'
 
+    cluster_info_path = kilosort_output / 'cluster_info.tsv'
     try:
         cluster_info_df = pd.read_csv(cluster_info_path, sep='\t')
     except FileNotFoundError:
@@ -660,7 +683,7 @@ def build_unit_table(imec_folder, sync_spike_times_path):
     spike_times_per_cluster = []
 
     # Load spike cluster assignments
-    spike_clusters = np.load(os.path.join(imec_folder, 'kilosort2', 'spike_clusters.npy'))
+    spike_clusters = np.load(kilosort_output / 'spike_clusters.npy')
     spike_clusters_df = pd.DataFrame(data=spike_clusters, columns=['cluster_id'])
     spike_clusters_df.index.name = 'spike_id'
 
@@ -680,7 +703,7 @@ def build_unit_table(imec_folder, sync_spike_times_path):
     # Load bombcell quality metrics
     # -----------------------------------------
 
-    bc_file_path = pathlib.Path(imec_folder, 'kilosort2', 'qMetrics', 'templates._bc_qMetrics.parquet')
+    bc_file_path = kilosort_output / 'qMetrics' / 'templates._bc_qMetrics.parquet'
     bc_info_df = pd.read_parquet(bc_file_path)
 
     # Rename columns
@@ -723,13 +746,13 @@ def build_unit_table(imec_folder, sync_spike_times_path):
     # Load mean waveforms and waveform metrics from C_Waves
     # -----------------------------------------------------
 
-    mean_wfs = np.load(os.path.join(imec_folder, 'kilosort2', 'cwaves', 'mean_waveforms.npy'))
+    mean_wfs = np.load(kilosort_output / 'cwaves' / 'mean_waveforms.npy')
     peak_channels = cluster_info_df_sub.loc[valid_cluster_ids, 'ch'].values
     mean_wfs = mean_wfs[valid_cluster_ids, peak_channels, :]  # note: keep only valid clusters and peak channels
     unit_table['waveform_mean'] = pd.DataFrame(mean_wfs).to_numpy().tolist()
 
     # Load mean waveform metrics
-    mean_wf_metrics = pd.read_csv(os.path.join(imec_folder, 'kilosort2', 'cwaves', 'waveform_metrics.csv'))
+    mean_wf_metrics = pd.read_csv(kilosort_output / 'cwaves' / 'waveform_metrics.csv')
     unit_table['duration'] = mean_wf_metrics.loc[valid_cluster_ids].duration.values
     unit_table['pt_ratio'] = mean_wf_metrics.loc[valid_cluster_ids].pt_ratio.values
 
@@ -739,221 +762,7 @@ def build_unit_table(imec_folder, sync_spike_times_path):
     return unit_table
 
 
-def add_ccf_parent_info(df, config, ccf_id_col):
-    """
-    For each entry with ccf_id, add its parent structure info (id, acronym, name).
-    :param df: pd.DataFrame with a ccf_id column
-    :param config: config dictionary
-    :param ccf_id_col: name of the column with ccf_id
-    :return: area_table with added parent structure columns
-    """
-
-    # Load structures data
-    path_to_atlas = config['ephys_metadata']['path_to_atlas']
-    with open(os.path.join(path_to_atlas, 'structures.json')) as f:
-        structures = json.load(f)
-
-    avail_cols = df.columns.tolist()
-    #ccf_id_col = [col for col in avail_cols if '_id' in col][0]
-    #is_atlas_space = True if 'ccf_atlas_id' in avail_cols else False
-    is_atlas_space = True if ccf_id_col=='ccf_atlas_id' else False
-
-    ccf_ids = df[ccf_id_col].astype(int).values
-
-    # Create a quick lookup for structures by ID
-    structures_by_id = {s['id']: s for s in structures}
-    structures_by_id.update({0: {'acronym':'void', 'id':0, 'name':'void', 'rgb_triplet':[255,255,255], 'structure_id_path':[0]}}) #from IBL GUI
-
-    # Determine each CCF region's parent ID (or root/void = 997)
-    # Like above but also root and void
-    parent_ids = {
-        ccf_id: (structures_by_id[ccf_id]['structure_id_path'][-2]
-                 if structures_by_id[ccf_id]['name'] not in ['root', 'void'] else ccf_id)
-        for ccf_id in ccf_ids
-    }
-
-    # Build parent lookups
-    parent_info = {
-        pid: structures_by_id[pid] for pid in set(parent_ids.values())
-    }
-
-    # Add missing column for ccf_atlas_name
-    if is_atlas_space:
-        df['ccf_atlas_name'] = [structures_by_id[ccf_id]['name'] for ccf_id in ccf_ids]
-
-    # Add to tabke
-    if is_atlas_space:
-        df['ccf_atlas_parent_id'] = [parent_info[parent_ids[ccf_id]]['id'] for ccf_id in ccf_ids]
-        df['ccf_atlas_parent_acronym'] = [parent_info[parent_ids[ccf_id]]['acronym'] for ccf_id in ccf_ids]
-        df['ccf_atlas_parent_name'] = [parent_info[parent_ids[ccf_id]]['name'] for ccf_id in ccf_ids]
-    else:
-        df['ccf_parent_id'] = [parent_info[parent_ids[ccf_id]]['id'] for ccf_id in ccf_ids]
-        df['ccf_parent_acronym'] = [parent_info[parent_ids[ccf_id]]['acronym'] for ccf_id in ccf_ids]
-        df['ccf_parent_name'] = [parent_info[parent_ids[ccf_id]]['name'] for ccf_id in ccf_ids]
-
-    return df
-
-def fill_missing_ccf_coords(df,
-                            axial_col='axial',
-                            lateral_col='lateral',
-                            coord_cols=('x', 'y', 'z'),
-                            shank_col=None,
-                            method='nearest',
-                            k=1,
-                            max_distance=None):
-    """
-    Fill missing CCF anatomical coordinates (x, y, z) in a dataframe
-    using nearest neighbor or weighted interpolation based on physical
-    probe coordinates (axial, lateral).
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Input dataframe containing at least axial, lateral, and optionally shank columns.
-    axial_col : str, default='axial'
-        Name of the column representing axial (depth) coordinates in microns.
-    lateral_col : str, default='lateral'
-        Name of the column representing lateral coordinates in microns.
-    coord_cols : tuple, default=('x', 'y', 'z')
-        Names of the columns containing anatomical CCF coordinates to be filled.
-    shank_col : str or None, default=None
-        If provided, ensures that nearest neighbors are only searched within the same shank.
-    method : str, {'nearest', 'weighted'}, default='nearest'
-        - 'nearest': Assigns missing values from the closest known neighbor.
-        - 'weighted': Interpolates using inverse-distance weighting from k neighbors.
-    k : int, default=1
-        Number of neighbors to consider when `method='weighted'`.
-    max_distance : float or None, default=None
-        Maximum allowed distance (in microns) for neighbor assignment.
-        If None, no distance cutoff is applied.
-
-    Returns
-    -------
-    pd.DataFrame
-        A copy of the dataframe with missing `x, y, z` filled in where possible.
-    """
-
-    df = df.copy()  # Avoid modifying original
-
-    # Check columns exist
-    required_cols = [axial_col, lateral_col] + list(coord_cols)
-    for col in required_cols:
-        if col not in df.columns:
-            raise ValueError(f"Required column '{col}' is missing from dataframe.")
-
-    # Separate known and missing entries
-    known = df.dropna(subset=coord_cols).copy()
-    missing = df[df[list(coord_cols)].isnull().any(axis=1)].copy()
-
-    if known.empty:
-        raise ValueError("No known CCF coordinates available for interpolation.")
-    if missing.empty:
-        return df  # Nothing to fill
-
-    # Prepare storage for updated coordinates
-    filled_coords = missing[list(coord_cols)].copy()
-
-    # Helper: build KDTree per shank if needed
-    def build_tree(sub_df):
-        coords = sub_df[[axial_col, lateral_col]].values
-        return cKDTree(coords), coords
-
-    # Function to fill for one subset (either per shank or all data)
-    def process_subset(miss_subset, known_subset):
-        tree, _ = build_tree(known_subset)
-
-        query_coords = miss_subset[[axial_col, lateral_col]].values
-
-        if method == 'nearest':
-            # k=1 is enforced here
-            distances, indices = tree.query(query_coords, k=1)
-            new_vals = known_subset.iloc[indices][list(coord_cols)].values
-
-            if max_distance is not None:
-                mask = distances <= max_distance
-                new_vals[~mask] = np.nan  # Set too-far matches to NaN
-
-        elif method == 'weighted':
-            distances, indices = tree.query(query_coords, k=k)
-
-            # Handle case where k=1 to avoid shape issues
-            if k == 1:
-                distances = distances[:, np.newaxis]
-                indices = indices[:, np.newaxis]
-
-            weights = 1.0 / (distances + 1e-9)  # Avoid divide-by-zero
-            weights /= weights.sum(axis=1, keepdims=True)  # Normalize
-
-            known_vals = known_subset.iloc[indices.flatten()][list(coord_cols)].values
-            known_vals = known_vals.reshape(indices.shape[0], indices.shape[1], len(coord_cols))
-
-            new_vals = np.sum(known_vals * weights[..., np.newaxis], axis=1)
-
-            if max_distance is not None:
-                # Check distance of closest neighbor
-                too_far = distances[:, 0] > max_distance
-                new_vals[too_far] = np.nan
-
-        else:
-            raise ValueError("Invalid method. Use 'nearest' or 'weighted'.")
-
-        return new_vals
-
-    # Process either per shank or globally
-    if shank_col and shank_col in df.columns:
-        for shank_id in missing[shank_col].unique():
-            miss_subset = missing[missing[shank_col] == shank_id]
-            known_subset = known[known[shank_col] == shank_id]
-            if known_subset.empty:
-                continue
-            filled_coords.loc[miss_subset.index] = process_subset(miss_subset, known_subset)
-    else:
-        filled_coords[:] = process_subset(missing, known)
-
-    # Merge back into the dataframe
-    df.loc[filled_coords.index, list(coord_cols)] = filled_coords
-    return df
-
-def linear_interpolate_coords(df,
-                              axial_col='axial',
-                              coord_cols=['x', 'y', 'z'],
-                              shank_col=None):
-    """
-    Linearly interpolate missing CCF coordinates (x, y, z) along the axial axis of the probe.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Dataframe containing axial positions and CCF coordinates (x, y, z).
-    axial_col : str
-        Column name for the axial positions (depth along probe).
-    coord_cols : tuple
-        Columns to interpolate.
-    shank_col : str or None
-        If provided, interpolation is done separately for each shank.
-
-    Returns
-    -------
-    pd.DataFrame
-        Copy of dataframe with missing coordinates filled by linear interpolation.
-    """
-    df_out = df.copy()
-
-    if shank_col and shank_col in df.columns:
-        # Interpolate per shank
-        for shank_id, group in df_out.groupby(shank_col):
-            df_out.loc[group.index, coord_cols] = group.sort_values(axial_col).interpolate(
-                method='linear', axis=0, limit_direction='both')[coord_cols]
-    else:
-        # Interpolate globally along axial axis
-        df_out = df_out.sort_values(axial_col)
-        df_out[coord_cols] = df_out[coord_cols].interpolate(
-            method='linear', axis=0, limit_direction='both')[coord_cols]
-
-    return df_out
-
-
-def build_area_table(config_file, imec_folder, probe_info):
+def build_area_table(config_file, imec_folder, experimenter=None):
     """
     Build area table from brainreg output.
     Args:
@@ -975,9 +784,20 @@ def build_area_table(config_file, imec_folder, probe_info):
 
     imec_id = imec_folder[-1]
     mouse_name = config['subject_metadata']['subject_id']
-    path_to_proc_anat = server_paths.get_anat_probe_track_folder(config_file)
+    path_to_proc_anat = server_paths.get_anat_probe_track_folder(config_file, experimenter=experimenter)
 
-    path_to_sample_space_track = os.path.join(path_to_proc_anat, 'sample_space\\tracks', 'imec{}.csv'.format(imec_id))
+    # TODO: confirm location and update
+    #if int(mouse_name[2:]) < 116:
+    #    path_to_proc_anat = r'M:\analysis\Axel_Bisi\ImagedBrains\{}\brainreg\manual_segmentation'.format(mouse_name)
+    #else:
+    #    path_to_proc_anat = r'M:\analysis\Axel_Bisi\ImagedBrains\Axel_Bisi\{}\fused\registered\segmentation'.format(mouse_name)
+
+    # Handle multiple recording sessions
+    # Assumes that the session's tracks are stored in sample_space/tracks/session_id/imec{}.csv
+    path_to_sample_space_track_folder = pathlib.Path(path_to_proc_anat) / 'sample_space' / 'tracks'
+    if (path_to_sample_space_track_folder / config['session_metadata']['session_id']).exists():
+        path_to_sample_space_track_folder = path_to_sample_space_track_folder / config['session_metadata']['session_id']
+    path_to_sample_space_track = path_to_sample_space_track_folder / 'imec{}.csv'.format(imec_id)
     area_table = pd.read_csv(path_to_sample_space_track)
 
     # -------------------------------------------------------
@@ -1058,10 +878,18 @@ def build_area_table(config_file, imec_folder, probe_info):
     # Load ccf coordinates (ccf standard space)
     # -----------------------------------------
 
-    if int(mouse_name[2:]) < 70:
-        path_to_atlas_space_track = os.path.join(path_to_proc_anat, 'standard_space\\tracks')
+
+    if config['session_metadata']['experimenter'] == 'AB':
+        if int(mouse_name[2:]) < 90:
+            path_to_atlas_space_track = os.path.join(path_to_proc_anat, 'standard_space', 'tracks')
+        else:
+            path_to_atlas_space_track = os.path.join(path_to_proc_anat, 'atlas_space', 'tracks')
+
     else:
-        path_to_atlas_space_track = os.path.join(path_to_proc_anat, 'atlas_space\\tracks')
+        # Handle multiple recording sessions
+        path_to_atlas_space_track = pathlib.Path(path_to_proc_anat) / 'atlas_space' / 'tracks'
+        if (path_to_atlas_space_track / config['session_metadata']['session_id']).exists():
+            path_to_atlas_space_track = path_to_atlas_space_track / config['session_metadata']['session_id']
 
     coords = np.load(os.path.join(path_to_atlas_space_track, 'imec{}.npy'.format(imec_id)))
     coords = coords[::-1]
