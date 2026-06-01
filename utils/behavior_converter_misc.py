@@ -2,7 +2,7 @@ import json
 import os
 from collections import defaultdict
 from datetime import datetime
-
+import re
 import numpy as np
 import pandas as pd
 import yaml
@@ -26,6 +26,10 @@ def find_training_days(subject_id, input_folder):
     print('Finding training days for subject {}:'.format(subject_id))
     sessions_list = os.listdir(os.path.join(input_folder, 'Training'))
     sessions_list = [s for s in sessions_list if os.path.isdir(os.path.join(input_folder, 'Training', s))]
+
+    # Keep only folders like: MP097_20260210_120827
+    pattern = re.compile(rf'^{re.escape(subject_id)}_\d{{8}}_\d{{6}}$')
+    sessions_list = [s for s in sessions_list if pattern.match(s)]
 
     # Ordering in time with lexicographic ordering assumes %Y%m%d data format in session id
     sessions_list = sorted(sessions_list)
@@ -356,6 +360,16 @@ def list_standard_trial_type(results_table):
 
     return trial_type_list
 
+def map_strength_from_volts(wh_stim_volts, behavior_results_file):
+    file_dir = os.path.dirname(behavior_results_file)
+    mt_list_file = os.path.join(file_dir, 'psychometric_mt_values.csv')
+    if not os.path.exists(mt_list_file):
+        return None
+    else:
+        ranked_volt = np.sort(np.unique(wh_stim_volts))[1:]
+        ranked_mt_values = np.sort(pd.read_csv(mt_list_file)['mT'].values[:])
+    return [ranked_mt_values[np.where(ranked_volt == amp)[0][0]] if amp != 0 else 0 for amp in wh_stim_volts]
+
 
 def build_standard_trial_table(config_file, behavior_results_file, timestamps_dict):
     """
@@ -408,6 +422,7 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
         #    trial_table = pd.read_csv(behavior_results_file, sep=';', engine='python')
     if experimenter in ['GF', 'MI']:
         trial_table = utils_gf.map_result_columns(trial_table)
+
 
     trial_type_list = list_standard_trial_type(results_table=trial_table)
     n_trials = trial_table['perf'].size
@@ -475,6 +490,14 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
     standard_trial_table['whisker_stim'] = trial_table['is_whisker']
 
     standard_trial_table['whisker_stim_amplitude'] = trial_table['wh_stim_amp']
+    if 'wh_stim_amp_mT' in trial_table.columns:
+        standard_trial_table['whisker_stim_strength'] = trial_table['wh_stim_amp_mT']
+    else:
+        wh_stim_strength = map_strength_from_volts(trial_table['wh_stim_amp'].values[:], behavior_results_file)
+        if wh_stim_strength is not None:
+            standard_trial_table['whisker_stim_strength'] = wh_stim_strength
+        else:
+            standard_trial_table['whisker_stim_strength'] = 'na'
     standard_trial_table['whisker_stim_duration'] = trial_table['wh_stim_duration']
     standard_trial_table['whisker_stim_time'] = whisker_stim_time
 
@@ -576,8 +599,33 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
         standard_trial_table = standard_trial_table.reset_index(drop=True)
 
     if experimenter == 'AB':
+
         # Ensure string formatting of context
         standard_trial_table['context'] = standard_trial_table['context'].astype(str)
+
+        # Handle a few cases where formatting went wrong on trial type
+        if any(standard_trial_table['trial_type'].isna()):
+            print('Warning: some trial types may have been misformatted to NaN. Correcting.')
+            print(standard_trial_table.to_string())
+            mask_nan_to_whisker = standard_trial_table['trial_type'].isna() & standard_trial_table['whisker_stim_duration'].notnull()
+            standard_trial_table.loc[mask_nan_to_whisker, 'trial_type'] = 'whisker_trial'
+            mask_nan_to_auditory = standard_trial_table['trial_type'].isna() & standard_trial_table['auditory_stim_duration'].notnull()
+            standard_trial_table.loc[mask_nan_to_auditory, 'trial_type'] = 'auditory_trial'
+
+        # Get overstriked times
+        overstrike_file = server_paths.get_overstrike_file(config_file=config_file)
+        print(overstrike_file)
+        if overstrike_file is not None:
+            with open(overstrike_file,'r') as f:
+                overstrike = yaml.load(f, Loader=yaml.FullLoader)
+                overstrike_periods = overstrike['timespans_list']
+
+            # Modify perf to 6 for all trials start time in overstrike periods
+            for period in overstrike_periods:
+                print('Marking overstriked trials as excluded (perf=6) for period: {}'.format(period))
+                mask_overstrike = (standard_trial_table['start_time'] >= period[0]) & (standard_trial_table['start_time'] <= period[1])
+                standard_trial_table.loc[mask_overstrike, 'perf'] = 6
+
 
     return standard_trial_table
 
@@ -663,6 +711,7 @@ def add_trials_standard_to_nwb(nwb_file, trial_table):
 
                            whisker_stim=trial_table['whisker_stim'].values[trial],
                            whisker_stim_amplitude=trial_table['whisker_stim_amplitude'].values[trial],
+                           whisker_stim_strength=trial_table['whisker_stim_strength'].values[trial],
                            whisker_stim_duration=trial_table['whisker_stim_duration'].values[trial],
                            whisker_stim_time=trial_table['whisker_stim_time'].values[trial],
 

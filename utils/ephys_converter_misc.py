@@ -14,6 +14,8 @@ import numpy as np
 import pandas as pd
 import yaml
 import re
+from scipy.spatial import cKDTree
+
 
 from utils import server_paths
 from utils.continuous_processing import detect_piezo_lick_times
@@ -54,7 +56,7 @@ def get_probe_insertion_info(config_file):
         config = yaml.load(f, Loader=yaml.FullLoader)
 
     # This is experimenter-specific tracking of that information
-    try: # TODO: temporary for yaml files containing this info
+    if 'path_to_probe_info' in config.get('ephys_metadata').keys():
         path_to_probe_info = config.get('ephys_metadata').get('path_to_probe_info')
         probe_info_df = pd.read_excel(path_to_probe_info)
     except KeyError:
@@ -111,7 +113,7 @@ def get_target_location(config_file, device_name):
             ap, ml = (np.nan, np.nan)
 
     else:
-        print('No standard coordinates found for this target area. Setting to NaN')
+        print(f'No standard coordinates found for this target ({target_area}) area. Setting to NaN')
         ap, ml = (np.nan, np.nan)
 
     # Create ephys target location dictionary
@@ -124,7 +126,6 @@ def get_target_location(config_file, device_name):
         'elevation': location_df['elevation'].values[0],
         'depth': location_df['depth'].values[0],
     }
-
     return location_dict
 
 def read_ephys_binary_data(bin_file, meta_file):
@@ -140,7 +141,7 @@ def read_ephys_binary_data(bin_file, meta_file):
 
     # Parameters about what data to read
     # This can be user-specific
-    # TODO: read a config file ephys_channel_dict
+    # TODO: read a config file ephys_channel_dict from the yaml file
 
     t_start = 0
     t_end = -1
@@ -540,6 +541,16 @@ def create_unit_table(nwb_file):
         'ccf_parent_id': 'ccf parent region ID',
         'ccf_parent_acronym': 'ccf parent region acronym',
         'ccf_parent_name': 'ccf parent region name',
+        'ccf_atlas_ml': 'ccf atlas coordinate in ml axis after ephys-atlas alignment',
+        'ccf_atlas_ap': 'ccf atlas coordinate in ap axis after ephys-atlas alignment',
+        'ccf_atlas_dv': 'ccf atlas coordinate in dv axis after ephys-atlas alignment',
+        'ccf_atlas_id': 'ccf atlas region ID after ephys-atlas alignment',
+        'ccf_atlas_acronym': 'ccf atlas region acronym after ephys-atlas alignment',
+        'ccf_atlas_name': 'ccf atlas region name after ephys-atlas alignment',
+        'ccf_atlas_parent_id': 'ccf atlas parent region ID after ephys-atlas alignment',
+        'ccf_atlas_parent_acronym': 'ccf atlas parent region acronym after',
+        'ccf_atlas_parent_name': 'ccf atlas parent region name after ephys-atlas alignment',
+
     }
     for col_key, col_desc in dict_columns_to_add.items():
         nwb_file.add_unit_column(name=col_key, description=col_desc)
@@ -651,15 +662,17 @@ def build_unit_table(imec_folder, sync_spike_times_path):
     cluster_info_df['bc_label'] = cluster_info_df['bc_label'].str.lower()
 
     # Get valid cluster indices only based on automatic curation
-    valid_cluster_ids = cluster_info_df[cluster_info_df.bc_label.isin(['good', 'mua', 'non-soma'])].index  # dataframe indices
-    cluster_info_df_sub = cluster_info_df.loc[valid_cluster_ids, :]
+    #valid_cluster_ids = cluster_info_df[cluster_info_df.bc_label.isin(['good', 'mua', 'non-soma'])].index  # dataframe indices
+    valid_cluster_ids = cluster_info_df[cluster_info_df.bc_label.isin(['good', 'mua', 'non-soma', 'noise'])].index  # dataframe indices
+    cluster_info_df_sub = cluster_info_df.iloc[valid_cluster_ids, :]
+
 
     # Add cluster information
     unit_table['cluster_id'] = cluster_info_df_sub['cluster_id']
     unit_table['peak_channel'] = cluster_info_df_sub['ch']
-    unit_table['depth'] = cluster_info_df_sub['depth']
-    unit_table['ks_label'] = cluster_info_df_sub['ks_label']  # "group" is the Phy-curated label, "KSLabel" is the KS raw label
-    unit_table['group'] = cluster_info_df_sub['group']  # "group" is the Phy-curated label, "KSLabel" is the KS raw label
+    #unit_table['depth'] = cluster_info_df_sub['depth']
+    unit_table['ks_label'] = cluster_info_df_sub['ks_label']  # "KSLabel" is the KS raw label
+    unit_table['group'] = cluster_info_df_sub['group']  # "group" is the Phy-curated label
     unit_table['bc_label'] = cluster_info_df_sub['bc_label']  # automatic curation from bombcell
     unit_table['firing_rate'] = cluster_info_df_sub['fr']
 
@@ -744,7 +757,7 @@ def build_unit_table(imec_folder, sync_spike_times_path):
     unit_table['pt_ratio'] = mean_wf_metrics.loc[valid_cluster_ids].pt_ratio.values
 
     # Filter final table to remove noise clusters based on bombcell output
-    unit_table = unit_table[~unit_table.bc_label.isin(['noise'])]
+    #unit_table = unit_table[~unit_table.bc_label.isin(['noise'])]
 
     return unit_table
 
@@ -755,6 +768,7 @@ def build_area_table(config_file, imec_folder, experimenter=None):
     Args:
         config_file: path to config file
         imec_folder: path to imec folder processed neural data
+        probe_info: pd.DataFrame with probe insertion information
 
     Returns:
 
@@ -792,7 +806,8 @@ def build_area_table(config_file, imec_folder, experimenter=None):
 
     # Format table for future shank row matching
     area_table.rename(columns={'Position':'shank_row',
-                               'Index':'shank_row', # brainreg-segmentation output update                               'Region ID': 'ccf_id',
+                               'Distance from first position [um]':'distance',  # brainreg-segmentation output update
+                               'Index':'shank_row', # brainreg-segmentation output update
                                'Region ID': 'ccf_id',
                                'Region acronym': 'ccf_acronym',
                                'Region name': 'ccf_name'}, inplace=True)
@@ -807,11 +822,19 @@ def build_area_table(config_file, imec_folder, experimenter=None):
 
     area_table = area_table.iloc[9:, :]  # remove first 9 rows (probe tip)
 
+
+    # Compare insertion depth and trace reconstruction depth to identify potential interpolation issues
+    physical_depth = probe_info['depth'].values[0]
+    interp_depth = area_table['distance'].max()
+    #if abs(physical_depth - interp_depth) > 500:
+        #print(f'Warning: physical depth ({physical_depth}) and max. track depth ({interp_depth}) differ by more than 500 um,\
+        #you may want to check the extent of annotations/interpolated track.')
+
+    # Make values start at 0 to match probe geometry
     max_position = np.max(area_table['shank_row'].values)
     area_table['shank_row'] = max_position - area_table['shank_row'].values  # make values start at 0
 
     # Add atlas metadata
-    #path_to_atlas = r'C:\Users\bisi\.brainglobe\allen_mouse_bluebrain_barrels_10um_v1.0'
     path_to_atlas = config['ephys_metadata']['path_to_atlas']
     with open(os.path.join(path_to_atlas, 'metadata.json')) as f:
         atlas_metadata = json.load(f)
@@ -823,32 +846,33 @@ def build_area_table(config_file, imec_folder, experimenter=None):
     # Simplify CCF hierarchical nomenclature with parent structure
     # Relevant for cortical layers <-> cortical area
     # ------------------------------------------------------------
+    #area_table = add_ccf_parent_info(area_table, path_to_atlas)
 
-    with open(os.path.join(path_to_atlas, 'structures.json')) as f:
-        structures_dict_list = json.load(f)
+    #with open(os.path.join(path_to_atlas, 'structures.json')) as f:
+    #    structures_dict_list = json.load(f)
 
     # For each region_id, get parent structures
-    ccf_ids = np.array(area_table['ccf_id'].values, dtype=int)
-    present_structures = {i['id']: i for i in structures_dict_list if i['id'] in ccf_ids}  # all present structures
+    #ccf_ids = np.array(area_table['ccf_id'].values, dtype=int)
+    #present_structures = {i['id']: i for i in structures_dict_list if i['id'] in ccf_ids}  # all present structures
 
     # Get corresponding parent structure IDs
-    ccf_parent_ids = {ccf_id: (struct['structure_id_path'][-2] if struct['name']!='root' else 997)
-                      for ccf_id, struct in present_structures.items()}
+    #ccf_parent_ids = {ccf_id: (struct['structure_id_path'][-2] if struct['name']!='root' else 997)
+    #                  for ccf_id, struct in present_structures.items()}
 
     # Map region to parent structure
-    ccf_parent_dict = {i['id']: i for i in structures_dict_list if i['id'] in ccf_parent_ids.values()}  # parent structures
+    #ccf_parent_dict = {i['id']: i for i in structures_dict_list if i['id'] in ccf_parent_ids.values()}  # parent structures
 
     # Make hierarchical mappers: cff area <-> ccf parent area information
-    ccf_parent_id_mapper = {ccf_id: ccf_parent_dict[ccf_parent_ids[ccf_id]]['id'] for ccf_id in ccf_parent_ids.keys()}
-    ccf_parent_acronym_mapper = {ccf_id: ccf_parent_dict[ccf_parent_ids[ccf_id]]['acronym'] for ccf_id in
-                                 ccf_parent_ids.keys()}
-    ccf_parent_name_mapper = {ccf_id: ccf_parent_dict[ccf_parent_ids[ccf_id]]['name'] for ccf_id in
-                              ccf_parent_ids.keys()}
+    #ccf_parent_id_mapper = {ccf_id: ccf_parent_dict[ccf_parent_ids[ccf_id]]['id'] for ccf_id in ccf_parent_ids.keys()}
+    #ccf_parent_acronym_mapper = {ccf_id: ccf_parent_dict[ccf_parent_ids[ccf_id]]['acronym'] for ccf_id in
+    #                             ccf_parent_ids.keys()}
+    #ccf_parent_name_mapper = {ccf_id: ccf_parent_dict[ccf_parent_ids[ccf_id]]['name'] for ccf_id in
+    #                          ccf_parent_ids.keys()}
 
     # Add parent structure information
-    area_table['ccf_parent_id'] = [ccf_parent_id_mapper[ccf_id] for ccf_id in ccf_ids]
-    area_table['ccf_parent_acronym'] = [ccf_parent_acronym_mapper[ccf_id] for ccf_id in ccf_ids]
-    area_table['ccf_parent_name'] = [ccf_parent_name_mapper[ccf_id] for ccf_id in ccf_ids]
+    #area_table['ccf_parent_id'] = [ccf_parent_id_mapper[ccf_id] for ccf_id in ccf_ids]
+    #area_table['ccf_parent_acronym'] = [ccf_parent_acronym_mapper[ccf_id] for ccf_id in ccf_ids]
+    #area_table['ccf_parent_name'] = [ccf_parent_name_mapper[ccf_id] for ccf_id in ccf_ids]
 
     # -----------------------------------------
     # Load ccf coordinates (ccf standard space)

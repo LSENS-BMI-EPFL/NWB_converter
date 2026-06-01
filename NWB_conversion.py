@@ -8,6 +8,7 @@ import numpy as np
 
 import yaml
 import json
+import numpy as np
 
 import utils.utils_gf as utils_gf
 from continuous_log_analysis import analyze_continuous_log
@@ -17,6 +18,7 @@ from converters.ephys_to_nwb import convert_ephys_recording
 from converters.nwb_saving import save_nwb_file
 from converters.subject_to_nwb import create_nwb_file
 from converters.suite2p_to_nwb import convert_suite2p_data
+from converters.images_to_nwb import convert_images_data
 from converters.widefield_to_nwb import convert_widefield_recording
 from converters.DLC_to_nwb import convert_dlc_data
 from converters.facemap_to_nwb import convert_facemap_data
@@ -72,6 +74,11 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True, exper
         convert_suite2p_data(nwb_file=nwb_file,
                              config_file=config_file,
                              ci_frame_timestamps=timestamps_dict['galvo_position'])
+
+        print(" ")
+        print("Convert fixed images to NWB")
+        convert_images_data(nwb_file=nwb_file,
+                            config_file=config_file)
 
     if config_dict.get("ephys_metadata") is not None:
         if config_dict.get("ephys_metadata").get("processed") == 1:

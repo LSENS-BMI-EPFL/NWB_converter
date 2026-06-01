@@ -127,6 +127,7 @@ def get_behavior_results_file(config_file):
         if not os.path.exists(behavior_results_file):
             behavior_results_file = os.path.join(get_analysis_root(), 'Anthony_Renard', 'data', mouse_name, 'Recordings', 'BehaviourData',
                                                  session_name, 'performanceResults.json')
+            behavior_results_file = adjust_path_to_host(behavior_results_file)
         # if not os.path.exists(behavior_results_file):
         #     behavior_results_file = os.path.join(data_folder, 'Recordings', 'BehaviourFiles',
         #                                          session_name, 'BehavResults.mat')
@@ -199,7 +200,10 @@ def get_session_movie_files(config_file):
     #analysis_folder = get_subject_analysis_folder(mouse_name)
     #movies_path = os.path.join(analysis_folder, session_name, 'Video')
     data_folder = get_subject_data_folder(mouse_name)
-    movies_path = os.path.join(data_folder, 'Recording', session_name, 'Video')
+    if mouse_name in ['PB{}'.format(str(i)) for i in range(191,202)]:
+        movies_path = os.path.join(data_folder, 'Recording', 'Video', session_name)
+    else:
+        movies_path = os.path.join(data_folder, 'Recording', session_name, 'Video')
     if not os.path.exists(movies_path):
         movies_path = os.path.join(data_folder, 'Recording', 'Video', session_name)
     if not os.path.exists(movies_path):
@@ -244,8 +248,11 @@ def get_imaging_file(config_file):
         tiff_file = [os.path.join(reg_tiff_path, m) for m in os.listdir(reg_tiff_path)
                      if os.path.splitext(m)[1] in ['.tif', '.tiff']]
         # Sort this list
-        f = lambda x: int(os.path.basename(x).split('_')[0][6:])
-        tiff_file = sorted(tiff_file, key=f)    
+        if '_' in os.path.basename(tiff_file[0]):
+            f = lambda x: int(os.path.basename(x).split('_')[0][6:])
+            tiff_file = sorted(tiff_file, key=f)
+        else:
+            tiff_file = natsorted(tiff_file)
         if not tiff_file:
             add_raw_movie = True
         else:
@@ -370,6 +377,7 @@ def get_cwaves_folder(imec_probe_folder):
         return cwaves_folder
 
 
+
 def get_anatomy_folder(config_file):
     """ Get path to raw data mouse anatomy folder."""
     with open(config_file, 'r', encoding='utf8') as stream:
@@ -424,6 +432,7 @@ def get_anat_probe_track_folder(config_file, experimenter=None):
         return None
 
     return probe_track_folder
+
 
 def get_opto_results_file(config_file):
     with open(config_file, 'r', encoding='utf8') as stream:
@@ -504,10 +513,14 @@ def get_rois_label_folder(config_file):
         config = yaml.safe_load(stream)
     mouse_name = config['subject_metadata']['subject_id']
     folder = get_subject_analysis_folder(mouse_name)
-    folder = os.path.join(folder, 'projection_neurons')
-    
-    if os.path.exists(folder):
+    if os.path.exists(os.path.join(folder, 'projection_neurons')):
+        folder = os.path.join(folder, 'projection_neurons')
         return folder
+    else:
+        session = config['session_metadata']['session_id']
+        if os.path.exists(os.path.join(folder, session, 'projection_neurons')):
+            folder = os.path.join(folder, session, 'projection_neurons')
+            return folder
 
 
 def get_dlc_file_path(config_file):
@@ -521,6 +534,11 @@ def get_dlc_file_path(config_file):
         experimenter = "Pol_Bech"
         dlc_folder = os.path.join(get_analysis_root(), experimenter, "data", session_id.split("_")[0], session_id).replace("\\", "/")
         dlc_file = glob.glob(dlc_folder + "/**/*view.csv")
+
+        if config['ephys_metadata'] is not None:
+            dlc_folder = os.path.join(r"\\sv-nas1.rcp.epfl.ch\Petersen-Lab", "analysis", "Axel_Bisi", "data", session_id.split("_")[0], session_id, 'Video').replace("//", "/")
+            dlc_folder_2 = adjust_path_to_host(dlc_folder)
+            dlc_file = glob.glob(dlc_folder + "/*filtered.h5")
 
     elif initials == 'RD':
         experimenter = "Robin_Dard"
@@ -556,6 +574,23 @@ def get_facemap_file_path(config_file):
         return None
 
     return file_path
+
+def get_overstrike_file(config_file):
+    with open(config_file, 'r', encoding='utf8') as stream:
+        config = yaml.safe_load(stream)
+
+    mouse_name = config['subject_metadata']['subject_id']
+    session_name = config['session_metadata']['session_id']
+
+    data_folder = get_subject_analysis_folder(mouse_name)
+    ephys_path = os.path.join(data_folder, session_name, 'Ephys')
+    overstrike_path = os.path.join(ephys_path, 'overstrike_info.yaml')
+    if os.path.exists(overstrike_path):
+        print(f"Overstrike file found for {session_name} session from {mouse_name}")
+        return overstrike_path
+    else:
+        return None
+
 
 
 
