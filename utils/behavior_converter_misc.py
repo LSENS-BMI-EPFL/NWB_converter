@@ -592,7 +592,6 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
 
         # Get overstriked times
         overstrike_file = server_paths.get_overstrike_file(config_file=config_file)
-        print(overstrike_file)
         if overstrike_file is not None:
             with open(overstrike_file,'r') as f:
                 overstrike = yaml.load(f, Loader=yaml.FullLoader)

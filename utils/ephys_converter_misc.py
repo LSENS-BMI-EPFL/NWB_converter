@@ -551,7 +551,6 @@ def create_unit_table(nwb_file):
         'ccf_atlas_parent_id': 'ccf atlas parent region ID after ephys-atlas alignment',
         'ccf_atlas_parent_acronym': 'ccf atlas parent region acronym after',
         'ccf_atlas_parent_name': 'ccf atlas parent region name after ephys-atlas alignment',
-
     }
     for col_key, col_desc in dict_columns_to_add.items():
         nwb_file.add_unit_column(name=col_key, description=col_desc)
@@ -732,6 +731,7 @@ def build_unit_table(imec_folder, sync_spike_times_path):
     mean_wf_metrics = pd.read_csv(os.path.join(imec_folder, 'kilosort2', 'cwaves', 'waveform_metrics.csv'))
     unit_table['duration'] = mean_wf_metrics.loc[valid_cluster_ids].duration.values
     unit_table['pt_ratio'] = mean_wf_metrics.loc[valid_cluster_ids].pt_ratio.values
+    unit_table['peak_channel_from_wf'] = mean_wf_metrics.loc[valid_cluster_ids].peak_channel.values
 
     # Filter final table to remove noise clusters based on bombcell output
     #unit_table = unit_table[~unit_table.bc_label.isin(['noise'])]
@@ -748,14 +748,13 @@ def add_ccf_parent_info(df, config, ccf_id_col):
     :return: area_table with added parent structure columns
     """
 
+    print('Adding parent area information based on {}...'.format(ccf_id_col))
+
     # Load structures data
     path_to_atlas = config['ephys_metadata']['path_to_atlas']
     with open(os.path.join(path_to_atlas, 'structures.json')) as f:
         structures = json.load(f)
 
-    avail_cols = df.columns.tolist()
-    #ccf_id_col = [col for col in avail_cols if '_id' in col][0]
-    #is_atlas_space = True if 'ccf_atlas_id' in avail_cols else False
     is_atlas_space = True if ccf_id_col=='ccf_atlas_id' else False
 
     ccf_ids = df[ccf_id_col].astype(int).values
@@ -781,7 +780,7 @@ def add_ccf_parent_info(df, config, ccf_id_col):
     if is_atlas_space:
         df['ccf_atlas_name'] = [structures_by_id[ccf_id]['name'] for ccf_id in ccf_ids]
 
-    # Add to tabke
+    # Add to table
     if is_atlas_space:
         df['ccf_atlas_parent_id'] = [parent_info[parent_ids[ccf_id]]['id'] for ccf_id in ccf_ids]
         df['ccf_atlas_parent_acronym'] = [parent_info[parent_ids[ccf_id]]['acronym'] for ccf_id in ccf_ids]
