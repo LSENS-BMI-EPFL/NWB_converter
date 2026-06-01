@@ -162,51 +162,51 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
         # Reindex to fill any missing rows with NaNs (upper part of shank)
         area_table = area_table.reindex(labels=np.arange(0, np.max(shank_rows)+1), fill_value=np.nan, axis=0)
 
-        # --------------------------------
-        # Add electrodes to ElectrodeTable
-        # --------------------------------
-
-        len_table = nwb_file.electrodes.to_dataframe().shape[0]
-
-        for electrode_id in range(n_chan_total - 1):  # ignore reference channel 768
-
-            # For each electrode, get anatomical info
-            row_id = int(shank_rows[electrode_id]) # this accounts for two electrodes per row
-            area_info = area_table.iloc[row_id, :] # from tip upwards
-            area_info = area_info.astype(str)
-
-
-            nwb_file.add_electrode(
-                id=electrode_counter,
-                index_on_probe=electrode_id,
-                group=electrode_group, # required argument
-                group_name=device_name,
-                rel_x=xcoords[electrode_id],
-                rel_y=ycoords[electrode_id],
-                rel_z=0.0,
-                shank=shank_id[electrode_id],
-                shank_col=shank_cols[electrode_id],
-                shank_row=shank_rows[electrode_id],
-                ccf_dv=area_info['ccf_dv'],
-                ccf_ml=area_info['ccf_ml'],
-                ccf_ap=area_info['ccf_ap'],
-                ccf_id=area_info['ccf_id'],
-                ccf_acronym=area_info['ccf_acronym'],
-                ccf_name=area_info['ccf_name'],
-                ccf_parent_id=area_info['ccf_parent_id'],
-                ccf_parent_acronym=area_info['ccf_parent_acronym'],
-                ccf_parent_name=area_info['ccf_parent_name'],
-                location=str(area_info['ccf_acronym']) # required string argument
-            )
-
-            # Increment total number of electrode
-            electrode_counter += 1
-
-        # Create a list of reference electrodes for ElectricalSeries objects (raw voltage, LFP)
-        all_table_region = nwb_file.create_electrode_table_region(
-            region=list(range(len_table, electrode_counter)),  # exclude sync channel 768
-            description="all electrodes",
-        )
+        ## --------------------------------
+        ## Add electrodes to ElectrodeTable
+        ## --------------------------------
+#
+        #len_table = nwb_file.electrodes.to_dataframe().shape[0]
+#
+        #for electrode_id in range(n_chan_total - 1):  # ignore reference channel 768
+#
+        #    # For each electrode, get anatomical info
+        #    row_id = int(shank_rows[electrode_id]) # this accounts for two electrodes per row
+        #    area_info = area_table.iloc[row_id, :] # from tip upwards
+        #    area_info = area_info.astype(str)
+#
+#
+        #    nwb_file.add_electrode(
+        #        id=electrode_counter,
+        #        index_on_probe=electrode_id,
+        #        group=electrode_group, # required argument
+        #        group_name=device_name,
+        #        rel_x=xcoords[electrode_id],
+        #        rel_y=ycoords[electrode_id],
+        #        rel_z=0.0,
+        #        shank=shank_id[electrode_id],
+        #        shank_col=shank_cols[electrode_id],
+        #        shank_row=shank_rows[electrode_id],
+        #        ccf_dv=area_info['ccf_dv'],
+        #        ccf_ml=area_info['ccf_ml'],
+        #        ccf_ap=area_info['ccf_ap'],
+        #        ccf_id=area_info['ccf_id'],
+        #        ccf_acronym=area_info['ccf_acronym'],
+        #        ccf_name=area_info['ccf_name'],
+        #        ccf_parent_id=area_info['ccf_parent_id'],
+        #        ccf_parent_acronym=area_info['ccf_parent_acronym'],
+        #        ccf_parent_name=area_info['ccf_parent_name'],
+        #        location=str(area_info['ccf_acronym']) # required string argument
+        #    )
+#
+        #    # Increment total number of electrode
+        #    electrode_counter += 1
+#
+        ## Create a list of reference electrodes for ElectricalSeries objects (raw voltage, LFP)
+        #all_table_region = nwb_file.create_electrode_table_region(
+        #    region=list(range(len_table, electrode_counter)),  # exclude sync channel 768
+        #    description="all electrodes",
+        #)
 
         # ---------------------------
         # Get electrophysiology data
@@ -407,8 +407,7 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
 
         else:
             print(f'Warning: No ibl_format/channel_locations.json found for {mouse_name} IMEC{imec_id}, '
-                    f'skipping ephys-atlas alignment - or invalid probe - including only histology esttimate.')
-
+                    f'skipping ephys-atlas alignment - or invalid probe - including only histology estimate.')
 
         # -----------------------
         # Add units to Unit table
@@ -476,6 +475,47 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
             neuron_counter += 1
 
         print('Done adding spike data for IMEC{}'.format(imec_id))
+
+        # --------------------------------
+        # Add electrodes to ElectrodeTable
+        # --------------------------------
+        len_table = nwb_file.electrodes.to_dataframe().shape[0]
+        for electrode_id in range(n_chan_total - 1):  # ignore reference channel 768
+            # For each electrode, get anatomical info
+            row_id = int(shank_rows[electrode_id])  # this accounts for two electrodes per row
+            # area_info_bu = area_table.iloc[row_id, :] # from tip upwards
+            area_info = ephys_align_df[ephys_align_df['ch_id'] == electrode_id]
+            area_info = area_info.iloc[0]
+            area_info = area_info.astype(str)
+            nwb_file.add_electrode(
+                id=electrode_counter,
+                index_on_probe=electrode_id,
+                group=electrode_group,  # required argument
+                group_name=device_name,
+                rel_x=xcoords[electrode_id],
+                rel_y=ycoords[electrode_id],
+                rel_z=0.0,
+                shank=shank_id[electrode_id],
+                shank_col=shank_cols[electrode_id],
+                shank_row=shank_rows[electrode_id],
+                ccf_dv=area_info['ccf_atlas_dv'],
+                ccf_ml=area_info['ccf_atlas_ml'],
+                ccf_ap=area_info['ccf_atlas_ap'],
+                ccf_id=area_info['ccf_atlas_id'],
+                ccf_acronym=area_info['ccf_atlas_acronym'],
+                ccf_name=area_info['ccf_atlas_name'],
+                ccf_parent_id=area_info['ccf_atlas_parent_id'],
+                ccf_parent_acronym=area_info['ccf_atlas_parent_acronym'],
+                ccf_parent_name=area_info['ccf_atlas_parent_name'],
+                location=str(area_info['ccf_atlas_acronym'])  # required string argument
+            )
+            # Increment total number of electrode
+            electrode_counter += 1
+        # Create a list of reference electrodes for ElectricalSeries objects (raw voltage, LFP)
+        all_table_region = nwb_file.create_electrode_table_region(
+            region=list(range(len_table, electrode_counter)),  # exclude sync channel 768
+            description="all electrodes",
+        )
 
         # ------------------------
         # Add LFP data to NWB file
