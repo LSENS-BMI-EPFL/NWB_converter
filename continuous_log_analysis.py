@@ -15,7 +15,7 @@ from utils.continuous_processing import (extract_timestamps,
 from utils.ephys_converter_misc import extract_ephys_timestamps, read_ephys_binary_data
 
 
-def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_stop=None, camera_filtering=False):
+def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_stop=None, camera_filtering=False, experimenter=None):
     """
     Extract timestamps from continuous logging data and plot the data if do_plot is True.
     Args:
@@ -24,6 +24,7 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
         plot_start:      Start time of the plot in seconds
         plot_stop:       Stop time of the plot in seconds
         camera_filtering:
+        experimenter: (Optional) experimenter initials, provide if experimenter and mouse initials are different
 
     Returns:
         timestamps_dict: Dictionary containing timestamps for each data type
@@ -117,7 +118,9 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
                                                                         continuous_data_dict=ephys_cont_data_dict,
                                                                         threshold_dict=threshold_dict,
                                                                         log_timestamps_dict=timestamps_dict,
-                                                                        n_frames_dict=n_frames_dict)
+                                                                        n_frames_dict=n_frames_dict,
+                                                                        experimenter=experimenter,
+                                                                        )
         timestamps_dict = ephys_timestamps_dict
         print('Number of timestamps per acquisition (ephys):')
         print_info_dict(ephys_n_frames_dict)

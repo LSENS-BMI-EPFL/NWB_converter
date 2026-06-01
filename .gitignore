@@ -21,3 +21,5 @@ utils/__pycache__/tiff_loading.cpython-39.pyc
 utils/__pycache__/
 
 __pycache__/
+
+*.lock

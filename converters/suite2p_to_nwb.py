@@ -1,12 +1,12 @@
 import os
-
-import numpy as np
 import yaml
-from pynwb.ophys import Fluorescence, ImageSegmentation
+import numpy as np
+from pynwb.ophys import Fluorescence, ImageSegmentation, RoiResponseSeries
 
-import utils.server_paths as server_paths
+
 import utils.utils_gf as utils_gf
 import utils.ci_processing as utils_ci
+import utils.server_paths as server_paths
 
 
 def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
@@ -42,6 +42,15 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
     if image_series is None:
         print("No calcium imaging movie named 'motion_corrected_ci_movie' found in nwb_file")
 
+    # Load Suite2p data
+    print('Loading suite2p data.')
+    # Assumes that non-cells are already filtered out.
+    stat, is_cell, F_raw, F_neu, F0_cor, F0_raw, dff = utils_ci.get_processed_ci(suite2p_folder)
+    if dff is None:
+        print('Suite 2p data is not processed, no dff yet. Return')
+        return
+
+    # Only if we are going to add data
     img_seg = ImageSegmentation(name="all_cells")
     ophys_module.add_data_interface(img_seg)
     imaging_plane = nwb_file.get_imaging_plane("my_imaging_plane")
@@ -49,31 +58,6 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
     ps = img_seg.create_plane_segmentation(description='output from segmenting',
                                            imaging_plane=imaging_plane, name='my_plane_segmentation',
                                            reference_images=image_series)
-
-    # Load Suite2p data
-    print('Loading suite2p data.')
-    # if experimenter not in ['GF', 'MI']:
-    #     stat, is_cell, F_raw, F_neu, F0, spks  = utils_ci.get_processed_ci(suite2p_folder)
-    # else:
-        # stat, is_cell, F_raw, F_neu, F0, spks = utils_gf.get_gf_processed_ci(config_file)
-
-    # Assumes that non-cells are already filtered out.
-    stat, is_cell, F_raw, F_neu, F0_cor, F0_raw, dff = utils_ci.get_processed_ci(suite2p_folder)
-
-    # # If Fissa did not converge, set cell to non-cell.
-    # if fissa_output:
-    #     ncells, ntifs = fissa_output.result.shape
-    #     converged = []
-    #     for icell in range(ncells):
-    #         converged.append(np.all([exp.info[icell][itif]['converged'] for itif in range(ntifs)]))
-    #     is_cell[is_cell[:,0]==1,0] = converged
-    #     print(f"A total of {np.sum(~converged)} cells did not converge in Fissa. Set as non-cells.")
-
-    # if experimenter in ['GF', 'MI']:
-    #     # Fissa substracts baseline but do not normalized.
-    #     # Normalizing with baseline of the raw signal.
-    #     dff = F_cor / F0
-
     # Extract image dimensions
     if image_series is not None:
         dim_y, dim_x = image_series.dimension[1:]
@@ -87,6 +71,8 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
     # Create Fluorescence object to store fluorescence data
     fl = Fluorescence(name="fluorescence_all_cells")
     ophys_module.add_data_interface(fl)
+
+    # Create rt region (dynamical table to store roi information)
     n_cells = (is_cell[:, 0] == 1).sum()
     rt_region = ps.create_roi_table_region('all cells', region=list(np.arange(n_cells)))
 
@@ -110,13 +96,15 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
     if not projection_folder:
         cell_type_names = None
         cell_type_codes = None
+        info = None
     else:
         # It is assumed that that cell type indices are not the suite2p indices, but the indices reindexed
         # after filtering out non-cells.
         if experimenter in ['GF', 'MI']:
             far_red_rois, red_rois, na_rois, info = utils_gf.get_roi_labels_GF(config_file, projection_folder)
         else:
-            far_red_rois, red_rois, na_rois, info = utils_ci.get_roi_labels(projection_folder)
+            far_red_rois, red_rois, na_rois, info = utils_ci.get_roi_labels(projection_folder,
+                                                                            default_info_dict = {'CTB-594': 'wM1'})
 
         # Code: 1: wM1, 2: wS2 and 0: unassigned.
         # Cell code list [1, 1, 2, 0, 0, 1, 2, 0, 0] same length as d_filt.
@@ -134,6 +122,15 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
                 cell_type_codes[iroi] = projection_code[info['CTB-594']]
                 cell_type_names[iroi] = info['CTB-594']
 
+    # Add marker and cell type to the dynamic roi table as custom column.
+    # ###################################################################
+    if (info is not None) and (cell_type_names is not None):
+        print('Add anatomical markers and cell type custom columns to roi table')
+        info_inverted = {v: k for k, v in info.items()}
+        cell_markers = [info_inverted.get(cell, 'na') for cell in cell_type_names]
+        rt_region.table.add_column(name='markers', data=cell_markers, description='anatomical marker of the cells')
+        rt_region.table.add_column(name='cell_type', data=cell_type_names, description='type of the cells')
+
     # Add fluorescence data to roi response series.
     # #############################################
 
@@ -141,23 +138,37 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
     # todo : add control (list of int code for cell type) and control_description (list of str for name of cell type)
     for d, l, desc in zip(data, data_labels, descriptions):
         if d is not None:
-
-            if cell_type_codes is not None and cell_type_names is not None:
-                fl.create_roi_response_series(name=l,
-                                            data=np.transpose(d),
-                                            unit='lumens',
-                                            rois=rt_region, timestamps=ci_frame_timestamps,
-                                            description=desc,
-                                            control=cell_type_codes,
-                                            control_description=cell_type_names)
+            if  d.shape[1] == len(ci_frame_timestamps):
+                ci_frame_timestamps_corr = ci_frame_timestamps
+            elif d.shape[1] < len(ci_frame_timestamps):
+                print(f'Found {len(ci_frame_timestamps) - d.shape[1]} more timestamps than imaging frames')
+                ci_frame_timestamps_corr = ci_frame_timestamps[:-int(len(ci_frame_timestamps) - d.shape[1])]
             else:
-                fl.create_roi_response_series(name=l,
-                                            data=np.transpose(d),
-                                            unit='lumens',
-                                            rois=rt_region, timestamps=ci_frame_timestamps,
-                                            description=desc)
-            print(f"- Creating Roi Response Series with: {desc}"
+                print(f'Found {d.shape[1] - len(ci_frame_timestamps)} more imaging frames than timestamps - Not adding RRS')
+                return
+            if cell_type_codes is not None and cell_type_names is not None:
+                roi_resp_series = RoiResponseSeries(
+                    name=l,
+                    description=desc,
+                    data=np.transpose(d),
+                    rois=rt_region,
+                    unit="lumens",
+                    timestamps=ci_frame_timestamps_corr,
+                    control=cell_type_codes,
+                    control_description=cell_type_names
+                )
+                fl.add_roi_response_series(roi_resp_series)
+            else:
+                roi_resp_series = RoiResponseSeries(
+                    name=l,
+                    description=desc,
+                    data=np.transpose(d),
+                    rois=rt_region,
+                    unit="lumens",
+                    timestamps=ci_frame_timestamps_corr
+                )
+                fl.add_roi_response_series(roi_resp_series)
+            print(f"- Adding Roi Response Series with: {desc} "
                 f"shape: {(np.transpose(d)).shape}")
-
 
 

@@ -196,7 +196,7 @@ def read_ephys_binary_data(bin_file, meta_file):
 
     return conv_data_dict
 
-def load_ephys_sync_timestamps(config_file, log_timestamps_dict):
+def load_ephys_sync_timestamps(config_file, log_timestamps_dict, experimenter=None):
     """
     Load sync timestamps derived from CatGT/TPrime from config file.
     Add and compare timestamps with log_continuous.bin timestamps.
@@ -217,7 +217,7 @@ def load_ephys_sync_timestamps(config_file, log_timestamps_dict):
     }
 
     # List event times existing in folder
-    sync_event_times_folder = server_paths.get_sync_event_times_folder(config_file)
+    sync_event_times_folder = server_paths.get_sync_event_times_folder(config_file, experimenter=experimenter)
     event_files = [f for f in os.listdir(sync_event_times_folder) if f.endswith('.txt')]
     event_keys = [f.split('.')[0] for f in event_files]
     print('Existing sync event times:', event_keys)
@@ -267,8 +267,8 @@ def format_ephys_timestamps(config_file, ephys_timestamps_dict, n_frames_dict):
 
     if config.get('behaviour_metadata').get('camera_flag'):
         movie_files = server_paths.get_session_movie_files(config_file)
-        print(f'Movie files {len(movie_files)} during ephys:', [os.path.basename(f) for f in movie_files])
         if movie_files is not None:
+            print(f'Movie files {len(movie_files)} during ephys:', [os.path.basename(f) for f in movie_files])
             movie_file_names = [os.path.basename(f) for f in movie_files]
             movie_file_suffix = [f.split('-')[0] for f in movie_file_names]
             movie_file_suffix = [f.split('_')[1] for f in movie_file_suffix]
@@ -392,7 +392,7 @@ def get_sglx_behaviour_log_delay(log_timestamps_dict, ephys_timestamps_dict):
     return time_delay
 
 
-def extract_ephys_timestamps(config_file, continuous_data_dict, threshold_dict, log_timestamps_dict, n_frames_dict):
+def extract_ephys_timestamps(config_file, continuous_data_dict, threshold_dict, log_timestamps_dict, n_frames_dict, experimenter=None):
     """
     Load and format ephys timestamps for continuous_log_analysis.
     Args:
@@ -401,6 +401,7 @@ def extract_ephys_timestamps(config_file, continuous_data_dict, threshold_dict, 
         threshold_dict: dictionary of thresholds for continuous data processing
         log_timestamps_dict: dictionary of timestamps from log_continuous.bin
         n_frames_dict: dictionary of number of frames for each camera
+        experimenter: (Optional) experimenter initials, provide if experimenter and mouse initials are different
 
     Returns:
 
@@ -408,7 +409,7 @@ def extract_ephys_timestamps(config_file, continuous_data_dict, threshold_dict, 
     print("Extract ephys timestamps")
 
     # Load and format existing timestamps extracted by CatGT and TPrime
-    timestamps_dict = load_ephys_sync_timestamps(config_file, log_timestamps_dict)
+    timestamps_dict = load_ephys_sync_timestamps(config_file, log_timestamps_dict, experimenter=experimenter)
     timestamps_dict = format_ephys_timestamps(config_file, timestamps_dict, n_frames_dict)
 
     # Extract timestamps from ephys-related binary files
@@ -551,6 +552,7 @@ def create_unit_table(nwb_file):
         'ccf_atlas_parent_id': 'ccf atlas parent region ID after ephys-atlas alignment',
         'ccf_atlas_parent_acronym': 'ccf atlas parent region acronym after',
         'ccf_atlas_parent_name': 'ccf atlas parent region name after ephys-atlas alignment',
+
     }
     for col_key, col_desc in dict_columns_to_add.items():
         nwb_file.add_unit_column(name=col_key, description=col_desc)
@@ -611,9 +613,33 @@ def build_unit_table(imec_folder, sync_spike_times_path):
     # ----------------------------
     # Load Kilosort cluster table
     # ----------------------------
+    imec_folder = pathlib.Path(imec_folder)
+    kilosort_outputs = list(imec_folder.glob('kilosort*'))
+    if len(kilosort_outputs) > 1: # if multiple kilosort versions, get the latest
+        versions = []
+        for folder in kilosort_outputs:
+            # Extract version number after 'kilosort'
+            match = re.search(r'kilosort(\d+(?:\.\d+)*)', folder.name.lower())
+            version_str = match.group(1)
+            # Convert to tuple of integers for proper comparison (e.g., "2.5" -> (2, 5))
+            version_tuple = tuple(map(int, version_str.split('.')))
 
-    cluster_info_path = pathlib.Path(imec_folder, 'kilosort2', 'cluster_info.tsv')
+            versions.append((version_tuple, folder))
 
+        # Find the folder with the highest version
+        kilosort_output = max(versions, key=lambda x: x[0])[1]
+        print(f"Multiple kilosort versions found. Using latest: {kilosort_output.name}")
+    elif len(kilosort_outputs) == 1:
+        kilosort_output = kilosort_outputs[0]
+    else:
+        print('No spike sorting at: {}'.format(imec_folder))
+        return None
+
+    # Spikeinterface adds another folder 'sorter_output' in the kilosort folder
+    if (kilosort_output / 'sorter_output').exists():
+        kilosort_output = kilosort_output / 'sorter_output'
+
+    cluster_info_path = kilosort_output / 'cluster_info.tsv'
     try:
         cluster_info_df = pd.read_csv(cluster_info_path, sep='\t')
     except FileNotFoundError:
@@ -659,7 +685,7 @@ def build_unit_table(imec_folder, sync_spike_times_path):
     spike_times_per_cluster = []
 
     # Load spike cluster assignments
-    spike_clusters = np.load(os.path.join(imec_folder, 'kilosort2', 'spike_clusters.npy'))
+    spike_clusters = np.load(kilosort_output / 'spike_clusters.npy')
     spike_clusters_df = pd.DataFrame(data=spike_clusters, columns=['cluster_id'])
     spike_clusters_df.index.name = 'spike_id'
 
@@ -679,7 +705,7 @@ def build_unit_table(imec_folder, sync_spike_times_path):
     # Load bombcell quality metrics
     # -----------------------------------------
 
-    bc_file_path = pathlib.Path(imec_folder, 'kilosort2', 'qMetrics', 'templates._bc_qMetrics.parquet')
+    bc_file_path = kilosort_output / 'qMetrics' / 'templates._bc_qMetrics.parquet'
     bc_info_df = pd.read_parquet(bc_file_path)
 
     # Rename columns
@@ -722,16 +748,15 @@ def build_unit_table(imec_folder, sync_spike_times_path):
     # Load mean waveforms and waveform metrics from C_Waves
     # -----------------------------------------------------
 
-    mean_wfs = np.load(os.path.join(imec_folder, 'kilosort2', 'cwaves', 'mean_waveforms.npy'))
+    mean_wfs = np.load(kilosort_output / 'cwaves' / 'mean_waveforms.npy')
     peak_channels = cluster_info_df_sub.loc[valid_cluster_ids, 'ch'].values
     mean_wfs = mean_wfs[valid_cluster_ids, peak_channels, :]  # note: keep only valid clusters and peak channels
     unit_table['waveform_mean'] = pd.DataFrame(mean_wfs).to_numpy().tolist()
 
     # Load mean waveform metrics
-    mean_wf_metrics = pd.read_csv(os.path.join(imec_folder, 'kilosort2', 'cwaves', 'waveform_metrics.csv'))
+    mean_wf_metrics = pd.read_csv(kilosort_output / 'cwaves' / 'waveform_metrics.csv')
     unit_table['duration'] = mean_wf_metrics.loc[valid_cluster_ids].duration.values
     unit_table['pt_ratio'] = mean_wf_metrics.loc[valid_cluster_ids].pt_ratio.values
-    unit_table['peak_channel_from_wf'] = mean_wf_metrics.loc[valid_cluster_ids].peak_channel.values
 
     # Filter final table to remove noise clusters based on bombcell output
     #unit_table = unit_table[~unit_table.bc_label.isin(['noise'])]
@@ -748,13 +773,14 @@ def add_ccf_parent_info(df, config, ccf_id_col):
     :return: area_table with added parent structure columns
     """
 
-    print('Adding parent area information based on {}...'.format(ccf_id_col))
-
     # Load structures data
     path_to_atlas = config['ephys_metadata']['path_to_atlas']
     with open(os.path.join(path_to_atlas, 'structures.json')) as f:
         structures = json.load(f)
 
+    avail_cols = df.columns.tolist()
+    #ccf_id_col = [col for col in avail_cols if '_id' in col][0]
+    #is_atlas_space = True if 'ccf_atlas_id' in avail_cols else False
     is_atlas_space = True if ccf_id_col=='ccf_atlas_id' else False
 
     ccf_ids = df[ccf_id_col].astype(int).values
@@ -780,7 +806,7 @@ def add_ccf_parent_info(df, config, ccf_id_col):
     if is_atlas_space:
         df['ccf_atlas_name'] = [structures_by_id[ccf_id]['name'] for ccf_id in ccf_ids]
 
-    # Add to table
+    # Add to tabke
     if is_atlas_space:
         df['ccf_atlas_parent_id'] = [parent_info[parent_ids[ccf_id]]['id'] for ccf_id in ccf_ids]
         df['ccf_atlas_parent_acronym'] = [parent_info[parent_ids[ccf_id]]['acronym'] for ccf_id in ccf_ids]
@@ -952,7 +978,7 @@ def linear_interpolate_coords(df,
     return df_out
 
 
-def build_area_table(config_file, imec_folder, probe_info):
+def build_area_table(config_file, imec_folder, probe_info, experimenter=None):
     """
     Build area table from brainreg output.
     Args:
@@ -974,9 +1000,20 @@ def build_area_table(config_file, imec_folder, probe_info):
 
     imec_id = imec_folder[-1]
     mouse_name = config['subject_metadata']['subject_id']
-    path_to_proc_anat = server_paths.get_anat_probe_track_folder(config_file)
+    path_to_proc_anat = server_paths.get_anat_probe_track_folder(config_file, experimenter=experimenter)
 
-    path_to_sample_space_track = os.path.join(path_to_proc_anat, 'sample_space\\tracks', 'imec{}.csv'.format(imec_id))
+    # TODO: confirm location and update
+    #if int(mouse_name[2:]) < 116:
+    #    path_to_proc_anat = r'M:\analysis\Axel_Bisi\ImagedBrains\{}\brainreg\manual_segmentation'.format(mouse_name)
+    #else:
+    #    path_to_proc_anat = r'M:\analysis\Axel_Bisi\ImagedBrains\Axel_Bisi\{}\fused\registered\segmentation'.format(mouse_name)
+
+    # Handle multiple recording sessions
+    # Assumes that the session's tracks are stored in sample_space/tracks/session_id/imec{}.csv
+    path_to_sample_space_track_folder = pathlib.Path(path_to_proc_anat) / 'sample_space' / 'tracks'
+    if (path_to_sample_space_track_folder / config['session_metadata']['session_id']).exists():
+        path_to_sample_space_track_folder = path_to_sample_space_track_folder / config['session_metadata']['session_id']
+    path_to_sample_space_track = path_to_sample_space_track_folder / 'imec{}.csv'.format(imec_id)
     area_table = pd.read_csv(path_to_sample_space_track)
 
     # -------------------------------------------------------

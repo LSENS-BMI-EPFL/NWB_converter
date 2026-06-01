@@ -29,7 +29,7 @@ from utils.server_paths import (get_imec_probe_folder_list,
 from utils.sglx_meta_to_coords import MetaToCoords, readMeta
 from pynwb.ecephys import ElectricalSeries, LFP
 
-def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
+def convert_ephys_recording(nwb_file, config_file, add_recordings=False, experimenter=None):
     """
     Converts ephys recording to NWB file.
     Args:
@@ -59,8 +59,7 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
     neuron_counter = 0
 
     # Get number of probes used
-    imec_probe_list = get_imec_probe_folder_list(config_file=config_file)
-
+    imec_probe_list = get_imec_probe_folder_list(config_file=config_file, experimenter=experimenter)
     # ------------------------------------------------------
     # Then, iterate over each probe/device used in recording
     # ------------------------------------------------------
@@ -145,8 +144,7 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
         # ----------------------------------
 
         # Build table with anatomical location estimates of each electrode
-        area_table = build_area_table(config_file=config_file, imec_folder=imec_folder, probe_info=probe_info)
-        area_table = add_ccf_parent_info(df=area_table, config=config, ccf_id_col='ccf_id')
+        area_table = build_area_table(config_file=config_file, imec_folder=imec_folder, experimenter=experimenter)
 
         # Reindex to match shank electrode order
         area_table = area_table.sort_values(by=['shank_row'], ascending=True, axis=0)
@@ -213,7 +211,7 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False):
         # ---------------------------
 
         # Get path to preprocessed sync spike times
-        sync_path = get_sync_event_times_folder(config_file)
+        sync_path = get_sync_event_times_folder(config_file, experimenter=experimenter)
         spike_times_sync_file = [f for f in os.listdir(sync_path) if device_name in f]
         try:
             sync_spike_times_path = pathlib.Path(sync_path, spike_times_sync_file[0])
