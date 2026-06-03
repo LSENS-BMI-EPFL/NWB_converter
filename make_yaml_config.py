@@ -32,7 +32,7 @@ KEYWORD_MAP = {
     'MP': [''],
     'PB': ['behaviour', 'optogenetics', 'widefield', 'two_photon'],
     'MM': [''],
-    'LS': [''],
+    'MS': [''],
     'GF': ['optogenetics', 'widefield', 'two_photon', 'calcium_imaging', 'barrel_cortex'],
     'MI': ['optogenetics', 'widefield', 'two_photon', 'calcium_imaging', 'barrel_cortex'],
     'JL': ['electrophysiology', 'neuropixels'],
@@ -113,9 +113,9 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
 
     # Get mouse session weight
     if 'mouse_weight_before' in json_config:
-        subject_metadata['weight'] = f'{json_config["mouse_weight_before"]} g'
+        subject_metadata['weight'] = f'{json_config["mouse_weight_before"]}g'
     else:
-        subject_metadata['weight'] = '0 g'  # default value if weight not found in json config
+        subject_metadata['weight'] = '0g'  # default value if weight not found in json config
 
     # Get mouse reference weight
     if subject_id in ['PB{}'.format(i) for i in range(191, 202)]:
