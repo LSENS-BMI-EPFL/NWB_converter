@@ -36,6 +36,8 @@ def create_nwb_file(config_file):
         kwargs_subject[key] = subject_data_yaml.get(key)
         if kwargs_subject[key] is not None:
             kwargs_subject[key] = str(kwargs_subject[key])
+            if key == 'weight' and ' g' not in kwargs_subject[key] and kwargs_subject[key] != 'na':
+                kwargs_subject[key] = kwargs_subject[key] + ' g'
     if 'date_of_birth' in kwargs_subject:
         date_of_birth = datetime.strptime(kwargs_subject['date_of_birth'], '%m/%d/%Y')
         date_of_birth = date_of_birth.replace(tzinfo=tzlocal())
