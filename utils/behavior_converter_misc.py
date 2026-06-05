@@ -591,6 +591,14 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
         standard_trial_table['opto_stim_stop_time'] = np.nan
         standard_trial_table['opto_stim_amplitude'] = np.nan
         standard_trial_table['opto_stim_frequency'] = np.nan
+    
+    # Add PdCO related columns if relevant, nan otherwise
+    if 'ttl_session' in session_config.keys():
+        standard_trial_table['pdco_trial'] = trial_table['pdco_trial']
+        standard_trial_table['pdco_activation'] = trial_table['pdco_activation']
+    else:
+        standard_trial_table['pdco_trial'] = np.nan
+        standard_trial_table['pdco_activation'] = np.nan
 
     if experimenter in ['GF', 'MI']:
         # Remove early licks.
@@ -745,7 +753,10 @@ def add_trials_standard_to_nwb(nwb_file, trial_table):
                            opto_stim_frequency=trial_table['opto_stim_frequency'].values[trial],
                            opto_grid_ap=trial_table['opto_grid_ap'].values[trial],
                            opto_grid_ml=trial_table['opto_grid_ml'].values[trial],
-                           opto_grid_no=trial_table['opto_grid_no'].values[trial]
+                           opto_grid_no=trial_table['opto_grid_no'].values[trial],
+
+                           pdco_trial=trial_table['pdco_trial'].values[trial],
+                           pdco_activation=trial_table['pdco_activation'].values[trial]
                            )
 
 
