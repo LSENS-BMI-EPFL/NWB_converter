@@ -2,6 +2,7 @@ import os
 import glob
 import yaml
 import platform
+from natsort import natsorted
 
 EXPERIMENTER_MAP = {
     'AR': 'Anthony_Renard',
