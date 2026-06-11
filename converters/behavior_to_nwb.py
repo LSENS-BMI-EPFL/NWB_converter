@@ -196,6 +196,60 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
                                                        description=description,
                                                        control=None, control_description=None)
 
+    # Add passive/active periods as intervals too for clarity
+    if (config_dict.get("ephys_metadata") is not None and
+            config_dict.get('session_metadata').get('experimenter') in ['AB', 'MH']):
+
+        context_values = trial_table['context'].dropna().unique()
+        has_passive = any('passive' in str(v) for v in context_values)
+        has_active = any('active' in str(v) for v in context_values)
+        try:
+            behavior_epochs = bhv_module.get(name='BehavioralEpochs')
+        except KeyError:
+            behavior_epochs = BehavioralEpochs(name='BehavioralEpochs')
+            bhv_module.add_data_interface(behavior_epochs)
+
+        if has_passive and has_active:
+            passive_trials = trial_table[trial_table['context'] == 'passive'].sort_values('start_time')
+            active_trials = trial_table[trial_table['context'] == 'active'].sort_values('start_time')
+            active_start = active_trials['start_time'].iloc[0]
+
+            passive_pre_trials = passive_trials[passive_trials['start_time'] < active_start]
+            passive_post_trials = passive_trials[passive_trials['start_time'] > active_start]
+
+            epoch_bounds = {}
+            if len(passive_pre_trials) > 0:
+                epoch_bounds['passive_pre'] = (0.0,
+                                               float(active_trials['start_time'].iloc[0]))
+            if len(active_trials) > 0:
+                epoch_bounds['active'] = (float(active_trials['start_time'].iloc[0]),
+                                          float(passive_post_trials['start_time'].iloc[0]))
+            if len(passive_post_trials) > 0:
+                epoch_bounds['passive_post'] = (float(passive_post_trials['start_time'].iloc[0]),
+                                                float(passive_post_trials['stop_time'].iloc[-1]))
+        else:
+            # No passive context or ambiguous — entire session is active
+            epoch_bounds = {'active': (0.0, float(trial_table['stop_time'].iloc[-1]))}
+
+        ephys_epoch_descriptions = {
+            'passive_pre':'Passive stimulus presentation period before the mouse is engaged in the task. Whisker and auditory stimuli are interleaved. The lick spout is retracted and the mouse cannot lick. ',
+            'active': 'Active behavioral task period. The mouse performs a decision-making task where it must learn to lick a water spout in response to stimuli. Correct lick responses are rewarded with water.\n'
+                      'The trials table contains detailed timing and outcome data for each trial during this epoch.',
+            'passive_post':'Passive stimulus presentation period after the mouse is engaged in the task. Whisker and auditory stimuli are interleaved. The lick spout is retracted and the mouse cannot lick. ',
+        }
+        for epoch_name, (t_start, t_stop) in epoch_bounds.items():
+            print(f"Adding {epoch_name} epoch: {t_start:.3f}s -> {t_stop:.3f}s")
+            behavior_epochs.create_interval_series(
+                name=epoch_name,
+                data=[1, -1],
+                timestamps=[t_start, t_stop],
+                comments='no comments',
+                description=ephys_epoch_descriptions[epoch_name],
+                control=None,
+                control_description=None
+            )
+
+
     # Check if behaviour video filming
     if config_dict.get('session_metadata').get('experimenter') == 'AB':
         if config_dict.get('behaviour_metadata').get('behaviour_type') in ['auditory', 'free_licking']:
