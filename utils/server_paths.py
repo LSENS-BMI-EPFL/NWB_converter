@@ -7,6 +7,7 @@ EXPERIMENTER_MAP = {
     'AR': 'Anthony_Renard',
     'RD': 'Robin_Dard',
     'AB': 'Axel_Bisi',
+    'MH': 'Myriam_Hamon',
     'MP': 'Mauro_Pulin',
     'PB': 'Pol_Bech',
     'MM': 'Meriam_Malekzadeh',
@@ -42,6 +43,12 @@ def get_analysis_root():
         return os.path.join(SERVER_PATH, 'lsens-analysis')
     else:
         return os.path.join(SERVER_PATH, 'Petersen-Lab', 'analysis')
+
+def get_share_internal_root():
+    if ON_HAAS:
+        return os.path.join(SERVER_PATH, 'share_internal')
+    else:
+        return os.path.join(SERVER_PATH, 'Petersen-Lab', 'share_internal')
 
 def get_subject_data_folder(subject_id):
     data_folder = os.path.join(get_data_root(), subject_id)
@@ -109,6 +116,9 @@ def get_ref_weight_folder(experimenter):
     ref_weight_folder = os.path.join(get_analysis_root(), EXPERIMENTER_MAP[experimenter], 'mice_info')
     if not os.path.exists(ref_weight_folder):
         os.makedirs(ref_weight_folder)
+
+    if experimenter in ['AB','MH']:
+        ref_weight_folder = os.path.join(get_share_internal_root(), 'Axel_Bisi_Share', 'dataset_info')
 
     return ref_weight_folder
 
@@ -367,6 +377,9 @@ def get_sync_event_times_folder(config_file, experimenter=None):
         return sync_event_times_path
 
 
+
+
+
 def get_cwaves_folder(imec_probe_folder):
     """ Get the path to the cwaves folder for a given imec probe folder."""
     cwaves_folder = os.path.join(imec_probe_folder, 'cwaves')
@@ -412,20 +425,33 @@ def get_anat_probe_track_folder(config_file, experimenter=None):
     with open(config_file, 'r', encoding='utf8') as stream:
         config = yaml.safe_load(stream)
     mouse_name = config['subject_metadata']['subject_id']
+    session_name = config['session_metadata']['session_id']
+
     if experimenter is None:
         experimenter = EXPERIMENTER_MAP[mouse_name[:2]]
     analysis_folder = os.path.join(get_analysis_root(), experimenter)
-    if experimenter == 'Axel_Bisi':
-        if int(mouse_name[2:]) < 102:
-            probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', mouse_name, 'brainreg\\manual_segmentation') #older brainreg auto output
+
+    if experimenter in ['Axel_Bisi', 'Myriam_Hamon']:
+        #if int(mouse_name[2:]) < 102:
+        #    probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', mouse_name, 'brainreg\\manual_segmentation') #older brainreg auto output
+        #else:
+        if mouse_name.startswith('MH'):
+            analysis_folder_track = analysis_folder.replace('Axel_Bisi', 'Myriam_Hamon')
+            probe_track_folder = os.path.join(analysis_folder_track, 'data', mouse_name, session_name, 'Anatomy',
+                                              'fused', 'registered', 'segmentation')
+
         else:
-            probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', experimenter, mouse_name, 'fused\\registered\\segmentation')
+            probe_track_folder = os.path.join(analysis_folder, 'data', mouse_name, session_name, 'Anatomy', 'fused', 'registered', 'segmentation')
+
+        print(probe_track_folder)
     elif experimenter == 'Jules_Lebert':
         probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', experimenter, mouse_name, 'fused', 'registered', 'segmentation')
     else:
-        probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', mouse_name, 'fused', 'registered', 'segmentation')
+        probe_track_folder = os.path.join(analysis_folder, experimenter, 'data', mouse_name, session_name,
+                                          'Anatomy\\fused\\registered\\segmentation')
+
         print('Unspecified experimenter for probe track folder.')
-        print('Default:', probe_track_folder)
+        print('Default location:', probe_track_folder)
 
     if not os.path.exists(probe_track_folder):
         print(f"No probe track folder found for {mouse_name}")
@@ -548,6 +574,12 @@ def get_dlc_file_path(config_file):
     elif initials == 'AB':
         experimenter = "Axel_Bisi"
         dlc_folder = os.path.join(get_analysis_root(), experimenter, "data", session_id.split("_")[0], session_id, 'Video').replace("\\", "/")
+        dlc_file = glob.glob(dlc_folder + "/*filtered.h5")
+
+    elif initials == 'MH':
+        experimenter = "Myriam_Hamon"
+        dlc_folder = os.path.join(get_analysis_root(), experimenter, "data", session_id.split("_")[0], session_id,
+                                  'Video').replace("\\", "/")
         dlc_file = glob.glob(dlc_folder + "/*filtered.h5")
 
     else:
