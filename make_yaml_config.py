@@ -18,6 +18,7 @@ from utils.server_paths import (
     get_subject_mouse_number, 
     get_experimenter_analysis_folder,
     get_analysis_root,
+    get_share_internal_root,
     EXPERIMENTER_MAP,
     )
 from metadata_to_yaml import add_metadata_to_config
@@ -62,6 +63,9 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     try:
         slims_csv = sorted(os.listdir(os.path.join(input_folder, 'SLIMS')))[
             0]  # post-euthanasia SLIMS file has more information
+        if experimenter == 'MH' and subject_id == 'MH038':
+            slims_csv = 'Content_20260608_184615.csv'
+
         if experimenter == 'JL':
             slims_csv = sorted(os.listdir(os.path.join(input_folder, 'SLIMS')))[-1]
         slims_csv_path = os.path.join(input_folder, 'SLIMS', slims_csv)
@@ -122,7 +126,10 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
         ref_weight_path = get_ref_weight_folder('AB')
     else:
         ref_weight_path = get_ref_weight_folder(experimenter=experimenter)
-    ref_weight_csv_path = os.path.join(ref_weight_path, 'mouse_reference_weight.xlsx')
+    if subject_id.startswith('AB') or subject_id.startswith('MH'):
+        ref_weight_csv_path = os.path.join(ref_weight_path, 'joint_mouse_reference_weight.xlsx')
+    else:
+        ref_weight_csv_path = os.path.join(ref_weight_path, 'mouse_reference_weight.xlsx')
     if not os.path.exists(ref_weight_csv_path):
         print(f'Error: reference weight file not found for {experimenter}. Please create it in analysis_folder/mice_info.')
         ref_weight = np.nan
@@ -249,7 +256,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
 
     # Extracell. ephys. metadata.
     # ####################
-    if experimenter in ['AB', 'PB', 'MH', 'RD', 'JL']:
+    if experimenter in ['AB', 'PB', 'MH', 'RD', 'JL'] and json_config['ephys_session']:
         ephys_metadata = create_ephys_metadata(subject_id=subject_id, experimenter=experimenter, session_date=session_date)
 
     # Write to yaml file.
@@ -281,7 +288,17 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     analysis_session_folder = os.path.join(output_folder, session_id)
     if not os.path.exists(analysis_session_folder):
         os.makedirs(analysis_session_folder)
-    with open(os.path.join(analysis_session_folder, f"config_{session_id}.yaml"), 'w') as stream:
+
+    if experimenter in ['MH']: #temp for new NWB
+        analysis_session_folder = analysis_session_folder.replace('Myriam_Hamon', 'Axel_Bisi')
+
+        # if folder does not exist, create
+        if not os.path.exists(analysis_session_folder):
+            os.makedirs(analysis_session_folder)
+
+    yaml_path = os.path.join(analysis_session_folder, f"config_{session_id}.yaml")
+    #if not os.path.exists(yaml_path):
+    with open(yaml_path, 'w') as stream:
         yaml.dump(main_dict, stream, default_flow_style=False, explicit_start=True)
 
     return
@@ -429,7 +446,6 @@ def create_ephys_metadata(subject_id, experimenter, session_date):
 
     Returns:
 
-
     Notes: this function assumes that probe_insertion_info.xlsx has the following columns:
         - mouse_name
         - Setup
@@ -446,16 +462,27 @@ def create_ephys_metadata(subject_id, experimenter, session_date):
     experimenter_full = EXPERIMENTER_MAP[experimenter]
     mouse_number, initials = get_subject_mouse_number(subject_id)
     mouse_initials = initials[:2]
-    path_to_probe_info = Path(get_analysis_root()) / experimenter_full / 'mice_info' / 'probe_insertion_info.xlsx'
+    if mouse_initials in ['AB','MH']:
+        path_to_probe_info = Path(get_share_internal_root()) / 'Axel_Bisi_Share' / 'dataset_info' / 'joint_probe_insertion_info.xlsx'
+    else:
+        path_to_probe_info = Path(get_analysis_root()) / experimenter_full / 'mice_info' / 'probe_insertion_info.xlsx'
+
     df_probe_info = pd.read_excel(path_to_probe_info)
-    mouse_rows = df_probe_info[df_probe_info['mouse_name'] == subject_id]
+
+    if 'setup' in df_probe_info.columns:
+        df_probe_info.rename({'setup': 'Setup'}, axis=1, inplace=True)
+
     mouse_rows = df_probe_info[df_probe_info['mouse_name'] == subject_id]
 
     # Check for 'date' column and if any date is present for the selected mouse
     if 'date' in df_probe_info.columns and mouse_rows['date'].notnull().any():
         # Ensure 'date' is datetime
-        df_probe_info['date'] = pd.to_datetime(df_probe_info['date'], errors='coerce')
-        # Select rows for this subject and date
+        if experimenter in ['AB','MH']:
+            df_probe_info['date'] = pd.to_datetime(df_probe_info['date'], errors='coerce', dayfirst=True)
+        else:
+            df_probe_info['date'] = pd.to_datetime(df_probe_info['date'], errors='coerce')
+
+
         selected_rows = df_probe_info[
             (df_probe_info['date'].dt.date == session_date.date()) & (df_probe_info['mouse_name'] == subject_id)
         ]
@@ -468,15 +495,18 @@ def create_ephys_metadata(subject_id, experimenter, session_date):
         setup = setup.iloc[0] if not setup.empty else None
 
     # Now, check if any row in selected_rows has all of the following columns == 1
-    required_cols = ['valid', 'catgt', 'kilosort', 'phy_bc', 'tprime', 'cwaves', 'imaging', 'anatomy']
-    processed = 0
-    if not selected_rows.empty and all(col in selected_rows.columns for col in required_cols):
-        # Check if any row has all required columns == 1
-        processed = int(
-            (selected_rows[required_cols] == 1).all(axis=1).any()
-        )
+    if initials in ['AB','MH']:
+        processed = 1
     else:
+        required_cols = ['valid', 'catgt', 'kilosort', 'phy_bc', 'tprime', 'cwaves', 'imaging', 'anatomy']
         processed = 0
+        if not selected_rows.empty and all(col in selected_rows.columns for col in required_cols):
+            # Check if any row has all required columns == 1
+            processed = int(
+                (selected_rows[required_cols] == 1).all(axis=1).any()
+            )
+        else:
+            processed = 0
 
     if setup is None:
         warnings.warn(f"Setup information not found for subject {subject_id} on date {session_date.strftime('%Y-%m-%d')}.")
@@ -486,6 +516,7 @@ def create_ephys_metadata(subject_id, experimenter, session_date):
 
     path_to_atlas_dict = {
         'AB': r'C:\Users\bisi\.brainglobe\allen_mouse_bluebrain_barrels_10um_v1.0',
+        'MH': r'C:\Users\bisi\.brainglobe\allen_mouse_bluebrain_barrels_10um_v1.0',
         'JL': r'/home/lebert/.brainglobe/allen_mouse_bluebrain_barrels_10um_v1.0',
     }
 
@@ -596,16 +627,77 @@ def create_wf_metadata(config_path):
 
 if __name__ == '__main__':
     # Select mouse IDs.
-    experimenter = 'JL'
-    experimenter_full = 'Jules_Lebert'
+    experimenter = 'AB'
+    experimenter_full = 'Axel_Bisi'
     mouse_ids = [
-        'PB191', 
-        'JL007',
+        'AB077',
+        'AB079',
+        'AB080',
+        'AB082',
+        'AB085',
+        'AB086',
+        'AB087',
+        'AB091',
+        'AB092',
+        'AB093',
+        'AB094',
+        'AB095',
+        'AB102',
+        'AB104',
+        'AB107',
+        'AB116',
+        'AB117',
+        'AB119',
+        'AB120',
+        'AB121',
+        'AB122',
+        'AB123',
+        'AB124',
+        'AB125',
+        'AB126',
+        'AB127',
+        'AB128',
+        'AB129',
+        'AB130',
+        'AB131',
+        'AB132',
+        'AB133',
+        'AB134',
+        'AB135',
+        'AB136',
+        'AB137',
+        'AB138',
+        'AB139',
+        'AB140',
+        'AB141',
+        'AB142',
+        'AB143',
+        'AB144',
+        'AB145',
+        'AB147',
+        'AB149',
+        'AB150',
+        'AB151',
+        'AB152',
+        'AB153',
+        'AB154',
+        'AB155',
+        'AB156',
+        'AB157',
+        'AB158',
+        'AB159',
+        'AB161',
+        'AB162',
+        'AB163',
+        'AB164',
+
+        #'MH031', missing session data
+        #'MH038', # SLIMS from 039 redo
     ]
-    sessions_to_do = [
-        'JL007_20250603_150143',
-        'PB191_20241210_110601',
-    ]
+    mouse_ids = ['AB126']
+
+    # Note for MH mice, input_folder should be MH data for SLIMS
+    sessions_to_do = []
     #last_done_day = '20241210'
 
     for mouse_id in mouse_ids:
@@ -631,11 +723,13 @@ if __name__ == '__main__':
             #     if session_date <= datetime.datetime.strptime(last_done_day, "%Y%m%d"):
             #         continue#
 
-            if session_id not in sessions_to_do:
-                continue
+            #if session_id not in sessions_to_do:
+            #    continue
 
-            if experimenter == 'AB' and day != 'whisker_0':
-                continue
+            #if experimenter == 'AB' and 'auditory' not in day: #day != 'whisker_0':
+            #    continue
+            #elif experimenter == 'MH' and day != 'whisker_0':
+            #    continue
 
             #if experimenter == 'AB' and 'whisker' not in day:
             #    continue

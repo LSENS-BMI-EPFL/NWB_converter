@@ -45,6 +45,10 @@ def find_training_days(subject_id, input_folder):
         session_folder_path = os.path.join(input_folder, 'Training', isession)
         json_file = 'session_config_corrected.json' if 'session_config_corrected.json' in os.listdir(session_folder_path) else 'session_config.json' # seek any corrected file if it exists, default to GUI output otherwise
         json_path = os.path.join(session_folder_path, json_file)
+
+        if not os.path.isfile(json_path):
+            print(f"File {json_path} not found.")
+
         with open(json_path, 'r') as f:
             json_config = json.load(f)
 
