@@ -130,7 +130,21 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
         cell_markers = [info_inverted.get(cell, 'na') for cell in cell_type_names]
         rt_region.table.add_column(name='markers', data=cell_markers, description='anatomical marker of the cells')
         rt_region.table.add_column(name='cell_type', data=cell_type_names, description='type of the cells')
+    
+    # Add suite2p SNR to the dynamic roi table as custom column.
+    # ##########################################################
+    
+    snr_list = []
+    for cell in np.arange(len(stat)):
+        if is_cell[cell][0] == 0:
+            continue
+        if ('snr' in stat[cell].keys()) and (stat[cell]['snr'] is not None):
+            snr_list.append(stat[cell]['snr'])
+        else:
+            snr_list.append('nd')
+    rt_region.table.add_column(name='s2p_snr', data=snr_list, description='Suite2p SNR')
 
+    
     # Add fluorescence data to roi response series.
     # #############################################
 
