@@ -11,7 +11,7 @@ from pynwb.base import TimeSeries
 from pynwb.behavior import BehavioralEvents, BehavioralTimeSeries, BehavioralEpochs
 
 
-def convert_dlc_data(nwb_file, config_file, video_timestamps):
+def convert_dlc_data(nwb_file, config_file, video_timestamps, remove_extra_ts=False):
 
     with open(config_file, 'r', encoding='utf8') as stream:
         config = yaml.safe_load(stream)
@@ -67,7 +67,9 @@ def convert_dlc_data(nwb_file, config_file, video_timestamps):
             rate = np.round(1 / np.median(np.diff(ts[0:200])), 2)
             if 'velocity' in name:  # scale frame difference wrt. to sampling rate
                 data = data * rate
-
+            if (len(ts) > len(data)) and (remove_extra_ts):
+                print(f'Find. {len(ts) - len(data)} more timestamps than dlc data points; remove extra timestamps')
+                ts = ts[:len(data)]
             # Add times series for bodybarts
             timeseries = TimeSeries(name=f'{name}',
                                     data=data.to_numpy(),
@@ -75,7 +77,7 @@ def convert_dlc_data(nwb_file, config_file, video_timestamps):
                                     resolution=-1.0,
                                     conversion=[1/px_ref[key].values[0] for key in px_ref.keys() if "side" in key][0],
                                     offset=0.0,
-                                    timestamps=[timestamp[0] for timestamp in video_timestamps['cam1']],
+                                    timestamps=ts,
                                     starting_time=None,
                                     rate=None,
                                     comments='no comments',
@@ -95,7 +97,9 @@ def convert_dlc_data(nwb_file, config_file, video_timestamps):
             rate = np.round(1 / np.median(np.diff(ts[0:200])), 2)
             if 'velocity' in name: # scale frame difference wrt. to sampling rate
                 data = data * rate
-
+            if (len(ts) > len(data)) and (remove_extra_ts):
+                print(f'Find. {len(ts) - len(data)} more timestamps than dlc data points; remove extra timestamps')
+                ts = ts[:len(data)]
             # Add times series for bodybarts
             timeseries = TimeSeries(name=f'{name}',
                                     data=data.to_numpy(),
@@ -103,7 +107,7 @@ def convert_dlc_data(nwb_file, config_file, video_timestamps):
                                     resolution=-1.0,
                                     conversion=[1/px_ref[key].values[0] for key in px_ref.keys() if "top" in key][0],
                                     offset=0.0,
-                                    timestamps=[timestamp[0] for timestamp in video_timestamps['cam2']],
+                                    timestamps=ts,
                                     starting_time=None,
                                     rate=None,
                                     comments='no comments',
