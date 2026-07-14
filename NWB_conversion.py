@@ -27,7 +27,7 @@ from utils.server_paths import (get_nwb_folder, get_subject_analysis_folder, get
                                 get_subject_data_folder, get_dlc_file_path, get_facemap_file_path)
 
 
-def convert_data_to_nwb(config_file, output_folder, with_time_string=True, experimenter=None):
+def convert_data_to_nwb(config_file, output_folder, with_time_string=True, experimenter=None, remove_bhv_extra_ts=False):
     """
     :param config_file: Path to the yaml config file containing mouse ID and metadata for the session to convert
     :param output_folder: Path to the folder to save NWB files
@@ -107,7 +107,8 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True, exper
             print("Convert DeepLabCut data")
             convert_dlc_data(nwb_file=nwb_file,
                              config_file=config_file,
-                             video_timestamps={k: timestamps_dict[k] for k in ("cam1", "cam2")})
+                             video_timestamps={k: timestamps_dict[k] for k in ("cam1", "cam2")},
+                             remove_extra_ts=remove_bhv_extra_ts)
 
         facemap_file = get_facemap_file_path(config_file)
         if facemap_file is not None:
@@ -139,7 +140,7 @@ if __name__ == '__main__':
         # 'JL002',
         'PB191',
         ]
-
+    remove_dlc_extra_ts = True
     sessions_to_do = [
         # 'PB191_20241210_110601',
         # 'PB192_20241211_113347',
@@ -244,4 +245,5 @@ if __name__ == '__main__':
             convert_data_to_nwb(config_file=config_yaml,
                                 output_folder=nwb_folder,
                                 with_time_string=False,
-                                experimenter=experimenter_full)
+                                experimenter=experimenter_full,
+                                remove_bhv_extra_ts=remove_dlc_extra_ts)
