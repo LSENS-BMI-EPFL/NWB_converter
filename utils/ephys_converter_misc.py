@@ -69,7 +69,7 @@ NP_PROBE_TYPE_MAP = {
     1110: 'NP1.0',
 }
 
-DEBUG_PLOT = True
+DEBUG_PLOT = False
 
 def get_probe_insertion_info(config_file):
     """
@@ -667,7 +667,6 @@ def build_unit_table(imec_folder, sync_spike_times_path):
     # Spikeinterface adds another ks_folder 'sorter_output' in the kilosort ks_folder
     if (kilosort_output / 'sorter_output').exists():
         kilosort_output = kilosort_output / 'sorter_output'
-
     cluster_info_path = kilosort_output / 'cluster_info.tsv'
     try:
         cluster_info_df = pd.read_csv(cluster_info_path, sep='\t')
@@ -709,6 +708,7 @@ def build_unit_table(imec_folder, sync_spike_times_path):
 
     # Load spikes times
     sync_spike_time_file = os.path.join(imec_folder, f"{imec_folder.name}_{ks_folder_name}_spike_times_sec_sync.npy")
+    sync_spike_time_file = os.path.join(imec_folder, f"{imec_folder.name}_spike_times_sec_sync.npy")
     spike_times_sync = np.load(sync_spike_time_file)
     spike_times_sync_df = pd.DataFrame(data=spike_times_sync, columns=['spike_times'])
     spike_times_sync_df.index.name = 'spike_id'
@@ -781,9 +781,9 @@ def build_unit_table(imec_folder, sync_spike_times_path):
     mean_wfs = mean_wfs[valid_cluster_ids, peak_channels, :]  # note: keep only valid clusters and peak channels
     unit_table['waveform_mean'] = pd.DataFrame(mean_wfs).to_numpy().tolist()
 
-    median_wfs = np.load(kilosort_output / 'cwaves' / 'median_peak_waveforms.npy')
-    median_wfs = median_wfs[valid_cluster_ids, :]
-    unit_table['waveform_peak_median'] = pd.DataFrame(median_wfs).to_numpy().tolist()
+    #median_wfs = np.load(kilosort_output / 'cwaves' / 'median_peak_waveforms.npy')
+    #median_wfs = median_wfs[valid_cluster_ids, :]
+    #unit_table['waveform_peak_median'] = pd.DataFrame(median_wfs).to_numpy().tolist()
 
     # Load mean waveform metrics — merge on cluster_id
     mean_wf_metrics = pd.read_csv(kilosort_output / 'cwaves' / 'waveform_metrics.csv')
@@ -795,9 +795,9 @@ def build_unit_table(imec_folder, sync_spike_times_path):
     # shapes: (n_clusters, n_channels, n_timepoints) or similar
     # -----------------------------------------------------
     bc_path = kilosort_output / 'bombcell'
-    bc_peak_chs = np.load(bc_path / 'templates._bc_rawWaveformPeakChannels.npy').flatten().astype(int)
-    bc_raw_wfs = np.load(bc_path / '_bc_rawWaveforms_kilosort_format.npy')[valid_cluster_ids, bc_peak_chs, :]
-    unit_table['waveform_bc_raw'] = bc_raw_wfs.tolist()
+    #bc_peak_chs = np.load(bc_path / 'templates._bc_rawWaveformPeakChannels.npy').flatten().astype(int)
+    #bc_raw_wfs = np.load(bc_path / '_bc_rawWaveforms_kilosort_format.npy')[valid_cluster_ids, bc_peak_chs, :]
+    #unit_table['waveform_bc_raw'] = bc_raw_wfs.tolist()
 
     if DEBUG_PLOT:
         # -------------------------------------------------------
@@ -842,7 +842,7 @@ def build_unit_table(imec_folder, sync_spike_times_path):
 
         wf_sources = [
             ('waveform_mean', 'CWaves mean', 'steelblue', '-', 1.5), #cwaves
-            ('waveform_peak_median', 'CWaves median', 'tomato', '-', 1.5),
+            #('waveform_peak_median', 'CWaves median', 'tomato', '-', 1.5),
             ('waveform_bc_raw', 'Bombcell mean', 'forestgreen', '-', 1.5),
         ]
 
@@ -901,7 +901,9 @@ def add_ccf_parent_info(df, config, ccf_id_col):
     """
 
     # Load structures data
-    path_to_atlas = config['ephys_metadata']['path_to_atlas']
+    #path_to_atlas = config['ephys_metadata']['path_to_atlas']
+    path_to_atlas = r"C:\Users\bisi\.brainglobe\allen_mouse_bluebrain_barrels_10um_v1.0"
+
     with open(os.path.join(path_to_atlas, 'structures.json')) as f:
         structures = json.load(f)
 
@@ -1169,7 +1171,7 @@ def build_area_table(config_file, imec_folder, experimenter=None):
     # Simplify CCF hierarchical nomenclature with parent structure
     # Relevant for cortical layers <-> cortical area
     # ------------------------------------------------------------
-    #area_table = add_ccf_parent_info(area_table, path_to_atlas)
+    area_table = add_ccf_parent_info(area_table, path_to_atlas, ccf_id_col='ccf_id')
 
     #with open(os.path.join(path_to_atlas, 'structures.json')) as f:
     #    structures_dict_list = json.load(f)

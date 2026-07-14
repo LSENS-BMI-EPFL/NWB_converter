@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 
 from utils import read_sglx
 from utils.ephys_converter_misc import (build_unit_table,
-                                        build_area_table,
+                                           build_area_table,
                                         create_electrode_table,
                                         create_simplified_unit_table,
                                         create_unit_table,
@@ -42,6 +42,7 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False, experim
     """
     # TODO: this will require modifications for other types of Neuropixels probes (see TODOs)
 
+    global imec_folder_ibl
     with open(config_file, 'r') as stream:
         config = yaml.safe_load(stream)
 
@@ -60,6 +61,7 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False, experim
 
     # Get number of probes used
     imec_probe_list = get_imec_probe_folder_list(config_file=config_file, experimenter=experimenter)
+
     # ------------------------------------------------------
     # Then, iterate over each probe/device used in recording
     # ------------------------------------------------------
@@ -108,6 +110,9 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False, experim
         )
 
         # Get channel map (KS output), coords
+        #if experimenter in ['Axel_Bisi', 'Myriam_Hamon']:
+        #    channel_map = np.load(pathlib.Path(imec_folder, 'kilosort4', 'sorter_output', 'channel_map.npy')).flatten()
+        #else:
         channel_map = np.load(pathlib.Path(imec_folder, 'kilosort2', 'channel_map.npy')).flatten()
         print(f'Info: Number of channels in channel map: {len(channel_map)}')
 
@@ -151,11 +156,11 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False, experim
         area_table.set_index(keys='shank_row', drop=True, inplace=True)
 
         # Compare physical number of electrode rows with interpolated rows in area table
-        physical_rows = probe_info['n_rows'].values[0]
-        interpolated_rows = len(area_table)
-        if abs(physical_rows - interpolated_rows) > 100:
-            print(f'Warning: physical number of rows inserted ({physical_rows}) is very different from interpolated rows in area table ({interpolated_rows}), \
-                  likely due to estimation of brain surface at insertion time.')
+        #physical_rows = probe_info['n_rows'].values[0]
+        #interpolated_rows = len(area_table)
+        #if abs(physical_rows - interpolated_rows) > 100:
+        #    print(f'Warning: physical number of rows inserted ({physical_rows}) is very different from interpolated rows in area table ({interpolated_rows}), \
+        #          likely due to estimation of brain surface at insertion time.')
 
         # Reindex to fill any missing rows with NaNs (upper part of shank)
         area_table = area_table.reindex(labels=np.arange(0, np.max(shank_rows)+1), fill_value=np.nan, axis=0)
@@ -224,7 +229,6 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False, experim
         unit_table = build_unit_table(imec_folder=imec_folder, sync_spike_times_path=sync_spike_times_path)
         print('Info: Number of channels in unit table: {}'.format(len(unit_table['peak_channel'].unique())))
 
-
         if unit_table is None:
             print('Skipping {} probe IMEC{} because no spike sorting.'.format(mouse_name, imec_id))
             continue
@@ -232,7 +236,8 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False, experim
         # Join anatomical info to each unit entry
         unit_table['shank_row'] = unit_table['peak_channel'].map(lambda x: int(shank_rows[x])) # get shank row from peak channel
         unit_table.set_index(keys='shank_row', drop=True, inplace=True)
-        unit_table = unit_table.merge(area_table, on='shank_row', how='left') #shank_row as indices on both dataframes
+        unit_table = unit_table.merge(area_table, on='shank_row', how='left') #shank_row as indices on both dataframes #TODO: why this?
+        #unit_table = add_ccf_parent_info(unit_table, config=config, ccf_id_col='ccf_atlas_id')
         cols_to_str = [c for c in unit_table.columns if c not in ['spike_times', 'waveform_mean']]
         unit_table[cols_to_str] = unit_table[cols_to_str].astype(str) # convert to string to avoid error when adding to NWB file
 
@@ -240,7 +245,15 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False, experim
         # Load anatomical data after IBL ephys-atlas GUI alignment
         # --------------------------------------------------------
 
-        path_channel_loc = pathlib.Path(imec_folder, 'ibl_format', 'channel_locations.json')
+        # This is the path to channel locations after alignment - performed once with KS2 data
+        # TODO: path to Myriam's
+        if experimenter in ['Myriam_Hamon']:
+            imec_folder_ibl = imec_folder.replace('Axel_Bisi', 'Myriam_Hamon')
+            path_channel_loc = pathlib.Path(imec_folder_ibl, 'ibl_format', 'channel_locations.json')
+        else:
+            path_channel_loc = pathlib.Path(imec_folder, 'ibl_format', 'channel_locations.json')
+        assert os.path.exists(path_channel_loc)
+
         col_mapper = {
             'x': 'ccf_atlas_ml', #x=ML
             'y': 'ccf_atlas_ap', #y=AP
@@ -347,7 +360,6 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False, experim
 
                 debug=False
                 if debug:
-
                     # Plot channels present/absent ephys-aligned data
                     fig = plt.figure(figsize=(6, 10))
                     ax = fig.add_subplot(111)
@@ -370,8 +382,7 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False, experim
             ephys_align_df = ephys_align_df.rename(columns=col_mapper)
             ephys_align_df = add_ccf_parent_info(df=ephys_align_df, config=config, ccf_id_col='ccf_atlas_id')
             #ephys_align_df = ephys_align_df.astype(str) # ensure all cols are object for NWB
-
-
+            #TODO: fix this for ccf_id
             #ephys_align_ch = set(ephys_align_df['peak_channel'].unique().astype(str))
             #unit_ch = set(unit_table['peak_channel'].unique().astype(str))
             #missing_ch = sorted(unit_ch - ephys_align_ch) # channels in unit table but not in ephys_align_df
@@ -396,12 +407,10 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False, experim
             ephys_align_df = ephys_align_df.dropna(subset=['peak_channel']) # remove any remaining NaNs
             ephys_align_df['peak_channel'] = ephys_align_df['peak_channel'].astype(int)
             unit_table = unit_table.merge(right=ephys_align_df, how='left', on='peak_channel')
+            unit_table = add_ccf_parent_info(unit_table, config=config, ccf_id_col='ccf_atlas_id')
             unit_table.drop(columns=['ch_id','added'], inplace=True)
             unit_table['depth'] = unit_table['axial']
 
-            # Filter units
-            unit_table = unit_table[(unit_table['ccf_atlas_acronym'] != 'void')
-                                & (unit_table['bc_label'] != 'noise')]
 
         else:
             print(f'Warning: No ibl_format/channel_locations.json found for {mouse_name} IMEC{imec_id}, '
@@ -412,7 +421,10 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False, experim
         # -----------------------
 
         # Filter units
-        unit_table = unit_table[unit_table['bc_label']!='noise']
+        unit_table = unit_table[(unit_table['ccf_atlas_acronym'] != 'void')
+                                & (unit_table['bc_label'] != 'noise')
+                                & (unit_table['bc_label'] != 'non-soma')
+                                ]
 
         n_neurons = len(unit_table)
         for neuron_id in range(n_neurons):
@@ -450,7 +462,7 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False, experim
                 ccf_atlas_parent_acronym=unit_table['ccf_atlas_parent_acronym'].values[neuron_id],
                 ccf_atlas_parent_name=unit_table['ccf_atlas_parent_name'].values[neuron_id],
                 maxChannels=unit_table['maxChannels'].values[neuron_id],
-                bc_cluster_id=unit_table['bc_cluster_id'].values[neuron_id],
+                #bc_cluster_id=unit_table['bc_cluster_id'].values[neuron_id],
                 useTheseTimesStart=unit_table['useTheseTimesStart'].values[neuron_id],
                 useTheseTimesStop=unit_table['useTheseTimesStop'].values[neuron_id],
                 percentageSpikesMissing_gaussian=unit_table['percentageSpikesMissing_gaussian'].values[neuron_id],
@@ -459,7 +471,6 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False, experim
                 nSpikes=unit_table['nSpikes'].values[neuron_id],
                 nPeaks=unit_table['nPeaks'].values[neuron_id],
                 nTroughs=unit_table['nTroughs'].values[neuron_id],
-                #isSomatic=unit_table['isSomatic'].values[neuron_id],
                 waveformDuration_peakTrough=unit_table['waveformDuration_peakTrough'].values[neuron_id],
                 spatialDecaySlope=unit_table['spatialDecaySlope'].values[neuron_id],
                 waveformBaselineFlatness=unit_table['waveformBaselineFlatness'].values[neuron_id],
@@ -509,6 +520,7 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False, experim
             )
             # Increment total number of electrode
             electrode_counter += 1
+
         # Create a list of reference electrodes for ElectricalSeries objects (raw voltage, LFP)
         all_table_region = nwb_file.create_electrode_table_region(
             region=list(range(len_table, electrode_counter)),  # exclude sync channel 768
@@ -519,8 +531,25 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False, experim
         # Add LFP data to NWB file
         # ------------------------
 
-        add_recordings = False
         if add_recordings:
+
+            # Create a module for processed ecephys data # could be acquisition
+            print("Creating ecephys processing module")
+            if 'ecephys' in nwb_file.processing:
+                ecephys_module = nwb_file.processing['ecephys']
+            else:
+                ecephys_module = nwb_file.create_processing_module(
+                    name='ecephys',
+                    description='contains processed extracellular electrophysiology data'
+                )
+
+            # ------------------------
+            # Add AP data to NWB file #todo: add as ElectricalSeries
+            # ------------------------
+
+            # ------------------------
+            # Add LFP data to NWB file
+            # ------------------------
 
             # Read LFP data and metadata
             lfp_meta_file = [f for f in os.listdir(imec_folder) if 'lf.meta' in f][0]
@@ -542,18 +571,7 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False, experim
             # Store in a LFP object
             lfp = LFP(electrical_series=lfp_electrical_series,
                       name='lfp_{}'.format(device_name)
-            )
-
-            # Create a module for processed ecephys data
-            print("Creating ecephys processing module")
-            if 'ecephys' in nwb_file.processing:
-                ecephys_module = nwb_file.processing['ecephys']
-            else:
-                ecephys_module = nwb_file.create_processing_module(
-                    name='ecephys',
-                    description='contains processed extracellular electrophysiology data'
-                )
-
+                      )
             ecephys_module.add(lfp)
 
     print('Done ephys conversion to NWB.')
