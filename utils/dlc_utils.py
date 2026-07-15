@@ -1,21 +1,23 @@
 import os
 import numpy as np
 import pandas as pd
-# import dlc2kinematics
+import dlc2kinematics
 import matplotlib.pyplot as plt
 
 from scipy.signal import filtfilt, firwin
 
 from PIL import Image
 
+from utils import server_paths
 
+ANALYSIS_ROOT = server_paths.get_analysis_root()
 EXPERIMENTER_MAP = {
     'AR': '',
-    'RD': '//sv-nas1.rcp.epfl.ch/Petersen-Lab/analysis/Pol_Bech/Parameters/DLC_context/SV-07-051',
-    'AB': '//sv-nas1.rcp.epfl.ch/Petersen-Lab/analysis/Axel_Bisi/mice_info',
-    'MH': '//sv-nas1.rcp.epfl.ch/Petersen-Lab/analysis/Myriam_Hamon/mice_info',
+    'RD': os.path.join(ANALYSIS_ROOT, 'Pol_Bech/Parameters/DLC_context/SV-07-051'),
+    'AB': os.path.join(ANALYSIS_ROOT, 'Axel_Bisi/mice_info'),
+    'MH': os.path.join(ANALYSIS_ROOT, 'Myriam_Hamon/mice_info'),
     'MP': '',
-    'PB': '//sv-nas1.rcp.epfl.ch/Petersen-Lab/analysis/Pol_Bech/Parameters/DLC_context/SV-07-068',
+    'PB': os.path.join(ANALYSIS_ROOT, 'Pol_Bech/Parameters/DLC_context/SV-07-068'),
     'MM': '',
     'MS': '',
     'GF': '',
