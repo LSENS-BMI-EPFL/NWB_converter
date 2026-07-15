@@ -119,11 +119,13 @@ def convert_dlc_data(nwb_file, config_file, video_timestamps, remove_extra_ts=Fa
             behavior_t_series.add_timeseries(timeseries)
 
     if len(side_dlc)>0:
+        ts = [timestamp[0] for timestamp in video_timestamps['cam2']]
+        rate = np.round(1 / np.median(np.diff(ts[0:200])), 2)
         # Add lick times counted as the peaks of tongue distance
         tongue_licks, _ = find_peaks(np.where(side_dlc['tongue_likelihood'] > pcutoff_tongue, side_dlc['tongue_distance'], np.nan), distance= 20)
 
         data_to_store = np.arange(len(tongue_licks))  # data would be lick index
-        timestamps_to_store = tongue_licks  # same length as n_licks absolute times of licks
+        timestamps_to_store = tongue_licks / rate  # same length as n_licks absolute times of licks
         lick_timeseries = TimeSeries(name=f'tongue_dlc_licks',
                                     data=data_to_store,
                                     unit='seconds',
@@ -145,7 +147,7 @@ def convert_dlc_data(nwb_file, config_file, video_timestamps, remove_extra_ts=Fa
         jaw_licks, _ = find_peaks(np.where(side_dlc['jaw_likelihood'] > 0.6, side_dlc['jaw_angle'], np.nan), prominence=side_dlc['jaw_angle'].std() * 1.8)
 
         data_to_store = np.arange(len(jaw_licks))  # data would be lick index
-        timestamps_to_store = jaw_licks  # same length as n_licks absolute times of licks
+        timestamps_to_store = jaw_licks / rate  # same length as n_licks absolute times of licks
         lick_timeseries = TimeSeries(name=f'jaw_dlc_licks',
                                     data=data_to_store,
                                     unit='seconds',
