@@ -17,7 +17,6 @@ def convert_dlc_data(nwb_file, config_file, video_timestamps, remove_extra_ts=Fa
         config = yaml.safe_load(stream)
 
     dlc_file_path = get_dlc_file_path(config_file)
-    print(dlc_file_path)
 
     print("Creating behaviour processing module")
     if 'behavior' in nwb_file.processing:

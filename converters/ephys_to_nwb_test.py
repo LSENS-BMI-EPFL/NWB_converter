@@ -26,7 +26,7 @@ from utils.ephys_converter_misc import ( NP_PROBE_TYPE_MAP,
     get_target_location,
     add_ccf_parent_info,
 )
-from utils.server_paths import get_imec_probe_folder_list, get_sync_event_times_folder, get_raw_ephys_folder
+from utils.server_paths import get_imec_probe_folder_list, get_sync_event_times_folder, get_raw_ephys_folder, get_analysis_root
 from utils.sglx_meta_to_coords import MetaToCoords, readMeta
 from pynwb.ecephys import ElectricalSeries, LFP
 
@@ -198,7 +198,7 @@ def plot_channel_map(imec_id, xcoords, ycoords, channel_map,
     return
 
 
-def convert_ephys_recording(nwb_file, config_file, add_recordings=False, experimenter=None):
+def convert_ephys_recording(nwb_file, config_file, experimenter=None, add_ephys_recordings=False):
     """
     Converts ephys recording to NWB file.
 
@@ -209,7 +209,7 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False, experim
     Args:
         nwb_file: NWBFile object
         config_file: path to session YAML config file
-        add_recordings: whether to add LFP data to NWB file
+        add_ephys_recordings: whether to add LFP data to NWB file
         experimenter: experimenter initials string
     """
     with open(config_file, 'r') as stream:
@@ -262,9 +262,11 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False, experim
         location_dict = get_target_location(config_file=config_file, device_name=device_name)
         electrode_group = nwb_file.create_electrode_group(
             name=device_name + '_shank0',  # TODO: update for multiple shanks
-            description='IMEC Neuropixels 1.0 probe',
+            description='IMEC Neuropixels single-shank probe',
             device=device,
-            location=location_dict.get('area', str(location_dict)),
+            #location=location_dict.get('area', str(location_dict)),
+            location=str(location_dict),
+
         )
 
         # ------------------
@@ -286,6 +288,7 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False, experim
         ycoords    = coords[1]
         shank_id   = coords[2]
         shank_cols = np.tile([1, 3, 0, 2], reps=int(xcoords.shape[0] / 4))
+
         shank_rows = np.divide(ycoords, 20)   # TODO: update for NP2
         n_chan_total = int(coords[4])
 
@@ -327,8 +330,8 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False, experim
         # in the JSON; missing channels (above brain surface) filled
         # by nearest-neighbor (labels) and linear interpolation (coords).
         # --------------------------------------------------------
-        if mouse_name.startswith('MH'):
-            imec_folder_ibl = imec_folder.replace('Axel_Bisi', 'Myriam_Hamon')
+        if mouse_name.startswith('MH'): #Note: keeping previous alignment ephys
+             imec_folder_ibl = imec_folder.replace('Axel_Bisi', 'Myriam_Hamon')
         else:
             imec_folder_ibl = imec_folder
         path_channel_loc = pathlib.Path(imec_folder_ibl, 'ibl_format', 'channel_locations.json')
@@ -336,8 +339,12 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False, experim
 
         ephys_align_df = load_ibl_channel_locations(path_channel_loc)
         ephys_align_df = fill_missing_channels(ephys_align_df, xcoords, ycoords, n_channels=384)
+
         # Add CCF parent info for atlas space
-        ephys_align_df = add_ccf_parent_info(df=ephys_align_df, config=config, ccf_id_col='ccf_atlas_id')
+        path_to_atlas = config['ephys_metadata']['path_to_atlas']
+        atlas_name = pathlib.PureWindowsPath(path_to_atlas).name
+        path_to_atlas = os.path.join(get_analysis_root(), 'Axel_Bisi', 'Anatomy', atlas_name)
+        ephys_align_df = add_ccf_parent_info(df=ephys_align_df, path_to_atlas=path_to_atlas, ccf_id_col='ccf_atlas_id')
 
         # --------------------------------------------------------
         # QC figure: sample-space vs atlas-space channel map
@@ -356,9 +363,10 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False, experim
         # Build unit table from KS/Bombcell/C_Waves output
         # --------------------------------------------------------
         sync_path = get_sync_event_times_folder(config_file, experimenter=experimenter)
-        spike_times_sync_file = [f for f in os.listdir(sync_path) if device_name in f]
+        spike_times_sync_file = [f for f in os.listdir(sync_path) if device_name in f and 'kilosort4' in f]
         try:
             sync_spike_times_path = pathlib.Path(sync_path, spike_times_sync_file[0])
+
         except IndexError:
             print(f'Skipping {mouse_name} IMEC{imec_id}: no synced spike time file.')
             continue
@@ -377,8 +385,8 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False, experim
         area_table_reset = area_table[sample_cols].reset_index()  # shank_row back as column
         unit_table = unit_table.merge(area_table_reset, on='shank_row', how='left')
 
-        # Add sample-space CCF parent info
-        unit_table = add_ccf_parent_info(df=unit_table, config=config, ccf_id_col='ccf_id')
+        # Add sample-space CCF parent info #todo:resolve and delete
+        #unit_table = add_ccf_parent_info(df=unit_table, path_to_atlas=path_to_atlas, ccf_id_col='ccf_id')
 
         # --------------------------------------------------------
         # Merge atlas-space localization via peak_channel (1:1)
@@ -396,10 +404,23 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False, experim
         unit_table['depth'] = unit_table['axial']
 
         # Convert non-array columns to string for NWB compatibility
-        cols_to_str = [c for c in unit_table.columns if c not in ['spike_times', 'waveform_mean']]
+        cols_to_str = [c for c in unit_table.columns if c not in ['spike_times', 'waveform_mean', 'electrode_group', 'location']]
         unit_table[cols_to_str] = unit_table[cols_to_str].astype(str)
+        # print data types
+        print(unit_table.dtypes)
+        for col in cols_to_str:
+            types = unit_table[col].map(type).value_counts()
+            if len(types) > 1:
+                print(f"\n{col}:")
+                print(types)
+        unit_table[cols_to_str] = unit_table[cols_to_str].apply(
+            lambda s: s.map(lambda x: "" if pd.isna(x) else str(x))
+        )
+        for col in cols_to_str:
+            assert unit_table[col].map(lambda x: isinstance(x, str)).all(), col
 
         # Filter: remove void-region units and noise/non-soma
+        print('Removing ouf-of-brain, noise and non-soma units from the unit_table.')
         unit_table = unit_table[
             (unit_table['ccf_atlas_acronym'] != 'void') &
             (~unit_table['bc_label'].isin(['noise', 'non-soma']))
@@ -431,9 +452,9 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False, experim
                 ccf_id=unit_table['ccf_id'].values[neuron_id],
                 ccf_acronym=unit_table['ccf_acronym'].values[neuron_id],
                 ccf_name=unit_table['ccf_name'].values[neuron_id],
-                ccf_parent_id=unit_table['ccf_parent_id'].values[neuron_id],
-                ccf_parent_acronym=unit_table['ccf_parent_acronym'].values[neuron_id],
-                ccf_parent_name=unit_table['ccf_parent_name'].values[neuron_id],
+                #ccf_parent_id=unit_table['ccf_parent_id'].values[neuron_id],
+                #ccf_parent_acronym=unit_table['ccf_parent_acronym'].values[neuron_id],
+                #ccf_parent_name=unit_table['ccf_parent_name'].values[neuron_id],
                 # Atlas-space localization (IBL ephys-atlas alignment)
                 ccf_atlas_ap=unit_table['ccf_atlas_ap'].values[neuron_id],
                 ccf_atlas_ml=unit_table['ccf_atlas_ml'].values[neuron_id],
@@ -469,34 +490,62 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False, experim
         # Add electrodes to ElectrodeTable (atlas-space localization)
         # One row per physical channel
         # --------------------------------------------------------
+
+        # Convert non-array columns to string for NWB compatibility
+        cols_to_str = [c for c in ephys_align_df.columns if c not in ['ch_id', 'axial', 'lateral', 'ccf_atlas_ml', 'ccf_atlas_ap', 'ccf_atlas_dv', 'ccf_atlas_id']]
+        ephys_align_df = ephys_align_df.astype(str)
+        # print datatypes
+        print(ephys_align_df.dtypes)
+        for col in cols_to_str:
+            types = ephys_align_df[col].map(type).value_counts()
+            if len(types) > 1:
+                print(f"\n{col}:")
+                print(types)
+        ephys_align_df[cols_to_str] = ephys_align_df[cols_to_str].apply(
+            lambda s: s.map(lambda x: "" if pd.isna(x) else str(x))
+        )
+        for col in cols_to_str:
+            assert ephys_align_df[col].map(lambda x: isinstance(x, str)).all(), col
+
         len_table = nwb_file.electrodes.to_dataframe().shape[0]
         for electrode_id in range(n_chan_total - 1):  # exclude sync channel 768
-            area_info = ephys_align_df[ephys_align_df['ch_id'] == electrode_id]
-            if len(area_info) == 0:
-                print(f'Warning: no atlas info for electrode {electrode_id}, skipping.')
+            elec_info = ephys_align_df[ephys_align_df['ch_id'] == str(electrode_id)].iloc[0]
+            if len(elec_info) == 0:
+                print(f'Warning: no atlas electrode info for electrode {electrode_id}, skipping.')
                 continue
-            area_info = area_info.iloc[0].astype(str)
+
             nwb_file.add_electrode(
                 id=electrode_counter,
                 index_on_probe=electrode_id,
                 group=electrode_group,
                 group_name=device_name,
-                rel_x=xcoords[electrode_id],
-                rel_y=ycoords[electrode_id],
+                #rel_x=xcoords[electrode_id],
+                #rel_y=ycoords[electrode_id],
+                rel_x=float(elec_info['lateral']),
+                rel_y=float(elec_info['axial']),
                 rel_z=0.0,
                 shank=shank_id[electrode_id],
                 shank_col=shank_cols[electrode_id],
                 shank_row=shank_rows[electrode_id],
-                ccf_dv=area_info['ccf_atlas_dv'],
-                ccf_ml=area_info['ccf_atlas_ml'],
-                ccf_ap=area_info['ccf_atlas_ap'],
-                ccf_id=area_info['ccf_atlas_id'],
-                ccf_acronym=area_info['ccf_atlas_acronym'],
-                ccf_name=area_info['ccf_atlas_name'],
-                ccf_parent_id=area_info['ccf_atlas_parent_id'],
-                ccf_parent_acronym=area_info['ccf_atlas_parent_acronym'],
-                ccf_parent_name=area_info['ccf_atlas_parent_name'],
-                location=area_info['ccf_atlas_acronym'],
+                #ccf_dv=elec_info['ccf_atlas_dv'],
+                #ccf_ml=elec_info['ccf_atlas_ml'],
+                #ccf_ap=elec_info['ccf_atlas_ap'],
+                #ccf_id=elec_info['ccf_atlas_id'],
+                #ccf_acronym=elec_info['ccf_atlas_acronym'],
+                #ccf_name=elec_info['ccf_atlas_name'],
+                #ccf_parent_id=elec_info['ccf_atlas_parent_id'],
+                #ccf_parent_acronym=elec_info['ccf_atlas_parent_acronym'],
+                #ccf_parent_name=elec_info['ccf_atlas_parent_name'],
+                ccf_atlas_dv=float(elec_info['ccf_atlas_dv']),
+                ccf_atlas_ml=float(elec_info['ccf_atlas_ml']),
+                ccf_atlas_ap=float(elec_info['ccf_atlas_ap']),
+                ccf_atlas_id=int(elec_info['ccf_atlas_id']),
+                ccf_atlas_acronym=elec_info['ccf_atlas_acronym'],
+                ccf_atlas_name=elec_info['ccf_atlas_name'],
+                ccf_atlas_parent_id=int(elec_info['ccf_atlas_parent_id']),
+                ccf_atlas_parent_acronym=elec_info['ccf_atlas_parent_acronym'],
+                ccf_atlas_parent_name=elec_info['ccf_atlas_parent_name'],
+                location=elec_info['ccf_atlas_acronym'],
             )
             electrode_counter += 1
 
@@ -511,7 +560,7 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False, experim
         # AP band -> acquisition (raw, unprocessed)
         # LFP band -> ecephys processing module (filtered/downsampled)
         # --------------------------------------------------------
-        if add_recordings:
+        if add_ephys_recordings:
 
             # --- AP band: raw acquisition ---
             raw_ephys_folder = pathlib.Path(get_raw_ephys_folder(config_file))
@@ -545,13 +594,15 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False, experim
                 print(f'Warning: no ap.bin found for {device_name}, skipping AP raw data.')
 
             # --- LFP band: processed (filtered + downsampled) ---
-            #lfp_meta_file = [f for f in os.listdir(raw_ephys_folder) if f.endswith('lf.meta')]
-            #lfp_data_file = [f for f in os.listdir(raw_ephys_folder) if f.endswith('lf.bin')]
+
             lfp_meta_files = list(imec_raw_folder.glob('*.lf.meta'))
             lfp_data_files = list(imec_raw_folder.glob('*.lf.bin'))
             if lfp_meta_files and lfp_data_files:
+                print(lfp_data_files[0], lfp_meta_files[0])
                 lfp_meta_dict = read_sglx.readMeta(pathlib.Path(raw_ephys_folder, lfp_data_files[0]))
-                raw_data_lfp = read_sglx.makeMemMapRaw(pathlib.Path(raw_ephys_folder, lfp_meta_files[0]), lfp_meta_dict)
+                binFullPath = pathlib.Path(raw_ephys_folder, lfp_data_files[0])
+                print(binFullPath)
+                raw_data_lfp = read_sglx.makeMemMapRaw(pathlib.Path(raw_ephys_folder, lfp_data_files[0]), lfp_meta_dict)
 
                 lfp_electrical_series = ElectricalSeries(
                     name=f'ElectricalSeries_lfp_{device_name}',
@@ -572,7 +623,7 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False, experim
                 ecephys_module.add(
                     LFP(electrical_series=lfp_electrical_series, name=f'lfp_{device_name}')
                 )
-                print(f'Added LFP data for {device_name}: {lfp_data_file}')
+                print(f'Added LFP data for {device_name}: {lfp_data_files[0]}')
             else:
                 print(f'Warning: no lf.bin/lf.meta found for {device_name}, skipping LFP data.')
 

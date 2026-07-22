@@ -380,7 +380,7 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False, experim
             # Rename columns, add parent info
             ephys_align_df['peak_channel'] = ephys_align_df['ch_id']
             ephys_align_df = ephys_align_df.rename(columns=col_mapper)
-            ephys_align_df = add_ccf_parent_info(df=ephys_align_df, config=config, ccf_id_col='ccf_atlas_id')
+            ephys_align_df = add_ccf_parent_info(df=ephys_align_df, path_to_atlas=config, ccf_id_col='ccf_atlas_id')
             #ephys_align_df = ephys_align_df.astype(str) # ensure all cols are object for NWB
             #TODO: fix this for ccf_id
             #ephys_align_ch = set(ephys_align_df['peak_channel'].unique().astype(str))
@@ -407,7 +407,7 @@ def convert_ephys_recording(nwb_file, config_file, add_recordings=False, experim
             ephys_align_df = ephys_align_df.dropna(subset=['peak_channel']) # remove any remaining NaNs
             ephys_align_df['peak_channel'] = ephys_align_df['peak_channel'].astype(int)
             unit_table = unit_table.merge(right=ephys_align_df, how='left', on='peak_channel')
-            unit_table = add_ccf_parent_info(unit_table, config=config, ccf_id_col='ccf_atlas_id')
+            unit_table = add_ccf_parent_info(unit_table, path_to_atlas=config, ccf_id_col='ccf_atlas_id')
             unit_table.drop(columns=['ch_id','added'], inplace=True)
             unit_table['depth'] = unit_table['axial']
 

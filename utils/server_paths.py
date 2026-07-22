@@ -444,7 +444,6 @@ def get_anat_probe_track_folder(config_file, experimenter=None):
         else:
             probe_track_folder = os.path.join(analysis_folder, 'data', mouse_name, session_name, 'Anatomy', 'fused', 'registered', 'segmentation')
 
-        print(probe_track_folder)
     elif experimenter == 'Jules_Lebert':
         probe_track_folder = os.path.join(analysis_folder, 'ImagedBrains', experimenter, mouse_name, 'fused', 'registered', 'segmentation')
     else:
@@ -624,6 +623,20 @@ def get_overstrike_file(config_file):
     else:
         return None
 
+def get_path_to_probe_insertion_info(config_file):
+    with open(config_file, 'r', encoding='utf8') as stream:
+        config = yaml.safe_load(stream)
 
+    mouse_name = config['subject_metadata']['subject_id']
+    session_name = config['session_metadata']['session_id']
 
+    if mouse_name.startswith('AB') or mouse_name.startswith('MH'):
+        probe_insertion_info_path = os.path.join(get_share_internal_root(), 'Axel_Bisi_Share', 'dataset_info', 'joint_probe_insertion_info.xlsx')
+    else:
+        probe_insertion_info_path = os.path.join(get_analysis_root(), EXPERIMENTER_MAP[mouse_name[:2]], 'mice_info', 'probe_insertion_info.xlsx')
 
+    if os.path.exists(probe_insertion_info_path):
+        return probe_insertion_info_path
+    else:
+        print(f"No probe insertion info file found for {session_name} session from {mouse_name}")
+        return None

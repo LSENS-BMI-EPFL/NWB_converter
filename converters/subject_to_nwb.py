@@ -79,6 +79,7 @@ def create_nwb_file(config_file):
         kwargs_nwb_file['session_id'] = kwargs_nwb_file['identifier']
 
 
+
     #####################################
     # ###    Creating the NWB file    ###
     #####################################

@@ -15,6 +15,7 @@ import pandas as pd
 import yaml
 import re
 import matplotlib.pyplot as plt
+from pandas import Int64Dtype
 from scipy.spatial import cKDTree
 
 
@@ -80,24 +81,32 @@ def get_probe_insertion_info(config_file):
     Returns:
 
     """
-    # Read config file
-    with open(config_file, 'r') as f:
-        config = yaml.load(f, Loader=yaml.FullLoader)
+    ## Read config file
+    #with open(config_file, 'r') as f:
+    #    config = yaml.load(f, Loader=yaml.FullLoader)
 
     # This is experimenter-specific tracking of that information
-    if 'path_to_probe_info' in config.get('ephys_metadata').keys():
-        path_to_probe_info = config.get('ephys_metadata').get('path_to_probe_info')
-        probe_info_df = pd.read_excel(path_to_probe_info)
-    else:
+    path_to_probe_info = server_paths.get_path_to_probe_insertion_info(config_file)
+    probe_info_df = pd.read_excel(path_to_probe_info)
 
-        if config.get('session_metadata').get('experimenter') == 'AB':
-            # Load probe insertion table
-            path_to_probe_info = r'M:\analysis\Axel_Bisi\mice_info\probe_insertion_info.xlsx'
-            probe_info_df = pd.read_excel(path_to_probe_info)
-
-        else:
-            print('No probe insertion information found for this experimenter.')
-            raise NotImplementedError
+    #if 'path_to_probe_info' in config.get('ephys_metadata').keys():
+    #    path_to_probe_info = config.get('ephys_metadata').get('path_to_probe_info')
+    #    path_to_probe_info = path_to_probe_info[path_to_probe_info.find('Axel_Bisi_Share'):] #strip hard-coded part
+    #    path_to_probe_info = path_to_probe_info.replace('\\', os.sep)
+    #    path_to_probe_info = os.path.normpath(path_to_probe_info)
+    #    path_to_probe_info = os.path.join(server_paths.get_share_internal_root(), path_to_probe_info) #platform handling
+    #    path_to_probe_info = server_paths.get_path_to_probe_insertion_info(config_file)
+    #    probe_info_df = pd.read_excel(path_to_probe_info)
+    #else:
+#
+    #    if config.get('session_metadata').get('experimenter') == 'AB':
+    #        # Load probe insertion table
+    #        path_to_probe_info = r'M:\analysis\Axel_Bisi\mice_info\probe_insertion_info.xlsx'
+    #        probe_info_df = pd.read_excel(path_to_probe_info)
+#
+    #    else:
+    #        print('No probe insertion information found for this experimenter.')
+    #        raise NotImplementedError
 
     return probe_info_df
 
@@ -472,18 +481,29 @@ def create_electrode_table(nwb_file):
     """
     # Create ElectrodeTable object
     dict_columns_to_add = {'index_on_probe': 'index of saved channel per probe per shank',
-                           'ccf_ml': 'ccf coordinate in ml axis',
-                           'ccf_ap': 'ccf coordinate in ap axis',
-                           'ccf_dv': 'ccf coordinate in dv axis',
                            'shank': 'shank number',
                            'shank_col': 'column number of electrode on shank',
                            'shank_row': 'row number of electrode on shank',
-                           'ccf_id': 'ccf region ID',
-                           'ccf_acronym': 'ccf region acronym',
-                           'ccf_name': 'ccf region name',
-                           'ccf_parent_id': 'ccf parent region ID',
-                           'ccf_parent_acronym': 'ccf parent region acronym',
-                           'ccf_parent_name': 'ccf parent region name',
+                           # Sample space
+                           #'ccf_ml': 'ccf coordinate in ml axis',
+                           #'ccf_ap': 'ccf coordinate in ap axis',
+                           #'ccf_dv': 'ccf coordinate in dv axis',
+                           #'ccf_id': 'ccf region ID',
+                           #'ccf_acronym': 'ccf region acronym',
+                           #'ccf_name': 'ccf region name',
+                           #'ccf_parent_id': 'ccf parent region ID',
+                           #'ccf_parent_acronym': 'ccf parent region acronym',
+                           #'ccf_parent_name': 'ccf parent region name',
+                           # Atlas space
+                           'ccf_atlas_ml': 'ccf atlas coordinate in ml axis',
+                           'ccf_atlas_ap': 'ccf atlas coordinate in ap axis',
+                           'ccf_atlas_dv': 'ccf atlas coordinate in dv axis',
+                           'ccf_atlas_id': 'ccf atlas region ID',
+                           'ccf_atlas_acronym': 'ccf atlas region acronym',
+                           'ccf_atlas_name': 'ccf atlas region name',
+                           'ccf_atlas_parent_id': 'ccf atlas parent region ID',
+                           'ccf_atlas_parent_acronym': 'ccf atlas parent region acronym',
+                           'ccf_atlas_parent_name': 'ccf atlas parent region name',
                            }
 
     for col_key, col_desc in dict_columns_to_add.items():
@@ -565,12 +585,12 @@ def create_unit_table(nwb_file):
         'ccf_ml': 'ccf peak channel coordinate in ml axis',
         'ccf_ap': 'ccf peak channel coordinate in ap axis',
         'ccf_dv': 'ccf peak channel coordinate in dv axis',
-        'ccf_id': 'ccf region ID',
-        'ccf_acronym': 'ccf region acronym',
-        'ccf_name': 'ccf region name',
-        'ccf_parent_id': 'ccf parent region ID',
-        'ccf_parent_acronym': 'ccf parent region acronym',
-        'ccf_parent_name': 'ccf parent region name',
+        'ccf_id': 'ccf region ID from histology only',
+        'ccf_acronym': 'ccf region acronym from histology only',
+        'ccf_name': 'ccf region name from histology only',
+        #'ccf_parent_id': 'ccf parent region ID',
+        #'ccf_parent_acronym': 'ccf parent region acronym',
+        #'ccf_parent_name': 'ccf parent region name',
         'ccf_atlas_ml': 'ccf atlas coordinate in ml axis after ephys-atlas alignment',
         'ccf_atlas_ap': 'ccf atlas coordinate in ap axis after ephys-atlas alignment',
         'ccf_atlas_dv': 'ccf atlas coordinate in dv axis after ephys-atlas alignment',
@@ -587,7 +607,7 @@ def create_unit_table(nwb_file):
 
     return
 
-def create_unit_table_old(nwb_file):
+def create_unit_table_old(nwb_file): #TODO:delete
     """
     Create units table in nwb file.
     Args:
@@ -643,6 +663,7 @@ def build_unit_table(imec_folder, sync_spike_times_path):
     # ----------------------------
     imec_folder = pathlib.Path(imec_folder)
     kilosort_outputs = list(imec_folder.glob('kilosort*'))
+    kilosort_outputs = [k for k in kilosort_outputs if 'kilosort_like' not in k.name]
     if len(kilosort_outputs) > 1: # if multiple kilosort versions, get the latest
         versions = []
         for ks_folder in kilosort_outputs:
@@ -691,11 +712,11 @@ def build_unit_table(imec_folder, sync_spike_times_path):
     # Format columns
     cluster_info_df['bc_label'] = cluster_info_df['bc_label'].str.lower()
 
-    # Get valid cluster indices only based on automatic curation
+    # Get valid cluster indices only based on automatic curation #TODO: cleanup
     #valid_cluster_ids = cluster_info_df[cluster_info_df.bc_label.isin(['good', 'mua', 'non-soma'])].index  # dataframe indices
-    valid_cluster_ids = cluster_info_df[cluster_info_df.bc_label.isin(['good', 'mua', 'non-soma', 'noise'])].index  # dataframe indices
+    #valid_cluster_ids = cluster_info_df[cluster_info_df.bc_label.isin(['good', 'mua', 'non-soma', 'noise'])].index  # dataframe indices
     valid_cluster_ids = cluster_info_df.index
-    cluster_info_df_sub = cluster_info_df.iloc[valid_cluster_ids, :]
+    cluster_info_df_sub = cluster_info_df #.iloc[valid_cluster_ids, :]
 
     # Add cluster information
     unit_table['cluster_id'] = cluster_info_df_sub['cluster_id']
@@ -708,25 +729,31 @@ def build_unit_table(imec_folder, sync_spike_times_path):
 
     # Load spikes times
     sync_spike_time_file = os.path.join(imec_folder, f"{imec_folder.name}_{ks_folder_name}_spike_times_sec_sync.npy")
-    sync_spike_time_file = os.path.join(imec_folder, f"{imec_folder.name}_spike_times_sec_sync.npy")
     spike_times_sync = np.load(sync_spike_time_file)
     spike_times_sync_df = pd.DataFrame(data=spike_times_sync, columns=['spike_times'])
     spike_times_sync_df.index.name = 'spike_id'
-    spike_times_per_cluster = []
 
     # Load spike cluster assignments
     spike_clusters = np.load(kilosort_output / 'spike_clusters.npy')
     spike_clusters_df = pd.DataFrame(data=spike_clusters, columns=['cluster_id'])
     spike_clusters_df.index.name = 'spike_id'
 
-    # Note: Iterate over selected good cluster only !
-    for c_id in cluster_info_df.cluster_id.values:
-        spike_ids = spike_clusters_df[spike_clusters_df.cluster_id == c_id].index
-        try:
-            spike_times_per_cluster.append(np.array(spike_times_sync_df.iloc[spike_ids].spike_times))
-        except:
-            print('Error with cluster {} - check kilosort output'.format(c_id))
-            spike_times_per_cluster.append(np.array([]))
+    # Note: Iterate over clusters #TODO: keep for now
+    #for c_id in cluster_info_df.cluster_id.values:
+    #    spike_ids = spike_clusters_df[spike_clusters_df.cluster_id == c_id].index
+    #    try:
+    #        spike_times_per_cluster.append(np.array(spike_times_sync_df.iloc[spike_ids].spike_times))
+    #    except:
+    #        print('Error with cluster {} - check kilosort output'.format(c_id))
+    #        spike_times_per_cluster.append(np.array([]))
+    #cluster_info_df['spike_times'] = spike_times_per_cluster
+
+    # Group spike times by cluster once
+    spike_times_by_cluster = spike_times_sync_df.groupby(spike_clusters_df['cluster_id'])['spike_times'].apply(np.array)
+    spike_times_per_cluster = [
+        spike_times_by_cluster.get(c_id, np.array([]))
+        for c_id in cluster_info_df.cluster_id.values
+    ]
     cluster_info_df['spike_times'] = spike_times_per_cluster
 
     unit_table['spike_times'] = cluster_info_df.loc[valid_cluster_ids].spike_times
@@ -740,12 +767,12 @@ def build_unit_table(imec_folder, sync_spike_times_path):
         bc_file_path = kilosort_output / 'qMetrics' / 'templates._bc_qMetrics.parquet'
     bc_info_df = pd.read_parquet(bc_file_path)
 
-    try: # TODO: make sure this does not happen, fix for mouse AB126
-        bc_info_df_sub = bc_info_df.loc[valid_cluster_ids, :]
-    except KeyError:
-        print('Error with valid cluster indices - check kilosort/bombcell output.')
-        valid_cluster_ids_temp = [idx for idx in valid_cluster_ids if idx in bc_info_df.index]
-        bc_info_df_sub = bc_info_df.loc[valid_cluster_ids_temp, :]
+    #try: # TODO: make sure this does not happen
+    #    bc_info_df_sub = bc_info_df.loc[valid_cluster_ids, :]
+   # except KeyError:
+   #     print('Error with valid cluster indices - check kilosort/bombcell output.')
+   #     valid_cluster_ids_temp = [idx for idx in valid_cluster_ids if idx in bc_info_df.index]
+   #     bc_info_df_sub = bc_info_df.loc[valid_cluster_ids_temp, :]
 
 
     # Add bombcell quality metrics — merge on cluster_id
@@ -785,19 +812,10 @@ def build_unit_table(imec_folder, sync_spike_times_path):
     #median_wfs = median_wfs[valid_cluster_ids, :]
     #unit_table['waveform_peak_median'] = pd.DataFrame(median_wfs).to_numpy().tolist()
 
-    # Load mean waveform metrics — merge on cluster_id
+    # Load mean waveform metrics — merge on cluster_id, probe unique #todo: fix cluster_id
     mean_wf_metrics = pd.read_csv(kilosort_output / 'cwaves' / 'waveform_metrics.csv')
     mean_wf_metrics['cluster_id'] = cluster_info_df_sub.loc[valid_cluster_ids, 'cluster_id'].values
-    unit_table = unit_table.merge( mean_wf_metrics[['cluster_id', 'duration', 'pt_ratio']], on='cluster_id', how='left')
-
-    # -----------------------------------------------------
-    # Load Bombcell raw/template waveforms
-    # shapes: (n_clusters, n_channels, n_timepoints) or similar
-    # -----------------------------------------------------
-    bc_path = kilosort_output / 'bombcell'
-    #bc_peak_chs = np.load(bc_path / 'templates._bc_rawWaveformPeakChannels.npy').flatten().astype(int)
-    #bc_raw_wfs = np.load(bc_path / '_bc_rawWaveforms_kilosort_format.npy')[valid_cluster_ids, bc_peak_chs, :]
-    #unit_table['waveform_bc_raw'] = bc_raw_wfs.tolist()
+    unit_table = unit_table.merge(mean_wf_metrics[['cluster_id', 'duration', 'pt_ratio']], on='cluster_id', how='left')
 
     if DEBUG_PLOT:
         # -------------------------------------------------------
@@ -891,28 +909,23 @@ def build_unit_table(imec_folder, sync_spike_times_path):
     return unit_table
 
 
-def add_ccf_parent_info(df, config, ccf_id_col):
+def add_ccf_parent_info(df, path_to_atlas, ccf_id_col):
     """
     For each entry with ccf_id, add its parent structure info (id, acronym, name).
     :param df: pd.DataFrame with a ccf_id column
-    :param config: config dictionary
+    :param path_to_atlas: config dictionary
     :param ccf_id_col: name of the column with ccf_id
     :return: area_table with added parent structure columns
     """
 
     # Load structures data
-    #path_to_atlas = config['ephys_metadata']['path_to_atlas']
-    path_to_atlas = r"C:\Users\bisi\.brainglobe\allen_mouse_bluebrain_barrels_10um_v1.0"
-
     with open(os.path.join(path_to_atlas, 'structures.json')) as f:
         structures = json.load(f)
 
-    avail_cols = df.columns.tolist()
-    #ccf_id_col = [col for col in avail_cols if '_id' in col][0]
-    #is_atlas_space = True if 'ccf_atlas_id' in avail_cols else False
     is_atlas_space = True if ccf_id_col=='ccf_atlas_id' else False
-
-    ccf_ids = df[ccf_id_col].astype(int).values
+    df[ccf_id_col] = pd.to_numeric(df[ccf_id_col], errors='coerce')
+    df[ccf_id_col] = df[ccf_id_col].fillna(997).astype(int)
+    ccf_ids = df[ccf_id_col].values
 
     # Create a quick lookup for structures by ID
     structures_by_id = {s['id']: s for s in structures}
@@ -1149,6 +1162,7 @@ def build_area_table(config_file, imec_folder, experimenter=None):
                                'Region name': 'ccf_name'}, inplace=True)
 
     # Set outside brain points to atlas root
+    area_table['ccf_id'] = pd.to_numeric(area_table['ccf_id'], errors='coerce')
     area_table.loc[area_table['ccf_id'] == 'Not found in brain', 'ccf_id'] = 997
     area_table.loc[area_table['ccf_acronym'] == 'Not found in brain', 'ccf_acronym'] = 'root'
     area_table.loc[area_table['ccf_name'] == 'Not found in brain', 'ccf_name'] = 'root'
@@ -1161,49 +1175,27 @@ def build_area_table(config_file, imec_folder, experimenter=None):
     max_position = np.max(area_table['shank_row'].values)
     area_table['shank_row'] = max_position - area_table['shank_row'].values  # make values start at 0
 
-    # Add atlas metadata
-    path_to_atlas = config['ephys_metadata']['path_to_atlas']
-    with open(os.path.join(path_to_atlas, 'metadata.json')) as f:
-        atlas_metadata = json.load(f)
-    area_table['atlas_metadata'] = str(atlas_metadata)
-
     # ------------------------------------------------------------
     # Simplify CCF hierarchical nomenclature with parent structure
     # Relevant for cortical layers <-> cortical area
     # ------------------------------------------------------------
+
+    # Get path to atlas metadata for hierarchy information
+    path_to_atlas = config['ephys_metadata']['path_to_atlas']
+
+    atlas_name = pathlib.PureWindowsPath(path_to_atlas).name
+    path_to_atlas = os.path.join(server_paths.get_analysis_root(), 'Axel_Bisi', 'Anatomy', atlas_name)
+    if not os.path.exists(path_to_atlas):
+        print(f'{path_to_atlas} does not exist- check or add it at location.')
+
+    # Apply function
     area_table = add_ccf_parent_info(area_table, path_to_atlas, ccf_id_col='ccf_id')
-
-    #with open(os.path.join(path_to_atlas, 'structures.json')) as f:
-    #    structures_dict_list = json.load(f)
-
-    # For each region_id, get parent structures
-    #ccf_ids = np.array(area_table['ccf_id'].values, dtype=int)
-    #present_structures = {i['id']: i for i in structures_dict_list if i['id'] in ccf_ids}  # all present structures
-
-    # Get corresponding parent structure IDs
-    #ccf_parent_ids = {ccf_id: (struct['structure_id_path'][-2] if struct['name']!='root' else 997)
-    #                  for ccf_id, struct in present_structures.items()}
-
-    # Map region to parent structure
-    #ccf_parent_dict = {i['id']: i for i in structures_dict_list if i['id'] in ccf_parent_ids.values()}  # parent structures
-
-    # Make hierarchical mappers: cff area <-> ccf parent area information
-    #ccf_parent_id_mapper = {ccf_id: ccf_parent_dict[ccf_parent_ids[ccf_id]]['id'] for ccf_id in ccf_parent_ids.keys()}
-    #ccf_parent_acronym_mapper = {ccf_id: ccf_parent_dict[ccf_parent_ids[ccf_id]]['acronym'] for ccf_id in
-    #                             ccf_parent_ids.keys()}
-    #ccf_parent_name_mapper = {ccf_id: ccf_parent_dict[ccf_parent_ids[ccf_id]]['name'] for ccf_id in
-    #                          ccf_parent_ids.keys()}
-
-    # Add parent structure information
-    #area_table['ccf_parent_id'] = [ccf_parent_id_mapper[ccf_id] for ccf_id in ccf_ids]
-    #area_table['ccf_parent_acronym'] = [ccf_parent_acronym_mapper[ccf_id] for ccf_id in ccf_ids]
-    #area_table['ccf_parent_name'] = [ccf_parent_name_mapper[ccf_id] for ccf_id in ccf_ids]
 
     # -----------------------------------------
     # Load ccf coordinates (ccf atlas space)
     # -----------------------------------------
 
-    path_to_atlas_space_track = os.path.join(path_to_proc_anat, 'atlas_space\\tracks')
+    path_to_atlas_space_track = os.path.join(path_to_proc_anat, 'atlas_space', 'tracks')
     coords = np.load(os.path.join(path_to_atlas_space_track, 'imec{}.npy'.format(imec_id)))
     coords = coords[::-1] #from tip to superficial
     coords = coords[9:, :] # remove tip-length (no recording sites)
