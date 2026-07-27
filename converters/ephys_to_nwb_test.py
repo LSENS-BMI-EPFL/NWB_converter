@@ -281,15 +281,20 @@ def convert_ephys_recording(nwb_file, config_file, experimenter=None, add_ephys_
                 pathlib.Path(imec_folder, 'kilosort2', 'channel_map.npy')
             ).flatten()
 
-        coords = MetaToCoords(
-            metaFullPath=pathlib.Path(imec_folder, ap_meta_file), outType=0, showPlot=False
-        )
+        coords = MetaToCoords(metaFullPath=pathlib.Path(imec_folder, ap_meta_file), outType=0, showPlot=False)
+        probe_type = readSLGX.readMeta(pathlib.Path(imec_folder, ap_meta_file))['imDatPrb_type']
+        probe_type = NP_PROBE_TYPE_MAP[int(probe_type)]
         xcoords    = coords[0]
         ycoords    = coords[1]
         shank_id   = coords[2]
         shank_cols = np.tile([1, 3, 0, 2], reps=int(xcoords.shape[0] / 4))
 
-        shank_rows = np.divide(ycoords, 20)   # TODO: update for NP2
+        if probe_type == 'NP1.0':
+            shank_rows = np.divide(ycoords, 20)
+        elif probe_type == 'NP2.0':
+            shank_rows = np.divide(ycoords, 15)
+        else:
+            raise Exception(f'Probe type {probe_type} is not supported.')
         n_chan_total = int(coords[4])
 
         if DEBUG_PLOT:
@@ -385,8 +390,8 @@ def convert_ephys_recording(nwb_file, config_file, experimenter=None, add_ephys_
         area_table_reset = area_table[sample_cols].reset_index()  # shank_row back as column
         unit_table = unit_table.merge(area_table_reset, on='shank_row', how='left')
 
-        # Add sample-space CCF parent info #todo:resolve and delete
-        #unit_table = add_ccf_parent_info(df=unit_table, path_to_atlas=path_to_atlas, ccf_id_col='ccf_id')
+        # Add sample-space CCF parent info #todo:test
+        unit_table = add_ccf_parent_info(df=unit_table, path_to_atlas=path_to_atlas, ccf_id_col='ccf_id')
 
         # --------------------------------------------------------
         # Merge atlas-space localization via peak_channel (1:1)
@@ -407,7 +412,6 @@ def convert_ephys_recording(nwb_file, config_file, experimenter=None, add_ephys_
         cols_to_str = [c for c in unit_table.columns if c not in ['spike_times', 'waveform_mean', 'electrode_group', 'location']]
         unit_table[cols_to_str] = unit_table[cols_to_str].astype(str)
         # print data types
-        print(unit_table.dtypes)
         for col in cols_to_str:
             types = unit_table[col].map(type).value_counts()
             if len(types) > 1:
@@ -419,11 +423,11 @@ def convert_ephys_recording(nwb_file, config_file, experimenter=None, add_ephys_
         for col in cols_to_str:
             assert unit_table[col].map(lambda x: isinstance(x, str)).all(), col
 
-        # Filter: remove void-region units and noise/non-soma
-        print('Removing ouf-of-brain, noise and non-soma units from the unit_table.')
+        # Filter: remove void-region units and noise
+        print('Removing ouf-of-brain, noise units from the unit_table.')
         unit_table = unit_table[
             (unit_table['ccf_atlas_acronym'] != 'void') &
-            (~unit_table['bc_label'].isin(['noise', 'non-soma']))
+            (~unit_table['bc_label'].isin(['noise']))
         ]
 
         # --------------------------------------------------------
@@ -452,9 +456,9 @@ def convert_ephys_recording(nwb_file, config_file, experimenter=None, add_ephys_
                 ccf_id=unit_table['ccf_id'].values[neuron_id],
                 ccf_acronym=unit_table['ccf_acronym'].values[neuron_id],
                 ccf_name=unit_table['ccf_name'].values[neuron_id],
-                #ccf_parent_id=unit_table['ccf_parent_id'].values[neuron_id],
-                #ccf_parent_acronym=unit_table['ccf_parent_acronym'].values[neuron_id],
-                #ccf_parent_name=unit_table['ccf_parent_name'].values[neuron_id],
+                ccf_parent_id=unit_table['ccf_parent_id'].values[neuron_id],
+                ccf_parent_acronym=unit_table['ccf_parent_acronym'].values[neuron_id],
+                ccf_parent_name=unit_table['ccf_parent_name'].values[neuron_id],
                 # Atlas-space localization (IBL ephys-atlas alignment)
                 ccf_atlas_ap=unit_table['ccf_atlas_ap'].values[neuron_id],
                 ccf_atlas_ml=unit_table['ccf_atlas_ml'].values[neuron_id],
@@ -472,7 +476,10 @@ def convert_ephys_recording(nwb_file, config_file, experimenter=None, add_ephys_
                 useTheseTimesStop=unit_table['useTheseTimesStop'].values[neuron_id],
                 percentageSpikesMissing_gaussian=unit_table['percentageSpikesMissing_gaussian'].values[neuron_id],
                 percentageSpikesMissing_symmetric=unit_table['percentageSpikesMissing_symmetric'].values[neuron_id],
+                fractionRPVs_estimatedTauR=unit_table['fractionRPVs_estimatedTauR'].values[neuron_id],
                 presenceRatio=unit_table['presenceRatio'].values[neuron_id],
+                maxDriftEstimate=unit_table['maxDriftEstimate'].values[neuron_id],
+                cumDriftEstimate=unit_table['cumDriftEstimate'].values[neuron_id],
                 nSpikes=unit_table['nSpikes'].values[neuron_id],
                 nPeaks=unit_table['nPeaks'].values[neuron_id],
                 nTroughs=unit_table['nTroughs'].values[neuron_id],
@@ -481,7 +488,8 @@ def convert_ephys_recording(nwb_file, config_file, experimenter=None, add_ephys_
                 waveformBaselineFlatness=unit_table['waveformBaselineFlatness'].values[neuron_id],
                 rawAmplitude=unit_table['rawAmplitude'].values[neuron_id],
                 signalToNoiseRatio=unit_table['signalToNoiseRatio'].values[neuron_id],
-                fractionRPVs_estimatedTauR=unit_table['fractionRPVs_estimatedTauR'].values[neuron_id],
+                Lratio=unit_table['Lratio'].values[neuron_id],
+                isolationDistance=unit_table['isolationDistance'].values[neuron_id]
             )
             neuron_counter += 1
         print(f'Done adding {len(unit_table)} units for IMEC{imec_id}')
@@ -495,7 +503,6 @@ def convert_ephys_recording(nwb_file, config_file, experimenter=None, add_ephys_
         cols_to_str = [c for c in ephys_align_df.columns if c not in ['ch_id', 'axial', 'lateral', 'ccf_atlas_ml', 'ccf_atlas_ap', 'ccf_atlas_dv', 'ccf_atlas_id']]
         ephys_align_df = ephys_align_df.astype(str)
         # print datatypes
-        print(ephys_align_df.dtypes)
         for col in cols_to_str:
             types = ephys_align_df[col].map(type).value_counts()
             if len(types) > 1:
@@ -530,12 +537,14 @@ def convert_ephys_recording(nwb_file, config_file, experimenter=None, add_ephys_
                 #ccf_dv=elec_info['ccf_atlas_dv'],
                 #ccf_ml=elec_info['ccf_atlas_ml'],
                 #ccf_ap=elec_info['ccf_atlas_ap'],
+                # Sample-space
                 #ccf_id=elec_info['ccf_atlas_id'],
                 #ccf_acronym=elec_info['ccf_atlas_acronym'],
                 #ccf_name=elec_info['ccf_atlas_name'],
                 #ccf_parent_id=elec_info['ccf_atlas_parent_id'],
                 #ccf_parent_acronym=elec_info['ccf_atlas_parent_acronym'],
                 #ccf_parent_name=elec_info['ccf_atlas_parent_name'],
+                # Atlas-space
                 ccf_atlas_dv=float(elec_info['ccf_atlas_dv']),
                 ccf_atlas_ml=float(elec_info['ccf_atlas_ml']),
                 ccf_atlas_ap=float(elec_info['ccf_atlas_ap']),

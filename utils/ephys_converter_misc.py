@@ -5,7 +5,7 @@
 @file: ephys_converter_misc.py
 @time: 8/24/2023 9:25 AM
 """
-
+import datetime
 import itertools
 import os
 import pathlib
@@ -35,12 +35,12 @@ AREA_COORDINATES_MAP = {
     'OFC': (3, 1),      # ?
     'mPFC': (2, 0.5), # Esmaeili et al., Oryschuuk et al.
     'Vis': (-3.8, 2.5), # Esmaeili et al.
-    'PPC': (-2, 1.75), # Fritjof Helmchen papers
+    'PPC': (-2, 1.75), # Fritjof Helmchen papers ('PPC-A')
     'dCA1': (-2.7, 2), # Esmaeili et al.
     'tjM1': (2, 2), # Mayrhofer et al.
-    'DLS': (0, 3.5), # Esmaeili et al.
+    'DLS': (0, 3.5), # Esmaeili et al., Sippy et al., 
     'SC':  (-3.8, 0.5), # ?
-    'RSP': (-1.5, 0.5), # Bech, Dard et al.
+    'RSP': (-1.5, 0.5), # Bech, Dard et al., frontal
     'tjS1': (0.6, 3.8) # Bech, Dard et al.
 }
 
@@ -81,32 +81,9 @@ def get_probe_insertion_info(config_file):
     Returns:
 
     """
-    ## Read config file
-    #with open(config_file, 'r') as f:
-    #    config = yaml.load(f, Loader=yaml.FullLoader)
-
     # This is experimenter-specific tracking of that information
     path_to_probe_info = server_paths.get_path_to_probe_insertion_info(config_file)
     probe_info_df = pd.read_excel(path_to_probe_info)
-
-    #if 'path_to_probe_info' in config.get('ephys_metadata').keys():
-    #    path_to_probe_info = config.get('ephys_metadata').get('path_to_probe_info')
-    #    path_to_probe_info = path_to_probe_info[path_to_probe_info.find('Axel_Bisi_Share'):] #strip hard-coded part
-    #    path_to_probe_info = path_to_probe_info.replace('\\', os.sep)
-    #    path_to_probe_info = os.path.normpath(path_to_probe_info)
-    #    path_to_probe_info = os.path.join(server_paths.get_share_internal_root(), path_to_probe_info) #platform handling
-    #    path_to_probe_info = server_paths.get_path_to_probe_insertion_info(config_file)
-    #    probe_info_df = pd.read_excel(path_to_probe_info)
-    #else:
-#
-    #    if config.get('session_metadata').get('experimenter') == 'AB':
-    #        # Load probe insertion table
-    #        path_to_probe_info = r'M:\analysis\Axel_Bisi\mice_info\probe_insertion_info.xlsx'
-    #        probe_info_df = pd.read_excel(path_to_probe_info)
-#
-    #    else:
-    #        print('No probe insertion information found for this experimenter.')
-    #        raise NotImplementedError
 
     return probe_info_df
 
@@ -126,12 +103,18 @@ def get_target_location(config_file, device_name):
         config = yaml.load(f, Loader=yaml.FullLoader)
 
     location_df = get_probe_insertion_info(config_file=config_file)
+    session_date = config['session_metadata']['session_id'].split('_')[1]
+    # session date is formatted as YYYYMMDD in here, format as DD.MM.YYYY
+    YYYY,MM,DD = session_date[0:4], session_date[4:6], session_date[6:8]
+    session_date = f"{DD}.{MM}.{YYYY}"
+    # Convert date fo location_df as datetime with only DD.MM.YYYY
+    location_df['date'] =  pd.to_datetime(location_df['date']).dt.strftime('%d.%m.%Y').astype(str)
 
     # Keep subset for mouse and probe_id
-    mouse_name = config.get('subject_metadata').get('subject_id') #todo: fix with date filter
+    mouse_name = config.get('subject_metadata').get('subject_id')
     location_df = location_df[(location_df['mouse_name'] == mouse_name)
-                              &
-                              (location_df['probe_id'] == int(device_name[-1]))
+                             & (location_df['date'] == session_date)
+                              & (location_df['probe_id'] == int(device_name[-1]))
                               ]
 
     # Get coordinates of target area
@@ -485,9 +468,6 @@ def create_electrode_table(nwb_file):
                            'shank_col': 'column number of electrode on shank',
                            'shank_row': 'row number of electrode on shank',
                            # Sample space
-                           #'ccf_ml': 'ccf coordinate in ml axis',
-                           #'ccf_ap': 'ccf coordinate in ap axis',
-                           #'ccf_dv': 'ccf coordinate in dv axis',
                            #'ccf_id': 'ccf region ID',
                            #'ccf_acronym': 'ccf region acronym',
                            #'ccf_name': 'ccf region name',
@@ -567,7 +547,10 @@ def create_unit_table(nwb_file):
         'useTheseTimesStop': 'stop time for quality metric calculation',
         'percentageSpikesMissing_gaussian': 'esimated percentage of spikes missing',
         'percentageSpikesMissing_symmetric': 'estimated percentage of spikes missing symmetrically',
+        'fractionRPVs_estimatedTauR': 'estimated percent of refractory period violations (Hill et al., 2011)',
         'presenceRatio': 'number of time chunks of specific size containing at least one spike over total number of time chunks',
+        'maxDriftEstimate':'difference between maximum and minimum median peak channels across bins',
+        'cumDriftEstimate':'same as maxDriftEstimate but cumulative',
         'nSpikes': 'number of spikes',
         'nPeaks': 'number of template waveform peaks on peak channel',
         'nTroughs': 'number of template waveform troughs on peak channel',
@@ -577,7 +560,8 @@ def create_unit_table(nwb_file):
         'waveformBaselineFlatness': 'ratio of max. value in baseline window vs. max. value in waveform window',
         'rawAmplitude': 'raw mean waveform maximum amplitude, in uV',
         'signalToNoiseRatio': 'maximum waveform value (peak channel) divided by the variance across its raw extracted waveform baselines ',
-        'fractionRPVs_estimatedTauR': 'estimated percent of refractory period violations (Hill et al., 2011)',
+        'Lratio':'How likely are spikes outside this cluster to actually belong inside it',
+        'isolationDistance': 'interpreted as a measure of distance from the unit to the nearest cluster',
         'waveform_mean': 'mean spike waveform from actual data, in uV',
         'sampling_rate': 'sampling rate used for that probe, in Hz',
         'duration': 'spike duration, in ms, from trough to peak',
@@ -588,9 +572,9 @@ def create_unit_table(nwb_file):
         'ccf_id': 'ccf region ID from histology only',
         'ccf_acronym': 'ccf region acronym from histology only',
         'ccf_name': 'ccf region name from histology only',
-        #'ccf_parent_id': 'ccf parent region ID',
-        #'ccf_parent_acronym': 'ccf parent region acronym',
-        #'ccf_parent_name': 'ccf parent region name',
+        'ccf_parent_id': 'ccf parent region ID',
+        'ccf_parent_acronym': 'ccf parent region acronym',
+        'ccf_parent_name': 'ccf parent region name',
         'ccf_atlas_ml': 'ccf atlas coordinate in ml axis after ephys-atlas alignment',
         'ccf_atlas_ap': 'ccf atlas coordinate in ap axis after ephys-atlas alignment',
         'ccf_atlas_dv': 'ccf atlas coordinate in dv axis after ephys-atlas alignment',
@@ -601,43 +585,6 @@ def create_unit_table(nwb_file):
         'ccf_atlas_parent_acronym': 'ccf atlas parent region acronym after',
         'ccf_atlas_parent_name': 'ccf atlas parent region name after ephys-atlas alignment',
 
-    }
-    for col_key, col_desc in dict_columns_to_add.items():
-        nwb_file.add_unit_column(name=col_key, description=col_desc)
-
-    return
-
-def create_unit_table_old(nwb_file): #TODO:delete
-    """
-    Create units table in nwb file.
-    Args:
-        nwb_file: NWB file object
-
-    Returns:
-
-    """
-
-    # Create Units table (default columns are id and spike_times)
-    dict_columns_to_add = {
-        'cluster_id': 'cluster index, from KS(probe-wise)',
-        'peak_channel': 'electrode with max waveform amplitude, from KS',
-        'electrode_group': 'ElectrodeGroup object (i.e. probe) recording the unit',
-        'depth': 'depth of peak electrode, in probe space, from KS',
-        'ks_label': 'unit quality label, form Kilosort and curation (Phy): “good”, “mua”',
-        'firing_rate': 'total firing rate in session, in Hz',
-        'waveform_mean': 'mean spike waveform (a vector), in uV',
-        'sampling_rate': 'sampling rate used for that probe, in Hz',
-        'duration': 'spike duration, in ms, from trough to peak',
-        'pt_ratio': 'peak-to-trough ratio',
-        'ccf_ml': 'ccf peak channel coordinate in ml axis',
-        'ccf_ap': 'ccf peak channel coordinate in ap axis',
-        'ccf_dv': 'ccf peak channel coordinate in dv axis',
-        'ccf_id': 'ccf region ID',
-        'ccf_acronym': 'ccf region acronym',
-        'ccf_name': 'ccf region name',
-        'ccf_parent_id': 'ccf parent region ID',
-        'ccf_parent_acronym': 'ccf parent region acronym',
-        'ccf_parent_name': 'ccf parent region name',
     }
     for col_key, col_desc in dict_columns_to_add.items():
         nwb_file.add_unit_column(name=col_key, description=col_desc)
@@ -688,6 +635,7 @@ def build_unit_table(imec_folder, sync_spike_times_path):
     # Spikeinterface adds another ks_folder 'sorter_output' in the kilosort ks_folder
     if (kilosort_output / 'sorter_output').exists():
         kilosort_output = kilosort_output / 'sorter_output'
+
     cluster_info_path = kilosort_output / 'cluster_info.tsv'
     try:
         cluster_info_df = pd.read_csv(cluster_info_path, sep='\t')
@@ -712,11 +660,9 @@ def build_unit_table(imec_folder, sync_spike_times_path):
     # Format columns
     cluster_info_df['bc_label'] = cluster_info_df['bc_label'].str.lower()
 
-    # Get valid cluster indices only based on automatic curation #TODO: cleanup
-    #valid_cluster_ids = cluster_info_df[cluster_info_df.bc_label.isin(['good', 'mua', 'non-soma'])].index  # dataframe indices
-    #valid_cluster_ids = cluster_info_df[cluster_info_df.bc_label.isin(['good', 'mua', 'non-soma', 'noise'])].index  # dataframe indices
+    # Get valid cluster indices only based on automatic curation
     valid_cluster_ids = cluster_info_df.index
-    cluster_info_df_sub = cluster_info_df #.iloc[valid_cluster_ids, :]
+    cluster_info_df_sub = cluster_info_df
 
     # Add cluster information
     unit_table['cluster_id'] = cluster_info_df_sub['cluster_id']
@@ -767,7 +713,7 @@ def build_unit_table(imec_folder, sync_spike_times_path):
         bc_file_path = kilosort_output / 'qMetrics' / 'templates._bc_qMetrics.parquet'
     bc_info_df = pd.read_parquet(bc_file_path)
 
-    #try: # TODO: make sure this does not happen
+    #try: # TODO: keep for now
     #    bc_info_df_sub = bc_info_df.loc[valid_cluster_ids, :]
    # except KeyError:
    #     print('Error with valid cluster indices - check kilosort/bombcell output.')
@@ -783,6 +729,7 @@ def build_unit_table(imec_folder, sync_spike_times_path):
         'useTheseTimesStop',
         'percentageSpikesMissing_gaussian',
         'percentageSpikesMissing_symmetric',
+        'fractionRPVs_estimatedTauR',
         'presenceRatio',
         'maxDriftEstimate',
         'cumDriftEstimate',
@@ -794,7 +741,8 @@ def build_unit_table(imec_folder, sync_spike_times_path):
         'waveformBaselineFlatness',
         'rawAmplitude',
         'signalToNoiseRatio',
-        'fractionRPVs_estimatedTauR',
+        'Lratio',
+        'isolationDistance',
     ]
     bc_info_df_sub = bc_info_df[bc_cols].rename(columns={'phy_clusterID': 'cluster_id'})
     unit_table = unit_table.merge(bc_info_df_sub, on='cluster_id', how='left')
@@ -812,7 +760,7 @@ def build_unit_table(imec_folder, sync_spike_times_path):
     #median_wfs = median_wfs[valid_cluster_ids, :]
     #unit_table['waveform_peak_median'] = pd.DataFrame(median_wfs).to_numpy().tolist()
 
-    # Load mean waveform metrics — merge on cluster_id, probe unique #todo: fix cluster_id
+    # Load mean waveform metrics — merge on cluster_id, probe unique
     mean_wf_metrics = pd.read_csv(kilosort_output / 'cwaves' / 'waveform_metrics.csv')
     mean_wf_metrics['cluster_id'] = cluster_info_df_sub.loc[valid_cluster_ids, 'cluster_id'].values
     unit_table = unit_table.merge(mean_wf_metrics[['cluster_id', 'duration', 'pt_ratio']], on='cluster_id', how='left')
