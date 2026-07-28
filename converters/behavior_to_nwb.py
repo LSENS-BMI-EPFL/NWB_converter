@@ -17,7 +17,7 @@ from utils.behavior_converter_misc import (add_trials_standard_to_nwb,
                                            get_trial_timestamps_dict,
                                            get_motivated_epoch_ts)
 
-
+#TODO: add raw piezo lick trace
 def convert_behavior_data(nwb_file, timestamps_dict, config_file):
     """
     Convert behavior data to NWB format and add to NWB file.
@@ -218,15 +218,16 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
             passive_post_trials = passive_trials[passive_trials['start_time'] > active_start]
 
             epoch_bounds = {}
+            inter_epoch_delay = 5 # seconds
             if len(passive_pre_trials) > 0:
                 epoch_bounds['passive_pre'] = (0.0,
-                                               float(active_trials['start_time'].iloc[0]))
+                                               float(active_trials['start_time'].iloc[0]) - inter_epoch_delay)
             if len(active_trials) > 0:
-                epoch_bounds['active'] = (float(active_trials['start_time'].iloc[0]),
-                                          float(passive_post_trials['start_time'].iloc[0]))
+                epoch_bounds['active'] = (float(active_trials['start_time'].iloc[0]) - inter_epoch_delay,
+                                          float(active_trials['stop_time'].iloc[-1]) + inter_epoch_delay)
             if len(passive_post_trials) > 0:
-                epoch_bounds['passive_post'] = (float(passive_post_trials['start_time'].iloc[0]),
-                                                float(passive_post_trials['stop_time'].iloc[-1]))
+                epoch_bounds['passive_post'] = (float(passive_post_trials['start_time'].iloc[0]) - inter_epoch_delay,
+                                            float(passive_post_trials['stop_time'].iloc[-1])) # at end, not sure that delay is available
         else:
             # No passive context or ambiguous — entire session is active
             epoch_bounds = {'active': (0.0, float(trial_table['stop_time'].iloc[-1]))}
