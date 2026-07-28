@@ -235,9 +235,15 @@ def convert_ephys_recording(nwb_file, config_file, experimenter=None, add_ephys_
         # Validate probe
         # ------------------
         probe_info_df = get_probe_insertion_info(config_file=config_file)
+        probe_info_df['date'] = pd.to_datetime(probe_info_df['date'], dayfirst=True).dt.strftime('%d.%m.%Y').astype(str)
+
         mouse_name = config.get('subject_metadata').get('subject_id')
+        session_date = config.get('session_metadata')['session_id'].split('_')[1]
+        YYYY, MM, DD = session_date[0:4], session_date[4:6], session_date[6:8]
+        session_date = f"{DD}.{MM}.{YYYY}"
         probe_info = probe_info_df[
             (probe_info_df['mouse_name'] == mouse_name) &
+            (probe_info_df['date'] == session_date) &
             (probe_info_df['probe_id'] == imec_id)
         ]
         is_valid_probe = probe_info['valid'].values[0]
@@ -248,11 +254,14 @@ def convert_ephys_recording(nwb_file, config_file, experimenter=None, add_ephys_
         # ------------------
         # Probe metadata
         # ------------------
-        ap_meta_file = [f for f in os.listdir(imec_folder) if 'ap.meta' in f][0]
-        ap_meta_data = readMeta(pathlib.Path(imec_folder, ap_meta_file))
-        assert isinstance(ap_meta_data, dict)
-        probe_serial_number = ap_meta_data['imDatPrb_sn']
+        if mouse_name.startswith('MH'):
+            ap_meta_file = [f for f in os.listdir(imec_folder.replace('Axel_Bisi', 'Myriam_Hamon')) if 'ap.meta' in f][0]
+            ap_meta_data = readMeta(pathlib.Path(imec_folder.replace('Axel_Bisi', 'Myriam_Hamon'), ap_meta_file))
+        else:
+            ap_meta_file = [f for f in os.listdir(imec_folder) if 'ap.meta' in f][0]
+            ap_meta_data = readMeta(pathlib.Path(imec_folder, ap_meta_file))
 
+        probe_serial_number = ap_meta_data['imDatPrb_sn']
         device_name = f'imec{imec_id}'
         device = nwb_file.create_device(
             name=device_name,
@@ -281,8 +290,13 @@ def convert_ephys_recording(nwb_file, config_file, experimenter=None, add_ephys_
                 pathlib.Path(imec_folder, 'kilosort2', 'channel_map.npy')
             ).flatten()
 
-        coords = MetaToCoords(metaFullPath=pathlib.Path(imec_folder, ap_meta_file), outType=0, showPlot=False)
-        probe_type = readSLGX.readMeta(pathlib.Path(imec_folder, ap_meta_file))['imDatPrb_type']
+        if mouse_name.startswith('MH'):
+            coords = MetaToCoords(metaFullPath=pathlib.Path(imec_folder.replace('Axel_Bisi', 'Myriam_Hamon'), ap_meta_file), outType=0, showPlot=False, destFullPath=imec_folder)
+            probe_type = readSLGX.readMeta(pathlib.Path(imec_folder.replace('Axel_Bisi', 'Myriam_Hamon'), ap_meta_file))['imDatPrb_type']
+        else:
+            coords = MetaToCoords(metaFullPath=pathlib.Path(imec_folder, ap_meta_file), outType=0, showPlot=False, destFullPath=imec_folder)
+            probe_type = readSLGX.readMeta(pathlib.Path(imec_folder, ap_meta_file))['imDatPrb_type']
+
         probe_type = NP_PROBE_TYPE_MAP[int(probe_type)]
         xcoords    = coords[0]
         ycoords    = coords[1]
@@ -557,6 +571,8 @@ def convert_ephys_recording(nwb_file, config_file, experimenter=None, add_ephys_
                 location=elec_info['ccf_atlas_acronym'],
             )
             electrode_counter += 1
+
+        elec_table = nwb_file.electrodes.to_dataframe()
 
         # DynamicTableRegion referencing this probe's electrodes rows
         all_table_region = nwb_file.create_electrode_table_region(
