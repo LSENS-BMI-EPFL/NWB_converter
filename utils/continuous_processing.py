@@ -2,7 +2,8 @@ import os
 import cv2
 import itertools
 import numpy as np
-import matplotlib as mpl
+import matplotlib
+matplotlib.use("TkAgg")  # or "Qt5Agg" if you have PyQt5/PySide installed — pops out a window with zoom/pan toolbar
 # mpl.use('TkAgg') # Commented out because this causes problem on the server
 import matplotlib.pyplot as plt
 import scipy.signal as sci_si
@@ -115,7 +116,7 @@ def read_binary_continuous_log(bin_file, channels_dict, ni_session_sr=5000, t_st
     return continuous_data_dict
 
 
-def detect_piezo_lick_times(continuous_data_dict, ni_session_sr=5000, lick_threshold=None, sigma=100, do_plot=False):
+def detect_piezo_lick_times_original(continuous_data_dict, ni_session_sr=5000, lick_threshold=None, sigma=100, do_plot=True):
     """
         Detect lick times from the lick data envelope.
         The lick data is first filtered with a low pass filter to remove high frequency fluctuations.
@@ -146,6 +147,11 @@ def detect_piezo_lick_times(continuous_data_dict, ni_session_sr=5000, lick_thres
     lick_times = np.array(cross_thr_indices_valid) / float(ni_session_sr)  # get lick times in seconds
 
     # Debugging: optional plotting
+
+    if do_plot:
+        zoom_window_s = 50
+        plot_lick_detection(lick_data, lick_data_smooth, lick_times, lick_threshold,
+                              ni_session_sr, zoom_window_s)
     if do_plot:
         t_start = 0
         t_stop = 800
@@ -160,6 +166,198 @@ def detect_piezo_lick_times(continuous_data_dict, ni_session_sr=5000, lick_thres
         plt.show()
 
     return lick_times
+
+def detect_piezo_lick_times(continuous_data_dict, ni_session_sr=5000, lick_threshold=None,
+                             sigma=100, do_plot=False, zoom_window_s=50):
+    """
+    Detect lick times from the lick data envelope.
+    The lick data is first filtered with a low pass filter to remove high frequency fluctuations.
+
+    Args:
+        continuous_data_dict: Dictionary containing continuous data
+        ni_session_sr: Sampling rate of session
+        lick_threshold: Lick threshold of session
+        sigma: Standard deviation of gaussian filter used to smooth lick data
+        do_plot: If True, show diagnostic plots
+        zoom_window_s: Duration (s) of each zoomed-in window (beginning/middle/end)
+
+    Returns:
+        lick_times: np.array of detected lick times, in seconds
+    """
+    lick_data = continuous_data_dict.get("lick_trace")
+    if lick_data is None:
+        raise ValueError("continuous_data_dict has no 'lick_trace' entry.")
+    lick_data = np.asarray(lick_data)
+
+    if lick_threshold is None:
+        lick_threshold = 0.1
+
+    # Smooth lick data with a gaussian filter
+    lick_data_smooth = gaussian_filter1d(lick_data, sigma=sigma)
+    lick_data_sub = lick_data_smooth - lick_threshold
+
+    # Detect upward zero-crossings (sign-change based, robust to steep or plateaued crossings)
+    above_thr = lick_data_sub > 0
+    crossings = np.where(np.diff(above_thr.astype(int)) == 1)[0] + 1
+
+    # Debounce with a refractory period, scaled to sampling rate (keep first crossing of each burst)
+    min_gap_samples = int(round(0.02 * ni_session_sr))  # 20 ms refractory period
+    cross_thr_indices_valid = []
+    if len(crossings) > 0:
+        cross_thr_indices_valid.append(crossings[0])
+        for c in crossings[1:]:
+            if c - cross_thr_indices_valid[-1] > min_gap_samples:
+                cross_thr_indices_valid.append(c)
+
+    lick_times = np.array(cross_thr_indices_valid) / float(ni_session_sr)
+
+    if do_plot:
+        plot_lick_detection(lick_data, lick_data_smooth, lick_times, lick_threshold,
+                              ni_session_sr, zoom_window_s)
+
+    return lick_times
+
+from scipy.ndimage import gaussian_filter1d, median_filter
+from scipy.signal import find_peaks
+def detect_piezo_lick_times_new(continuous_data_dict, ni_session_sr=5000, lick_threshold=None,
+                             sigma=20, min_isi_s=0.10, prominence_frac=0.8,
+                             do_plot=False, zoom_window_s=50):
+    """
+    Detect lick times from the lick data envelope using peak detection.
+
+    Uses scipy.signal.find_peaks on a lightly-smoothed envelope rather than
+    threshold-crossings, so that individual licks within a rapid bout are
+    resolved separately instead of being merged into one continuous
+    above-threshold excursion.
+
+    Args:
+        continuous_data_dict: Dictionary containing continuous data
+        ni_session_sr: Sampling rate of session
+        lick_threshold: Minimum envelope height to count as a lick.
+            Defaults to 0.1 (or interpreted relative to adaptive baseline if
+            adaptive_baseline=True).
+        sigma: Std of gaussian smoothing kernel, in samples. Kept small
+            (default 20, i.e. 4ms at 5kHz) to avoid merging closely-spaced
+            licks in a bout. Old default of 100 was too wide and caused
+            entire bouts to collapse into a single detected event.
+        min_isi_s: Minimum time (s) between detected licks. Should be set
+            just below the shortest real inter-lick interval you expect
+            (e.g. 0.10 for ~6-10Hz bout licking), not the average ISI.
+        prominence_frac: Required peak prominence, as a fraction of
+            lick_threshold. This is what allows resolving individual licks
+            riding on an elevated plateau during a bout -- each oscillation
+            peak just needs to stand out from its immediate local
+            surroundings, not from the absolute baseline.
+        adaptive_baseline: If True, use a rolling median baseline + MAD to
+            set an adaptive threshold instead of a single fixed value.
+            Useful if signal amplitude decays across bouts or baseline
+            drifts across the session.
+        baseline_window_s: Window (s) for rolling baseline, if adaptive_baseline=True.
+        do_plot: If True, show diagnostic plots.
+        zoom_window_s: Duration (s) of each zoomed-in diagnostic window.
+
+    Returns:
+        lick_times: np.array of detected lick times, in seconds
+    """
+    lick_data = continuous_data_dict.get("lick_trace")
+    if lick_data is None:
+        raise ValueError("continuous_data_dict has no 'lick_trace' entry.")
+    lick_data = np.asarray(lick_data)
+    n_samples = len(lick_data)
+
+    if lick_threshold is None:
+        lick_threshold = 0.1
+    lick_threshold *=1.1
+
+    sigma_s = 0.004  # 4ms
+    sigma = int(round(sigma_s * ni_session_sr))  # = 100 samples at 25kHz
+
+    # Light smoothing -- just enough to remove single-sample noise spikes,
+    # not enough to merge adjacent licks within a bout.
+    lick_data_smooth = gaussian_filter1d(lick_data, sigma=sigma)
+
+    min_distance = max(1, int(round(min_isi_s * ni_session_sr)))
+    prominence = lick_threshold * prominence_frac
+
+    peak_idx, props = find_peaks(
+        lick_data_smooth,
+        height=lick_threshold,
+        distance=min_distance,
+        prominence=prominence,
+    )
+
+    lick_times = peak_idx / float(ni_session_sr)
+
+    if do_plot:
+        plot_lick_detection(lick_data, lick_data_smooth, lick_times, lick_threshold,
+                              ni_session_sr, zoom_window_s)
+
+    return lick_times
+
+def plot_lick_detection(lick_data, lick_data_smooth, lick_times, lick_threshold,
+                          ni_session_sr, zoom_window_s=50):
+    """
+    Plot lick detection diagnostics:
+      - Top row: 3 zoomed-in subplots (beginning / middle / end of session), ~zoom_window_s long each
+      - Bottom row: full session overview
+    """
+    n_samples = len(lick_data)
+    session_duration_s = n_samples / float(ni_session_sr)
+    t = np.arange(n_samples) / float(ni_session_sr)
+
+    def plot_window(ax, t_start, t_stop, title):
+        i_start = int(t_start * ni_session_sr)
+        i_stop = int(min(t_stop * ni_session_sr, n_samples))
+        ax.axhline(y=lick_threshold, color='red', lw=1, ls='--', alpha=0.9, zorder=0)
+        ax.plot(t[i_start:i_stop], lick_data[i_start:i_stop], c='k', lw=1, label="lick_data")
+        ax.plot(t[i_start:i_stop], lick_data_smooth[i_start:i_stop], c='green', lw=2, label="lick_envelope")
+        window_licks = lick_times[(lick_times >= t_start) & (lick_times <= t_stop)]
+        for lt in window_licks:
+            ax.axvline(x=lt, color='red', lw=2, alpha=0.8)
+        ax.set_xlim(t_start, t_stop)
+        ax.set_title(title, fontsize=10)
+        ax.set_xlabel("Time (s)")
+
+    fig = plt.figure(figsize=(16, 8))
+    gs = fig.add_gridspec(2, 3, height_ratios=[1, 1])
+
+    # Beginning
+    ax1 = fig.add_subplot(gs[0, 0])
+    t_start = 0
+    t_stop = min(zoom_window_s, session_duration_s)
+    plot_window(ax1, t_start, t_stop, f"Beginning ({t_start:.0f}-{t_stop:.0f}s)")
+    ax1.set_ylabel("Signal")
+    ax1.legend(loc='upper right', frameon=False, fontsize=8)
+
+    # Middle
+    ax2 = fig.add_subplot(gs[0, 1])
+    mid = session_duration_s / 2.0
+    t_start = max(mid - zoom_window_s / 2.0, 0)
+    t_stop = min(mid + zoom_window_s / 2.0, session_duration_s)
+    plot_window(ax2, t_start, t_stop, f"Middle ({t_start:.0f}-{t_stop:.0f}s)")
+
+    # End
+    ax3 = fig.add_subplot(gs[0, 2])
+    t_stop = session_duration_s
+    t_start = max(t_stop - zoom_window_s, 0)
+    plot_window(ax3, t_start, t_stop, f"End ({t_start:.0f}-{t_stop:.0f}s)")
+
+    # Full session overview
+    ax4 = fig.add_subplot(gs[1, :])
+    ax4.axhline(y=lick_threshold, color='red', lw=1, ls='--', alpha=0.9, zorder=0)
+    ax4.plot(t, lick_data, c='k', lw=0.5, label="lick_data")
+    ax4.plot(t, lick_data_smooth, c='green', lw=1, label="lick_envelope")
+    for lt in lick_times:
+        ax4.axvline(x=lt, color='red', lw=0.8, alpha=0.6)
+    ax4.set_xlim(0, session_duration_s)
+    ax4.set_title(f"Full session ({session_duration_s:.0f}s, {len(lick_times)} licks detected)", fontsize=10)
+    ax4.set_xlabel("Time (s)")
+    ax4.set_ylabel("Signal")
+    ax4.legend(loc='upper right', frameon=False, fontsize=8)
+
+    plt.tight_layout()
+    plt.show()
+    return
 
 
 def plot_continuous_data_dict(continuous_data_dict, timestamps_dict, ni_session_sr=5000, t_start=None, t_stop=None,
@@ -328,11 +526,11 @@ def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scan
 
                 # Detect lick times using behaviour GUI lick threshold
                 lick_threshold = float(threshold_dict.get(key))
-                lick_timestamps = detect_piezo_lick_times(continuous_data_dict,
+                lick_timestamps = detect_piezo_lick_times_new(continuous_data_dict,
                                                           ni_session_sr=ni_session_sr,
                                                           lick_threshold=lick_threshold,
-                                                          sigma=100,
-                                                          do_plot=False)
+                                                          #sigma=100,
+                                                          do_plot=True)
 
                 # Format as tuples of on/off times for NWB
                 lick_timestamps_on_off = list(zip(lick_timestamps, itertools.repeat(np.nan)))
@@ -341,7 +539,7 @@ def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scan
             else:
                 timestamps_dict[key] = None
 
-        elif key == "galvo_position":
+        if key == "galvo_position":
 
             # If no actual imaging data, do not extract timestamps
             if scanimage_dict is None:

@@ -20,7 +20,7 @@ from scipy.spatial import cKDTree
 
 
 from utils import server_paths
-from utils.continuous_processing import detect_piezo_lick_times, plot_exposure_times
+from utils.continuous_processing import detect_piezo_lick_times, detect_piezo_lick_times_new, plot_exposure_times
 #from utils.read_sglx import readMeta, SampRate, makeMemMapRaw, GainCorrectIM, GainCorrectNI, ChannelCountsNI
 from utils.readSLGX import readMeta, SampRate, makeMemMapRaw, GainCorrectIM, GainCorrectNI, ChannelCountsNI
 # MAP of (AP,ML) coordinates relative to bregma
@@ -108,7 +108,7 @@ def get_target_location(config_file, device_name):
     YYYY,MM,DD = session_date[0:4], session_date[4:6], session_date[6:8]
     session_date = f"{DD}.{MM}.{YYYY}"
     # Convert date fo location_df as datetime with only DD.MM.YYYY
-    location_df['date'] =  pd.to_datetime(location_df['date']).dt.strftime('%d.%m.%Y').astype(str)
+    location_df['date'] =  pd.to_datetime(location_df['date'], dayfirst=True).dt.strftime('%d.%m.%Y').astype(str)
 
     # Keep subset for mouse and probe_id
     mouse_name = config.get('subject_metadata').get('subject_id')
@@ -116,6 +116,12 @@ def get_target_location(config_file, device_name):
                              & (location_df['date'] == session_date)
                               & (location_df['probe_id'] == int(device_name[-1]))
                               ]
+
+    assert not location_df.empty, "Error: location_df is empty"
+
+    # Assert location_df is not empty
+    if location_df.empty:
+        raise ValueError("No matching probe insertion information found.")
 
     # Get coordinates of target area
     target_area = location_df['target_area'].values[0]
@@ -436,10 +442,12 @@ def extract_ephys_timestamps(config_file, continuous_data_dict, threshold_dict, 
     ephys_nidq_meta, _ = server_paths.get_raw_ephys_nidq_files(config_file)
     meta_dict = readMeta(pathlib.Path(ephys_nidq_meta))
     lick_threshold = threshold_dict.get('lick_trace')
-    lick_timestamps = detect_piezo_lick_times(continuous_data_dict,
-                                              ni_session_sr=meta_dict['niSampRate'],
+    lick_timestamps = detect_piezo_lick_times_new(continuous_data_dict,
+                                              ni_session_sr=float(meta_dict['niSampRate']),
                                               lick_threshold=lick_threshold,
-                                              sigma=500)
+                                                  do_plot=True,
+                                              #sigma=500
+                                              )
     # Format as tuples of on/off times for NWB
     lick_timestamps_on_off = list(zip(lick_timestamps, itertools.repeat(np.nan)))
     timestamps_dict['lick_trace'] = lick_timestamps_on_off
