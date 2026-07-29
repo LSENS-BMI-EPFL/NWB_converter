@@ -3,14 +3,14 @@ import cv2
 import itertools
 import numpy as np
 import matplotlib
-matplotlib.use("TkAgg")  # or "Qt5Agg" if you have PyQt5/PySide installed — pops out a window with zoom/pan toolbar
+#matplotlib.use("TkAgg")  # or "Qt5Agg" if you have PyQt5/PySide installed — pops out a window with zoom/pan toolbar
 # mpl.use('TkAgg') # Commented out because this causes problem on the server
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 import scipy.signal as sci_si
 from scipy.ndimage import gaussian_filter1d
 from scipy.signal import savgol_filter
 from ScanImageTiffReader import ScanImageTiffReader
-
 
 def get_continuous_time_periods(binary_array):
     """
@@ -116,248 +116,405 @@ def read_binary_continuous_log(bin_file, channels_dict, ni_session_sr=5000, t_st
     return continuous_data_dict
 
 
-def detect_piezo_lick_times_original(continuous_data_dict, ni_session_sr=5000, lick_threshold=None, sigma=100, do_plot=True):
-    """
-        Detect lick times from the lick data envelope.
-        The lick data is first filtered with a low pass filter to remove high frequency fluctuations.
-    Args:
-        sigma:
-        continuous_data_dict: Dictionary containing continuous data
-        ni_session_sr: Sampling rate of session
-        lick_threshold: Lick threshold of session
-        sigma: Standard deviation of gaussian filter used to smooth lick data
 
-    Returns:
+def estimate_artifact_frequency(lick_data, ni_session_sr, baseline_start_s, baseline_stop_s,
+                                 freq_search_range=(5, 1000), nperseg_s=2.0):
+    """Estimate the dominant artifact frequency from a known artifact-only baseline window."""
+    i0 = int(baseline_start_s * ni_session_sr)
+    i1 = int(baseline_stop_s * ni_session_sr)
+    baseline_seg = lick_data[i0:i1]
 
-    """
+    nperseg = min(len(baseline_seg), int(nperseg_s * ni_session_sr))
+    f, psd = sci_si.welch(baseline_seg, fs=ni_session_sr, nperseg=nperseg)
 
-    # Smooth lick data with a gaussian filter
-    lick_data = continuous_data_dict.get("lick_trace")
-    lick_data_smooth = gaussian_filter1d(lick_data, sigma=sigma)
+    band_mask = (f >= freq_search_range[0]) & (f <= freq_search_range[1])
+    carrier_freq = f[band_mask][np.argmax(psd[band_mask])]
 
-    # Detect piezo data crossings using behaviour lick threshold
-    if lick_threshold is None:
-        lick_threshold = 0.1
+    peak_power = psd[band_mask].max()
+    median_power = np.median(psd[band_mask])
+    snr = peak_power / median_power
+    if snr < 5:
+        print(f"WARNING: artifact peak not clearly dominant (SNR={snr:.1f}) — check baseline window")
 
-    lick_data_sub = lick_data_smooth - lick_threshold
-    cross_on_thr_indices = np.where(np.isclose(lick_data_sub, 0, atol=0.001))[0]  # find crossings
-    cross_thr_indices = [i for i in cross_on_thr_indices[:-1] if lick_data_sub[i+1]>0 and lick_data_sub[i-1]<0] # keep upward crossings, ignoring last crossing
-    cross_thr_pairs = [(i1, i2) for i1, i2 in zip(cross_thr_indices, cross_thr_indices[1:])]
-    cross_thr_indices_valid = [i1 for i1, i2 in cross_thr_pairs if (i2-i1) > 100]  # keep only crossings with a minimum distance of 100 samples i.e. 20ms
-    lick_times = np.array(cross_thr_indices_valid) / float(ni_session_sr)  # get lick times in seconds
+    return carrier_freq, f, psd
 
-    # Debugging: optional plotting
 
-    if do_plot:
-        zoom_window_s = 50
-        plot_lick_detection(lick_data, lick_data_smooth, lick_times, lick_threshold,
-                              ni_session_sr, zoom_window_s)
-    if do_plot:
-        t_start = 0
-        t_stop = 800
-        ni_session_sr = int(float(ni_session_sr))
-        plt.axhline(y=lick_threshold, color='red', lw=1, ls='--', alpha=0.9, zorder=0)
-        plt.plot(lick_data[ni_session_sr*t_start:ni_session_sr*t_stop], c='k', label="lick_data", lw=1)
-        plt.plot(lick_data_smooth[ni_session_sr*t_start:ni_session_sr*t_stop], c='green', label="lick_envelope", lw=3)
-        for lick_time in lick_times:
-            plt.axvline(x=ni_session_sr*lick_time, color='red', lw=3, alpha=0.8)
-        plt.xlim(t_start * ni_session_sr, t_stop * ni_session_sr)
-        plt.legend(loc='upper right', frameon=False)
-        plt.show()
+def remove_artifact_notch(lick_data, ni_session_sr, carrier_freq, Q=15, n_harmonics=1):
+    """Apply notch filter(s) at carrier_freq and optionally its harmonics."""
+    x = lick_data.copy()
+    filters = []  # store (b, a) per notch for later frequency-response plotting
+    for k in range(1, n_harmonics + 1):
+        f_k = carrier_freq * k
+        if f_k < ni_session_sr / 2:
+            b, a = sci_si.iirnotch(w0=f_k, Q=Q, fs=ni_session_sr)
+            x = sci_si.filtfilt(b, a, x)
+            filters.append((b, a, f_k))
+    return x, filters
 
-    return lick_times
-
-def detect_piezo_lick_times(continuous_data_dict, ni_session_sr=5000, lick_threshold=None,
-                             sigma=100, do_plot=False, zoom_window_s=50):
-    """
-    Detect lick times from the lick data envelope.
-    The lick data is first filtered with a low pass filter to remove high frequency fluctuations.
-
-    Args:
-        continuous_data_dict: Dictionary containing continuous data
-        ni_session_sr: Sampling rate of session
-        lick_threshold: Lick threshold of session
-        sigma: Standard deviation of gaussian filter used to smooth lick data
-        do_plot: If True, show diagnostic plots
-        zoom_window_s: Duration (s) of each zoomed-in window (beginning/middle/end)
-
-    Returns:
-        lick_times: np.array of detected lick times, in seconds
-    """
-    lick_data = continuous_data_dict.get("lick_trace")
-    if lick_data is None:
-        raise ValueError("continuous_data_dict has no 'lick_trace' entry.")
-    lick_data = np.asarray(lick_data)
-
-    if lick_threshold is None:
-        lick_threshold = 0.1
-
-    # Smooth lick data with a gaussian filter
-    lick_data_smooth = gaussian_filter1d(lick_data, sigma=sigma)
-    lick_data_sub = lick_data_smooth - lick_threshold
-
-    # Detect upward zero-crossings (sign-change based, robust to steep or plateaued crossings)
-    above_thr = lick_data_sub > 0
-    crossings = np.where(np.diff(above_thr.astype(int)) == 1)[0] + 1
-
-    # Debounce with a refractory period, scaled to sampling rate (keep first crossing of each burst)
-    min_gap_samples = int(round(0.02 * ni_session_sr))  # 20 ms refractory period
-    cross_thr_indices_valid = []
-    if len(crossings) > 0:
-        cross_thr_indices_valid.append(crossings[0])
-        for c in crossings[1:]:
-            if c - cross_thr_indices_valid[-1] > min_gap_samples:
-                cross_thr_indices_valid.append(c)
-
-    lick_times = np.array(cross_thr_indices_valid) / float(ni_session_sr)
-
-    if do_plot:
-        plot_lick_detection(lick_data, lick_data_smooth, lick_times, lick_threshold,
-                              ni_session_sr, zoom_window_s)
-
-    return lick_times
-
-from scipy.ndimage import gaussian_filter1d, median_filter
-from scipy.signal import find_peaks
-def detect_piezo_lick_times_new(continuous_data_dict, ni_session_sr=5000, lick_threshold=None,
-                             sigma=20, min_isi_s=0.10, prominence_frac=0.8,
-                             do_plot=False, zoom_window_s=50):
-    """
-    Detect lick times from the lick data envelope using peak detection.
-
-    Uses scipy.signal.find_peaks on a lightly-smoothed envelope rather than
-    threshold-crossings, so that individual licks within a rapid bout are
-    resolved separately instead of being merged into one continuous
-    above-threshold excursion.
-
-    Args:
-        continuous_data_dict: Dictionary containing continuous data
-        ni_session_sr: Sampling rate of session
-        lick_threshold: Minimum envelope height to count as a lick.
-            Defaults to 0.1 (or interpreted relative to adaptive baseline if
-            adaptive_baseline=True).
-        sigma: Std of gaussian smoothing kernel, in samples. Kept small
-            (default 20, i.e. 4ms at 5kHz) to avoid merging closely-spaced
-            licks in a bout. Old default of 100 was too wide and caused
-            entire bouts to collapse into a single detected event.
-        min_isi_s: Minimum time (s) between detected licks. Should be set
-            just below the shortest real inter-lick interval you expect
-            (e.g. 0.10 for ~6-10Hz bout licking), not the average ISI.
-        prominence_frac: Required peak prominence, as a fraction of
-            lick_threshold. This is what allows resolving individual licks
-            riding on an elevated plateau during a bout -- each oscillation
-            peak just needs to stand out from its immediate local
-            surroundings, not from the absolute baseline.
-        adaptive_baseline: If True, use a rolling median baseline + MAD to
-            set an adaptive threshold instead of a single fixed value.
-            Useful if signal amplitude decays across bouts or baseline
-            drifts across the session.
-        baseline_window_s: Window (s) for rolling baseline, if adaptive_baseline=True.
-        do_plot: If True, show diagnostic plots.
-        zoom_window_s: Duration (s) of each zoomed-in diagnostic window.
-
-    Returns:
-        lick_times: np.array of detected lick times, in seconds
-    """
-    lick_data = continuous_data_dict.get("lick_trace")
-    if lick_data is None:
-        raise ValueError("continuous_data_dict has no 'lick_trace' entry.")
-    lick_data = np.asarray(lick_data)
-    n_samples = len(lick_data)
-
-    if lick_threshold is None:
-        lick_threshold = 0.1
-    lick_threshold *=1.1
-
-    sigma_s = 0.004  # 4ms
-    sigma = int(round(sigma_s * ni_session_sr))  # = 100 samples at 25kHz
-
-    # Light smoothing -- just enough to remove single-sample noise spikes,
-    # not enough to merge adjacent licks within a bout.
-    lick_data_smooth = gaussian_filter1d(lick_data, sigma=sigma)
-
+def _run_peak_detection(signal, ni_session_sr, sigma_s, lick_threshold, min_isi_s, prominence_frac):
+    """Shared peak-detection routine, used identically for raw and corrected signals."""
+    sigma = int(round(sigma_s * ni_session_sr))
+    smooth = gaussian_filter1d(signal, sigma=sigma)
     min_distance = max(1, int(round(min_isi_s * ni_session_sr)))
     prominence = lick_threshold * prominence_frac
+    peak_idx, props = sci_si.find_peaks(smooth, height=lick_threshold, distance=min_distance, prominence=prominence)
+    lick_times = peak_idx / float(ni_session_sr)
+    return lick_times, smooth
 
-    peak_idx, props = find_peaks(
-        lick_data_smooth,
-        height=lick_threshold,
-        distance=min_distance,
-        prominence=prominence,
+def match_lick_times(times_a, times_b, tol_s=0.05):
+    """
+    Match detections between two lick-time arrays within tol_s.
+    Returns:
+        matched_a, matched_b: booleans same length as times_a/times_b, True if matched to the other set
+    """
+    matched_a = np.zeros(len(times_a), dtype=bool)
+    matched_b = np.zeros(len(times_b), dtype=bool)
+    if len(times_a) == 0 or len(times_b) == 0:
+        return matched_a, matched_b
+    for i, ta in enumerate(times_a):
+        j = np.argmin(np.abs(times_b - ta))
+        if np.abs(times_b[j] - ta) <= tol_s and not matched_b[j]:
+            matched_a[i] = True
+            matched_b[j] = True
+    return matched_a, matched_b
+
+
+def detect_piezo_lick_times(continuous_data_dict, ni_session_sr=5000, lick_threshold=None,
+                                 sigma_s=0.004, min_isi_s=0.1, prominence_frac=0.8,
+                                 baseline_start_s=5, baseline_stop_s=20,
+                                 notch_Q=15, n_harmonics=1, match_tol_s=0.02,
+                                 do_plot=False, zoom_window_s=50, save_path=None, session_name=None):
+    """
+    Detect lick times, comparing detection before vs. after artifact removal.
+
+    Returns:
+        lick_times: np.array of detected lick times AFTER artifact correction
+            (this is the recommended output to use downstream)
+        comparison: dict with keys:
+            'lick_times_raw': detections on uncorrected signal
+            'lick_times_clean': detections on corrected signal (== lick_times)
+            'matched_raw', 'matched_clean': booleans indicating which detections
+                in each set have a corresponding match in the other (within match_tol_s)
+            'n_raw', 'n_clean': total counts
+            'n_removed': detections present in raw but not corrected (likely artifact false positives)
+            'n_added': detections present in corrected but not raw (licks recovered
+                after removing the artifact, e.g. previously obscured by it)
+            'n_common': detections present in both (robust, real licks)
+    """
+    lick_data_raw = continuous_data_dict.get("lick_trace")
+    if lick_data_raw is None:
+        raise ValueError("continuous_data_dict has no 'lick_trace' entry.")
+    lick_data_raw = np.asarray(lick_data_raw)
+
+    # --- Artifact frequency estimation + removal ---
+    carrier_freq, f_psd, psd = estimate_artifact_frequency(
+        lick_data_raw, ni_session_sr, baseline_start_s, baseline_stop_s
+    )
+    print(f"Estimated artifact frequency: {carrier_freq:.1f} Hz")
+    lick_data_clean, filters = remove_artifact_notch(
+        lick_data_raw, ni_session_sr, carrier_freq, Q=notch_Q, n_harmonics=n_harmonics
     )
 
-    lick_times = peak_idx / float(ni_session_sr)
+    if lick_threshold is None:
+        lick_threshold = 0.1
+    lick_threshold_eff = lick_threshold * 1.05
+
+    # --- Run detection on BOTH signals, identically ---
+    lick_times_raw, lick_data_raw_smooth = _run_peak_detection(
+        lick_data_raw, ni_session_sr, sigma_s, lick_threshold_eff, min_isi_s, prominence_frac
+    )
+    lick_times_clean, lick_data_smooth = _run_peak_detection(
+        lick_data_clean, ni_session_sr, sigma_s, lick_threshold_eff, min_isi_s, prominence_frac
+    )
+
+    matched_raw, matched_clean = match_lick_times(lick_times_raw, lick_times_clean, tol_s=match_tol_s)
+
+    comparison = {
+        'lick_times_raw': lick_times_raw,
+        'lick_times_clean': lick_times_clean,
+        'matched_raw': matched_raw,
+        'matched_clean': matched_clean,
+        'n_raw': len(lick_times_raw),
+        'n_clean': len(lick_times_clean),
+        'n_removed': int(np.sum(~matched_raw)),   # in raw only -> likely artifact false positives
+        'n_added': int(np.sum(~matched_clean)),   # in clean only -> recovered real licks
+        'n_common': int(np.sum(matched_clean)),   # in both -> robust detections
+    }
+    print(f"Raw: {comparison['n_raw']} | Corrected: {comparison['n_clean']} | "
+          f"Common: {comparison['n_common']} | Removed (artifact-driven): {comparison['n_removed']} | "
+          f"Added (recovered): {comparison['n_added']}")
 
     if do_plot:
-        plot_lick_detection(lick_data, lick_data_smooth, lick_times, lick_threshold,
-                              ni_session_sr, zoom_window_s)
+        save_path = r'M:\analysis\Axel_Bisi\processing\piezo_lick_trace'
+        plot_piezo_lick_detection_diagnostics(
+            lick_data_raw, lick_data_raw_smooth,
+            lick_data_clean, lick_data_smooth,
+            comparison, lick_threshold_eff, ni_session_sr,
+            carrier_freq, f_psd, psd, filters,
+            baseline_start_s, baseline_stop_s,
+            zoom_window_s=zoom_window_s, save_path=save_path, session_name=session_name
+        )
 
-    return lick_times
+    return lick_times_clean, comparison
 
-def plot_lick_detection(lick_data, lick_data_smooth, lick_times, lick_threshold,
-                          ni_session_sr, zoom_window_s=50):
+def plot_piezo_lick_detection_diagnostics(lick_data_raw, lick_data_raw_smooth,
+                           lick_data_clean, lick_data_smooth,
+                           comparison, lick_threshold, ni_session_sr,
+                           carrier_freq, f_psd, psd, filters,
+                           baseline_start_s, baseline_stop_s,
+                           zoom_window_s=50, example_window_s=1.0, save_path=None, session_name=None):
     """
-    Plot lick detection diagnostics:
-      - Top row: 3 zoomed-in subplots (beginning / middle / end of session), ~zoom_window_s long each
-      - Bottom row: full session overview
+    Single-figure diagnostic, formatted for A4 print in a thesis:
+      Row 1: artifact diagnosis -- PSD, notch filter response, baseline before/after
+      Row 2: zoomed lick detection (beginning/middle/end), raw vs corrected detections marked separately
+      Row 3: full session BEFORE correction with raw-detected licks
+      Row 4: full session AFTER correction with corrected-detected licks
+      Row 5: example single-event zooms -- common / removed / added
+      Row 6: summary bar chart -- raw / common / removed / added counts
     """
-    n_samples = len(lick_data)
+    from matplotlib.lines import Line2D
+
+    fs = {
+        'suptitle': 12,
+        'title': 8.5,
+        'label': 8,
+        'tick': 7,
+        'legend': 6.5,
+        'annot': 7,
+    }
+    lw_thin = 0.3   # for lick data
+    lw_env = 0.7
+    lw_event = 0.2       # full session events
+    lw_event_zoom = 0.5  # zoomed plot events
+
+    lick_times_raw = comparison['lick_times_raw']
+    lick_times_clean = comparison['lick_times_clean']
+    matched_raw = comparison['matched_raw']
+    matched_clean = comparison['matched_clean']
+
+    n_samples = len(lick_data_raw)
     session_duration_s = n_samples / float(ni_session_sr)
     t = np.arange(n_samples) / float(ni_session_sr)
 
-    def plot_window(ax, t_start, t_stop, title):
-        i_start = int(t_start * ni_session_sr)
-        i_stop = int(min(t_stop * ni_session_sr, n_samples))
-        ax.axhline(y=lick_threshold, color='red', lw=1, ls='--', alpha=0.9, zorder=0)
-        ax.plot(t[i_start:i_stop], lick_data[i_start:i_stop], c='k', lw=1, label="lick_data")
-        ax.plot(t[i_start:i_stop], lick_data_smooth[i_start:i_stop], c='green', lw=2, label="lick_envelope")
-        window_licks = lick_times[(lick_times >= t_start) & (lick_times <= t_stop)]
-        for lt in window_licks:
-            ax.axvline(x=lt, color='red', lw=2, alpha=0.8)
+    fig = plt.figure(figsize=(12.0, 18.5), dpi=400)
+    gs = fig.add_gridspec(6, 3, height_ratios=[1.1, 1.1, 0.9, 0.9, 0.9, 0.9],
+                           hspace=0.4, wspace=0.35)
+
+    def style_axis(ax):
+        ax.tick_params(axis='both', labelsize=fs['tick'], length=2.5, pad=2)
+        ax.xaxis.label.set_size(fs['label'])
+        ax.yaxis.label.set_size(fs['label'])
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+
+    # ============ ROW 1: ARTIFACT DIAGNOSIS ============
+    ax_psd = fig.add_subplot(gs[0, 0])
+    ax_psd.semilogy(f_psd, psd, c='k', lw=0.6)
+    for b, a, f_k in filters:
+        ax_psd.axvline(f_k, color='red', ls='--', lw=1.0, alpha=0.8)
+    ax_psd.axvline(carrier_freq, color='red', ls='--', lw=1.0, alpha=0.8,
+                    label=f"$f_c$ ≈ {carrier_freq:.1f} Hz")
+    ax_psd.set_xlim(0, min(1000, ni_session_sr / 2))
+    ax_psd.set_xlabel("Frequency (Hz)")
+    ax_psd.set_ylabel("Power spectral density")
+    ax_psd.set_title(f"Baseline power spectral density ({baseline_start_s:.0f}-{baseline_stop_s:.0f}s)",
+                      fontsize=fs['title'])
+    ax_psd.legend(fontsize=fs['legend'], frameon=False, loc='upper right')
+    style_axis(ax_psd)
+
+    ax_filt = fig.add_subplot(gs[0, 1])
+    for b, a, f_k in filters:
+        w, h = sci_si.freqz(b, a, worN=4096, fs=ni_session_sr)
+        ax_filt.plot(w, 20 * np.log10(np.maximum(np.abs(h), 1e-12)), lw=1.0, label=f"notch @ {f_k:.1f} Hz")
+    ax_filt.set_xlim(0, min(1000, ni_session_sr / 2))
+    ax_filt.set_ylim(-40, 5)
+    ax_filt.axhline(0, color='gray', lw=0.4)
+    ax_filt.set_xlabel("Frequency (Hz)")
+    ax_filt.set_ylabel("Gain (dB)")
+    ax_filt.set_title("Notch filter frequency response", fontsize=fs['title'])
+    ax_filt.legend(fontsize=fs['legend'], frameon=False, loc='upper right')
+    style_axis(ax_filt)
+
+    ax_base = fig.add_subplot(gs[0, 2])
+    i0 = int(2 * baseline_start_s * ni_session_sr)
+    i1 = min(i0 + int(1.0 * ni_session_sr), n_samples)
+    ax_base.plot(t[i0:i1], lick_data_raw[i0:i1], c='k', lw=0.6, alpha=0.7, label="raw")
+    ax_base.plot(t[i0:i1], lick_data_clean[i0:i1], c='tab:blue', lw=0.6, label="corrected")
+    ax_base.set_xlabel("Time (s)")
+    ax_base.set_ylabel("Signal")
+    ax_base.set_title("Baseline window: raw vs corrected", fontsize=fs['title'])
+    ax_base.legend(fontsize=fs['legend'], frameon=False, loc='upper right')
+    style_axis(ax_base)
+
+    # ============ ROW 2: ZOOMED, RAW vs CORRECTED DETECTIONS ============
+    def plot_zoom(ax, t_start, t_stop, title, show_legend=False):
+        i_s = int(t_start * ni_session_sr)
+        i_e = int(min(t_stop * ni_session_sr, n_samples))
+        ax.axhline(y=lick_threshold, color='gray', lw=0.6, ls='--', alpha=0.7, zorder=0)
+        ax.plot(t[i_s:i_e], lick_data_raw[i_s:i_e], c='gray', lw=lw_thin, alpha=0.5, label="raw signal")
+        ax.plot(t[i_s:i_e], lick_data_raw_smooth[i_s:i_e], c='orange', lw=lw_env, alpha=0.8, label="raw envelope")
+        ax.plot(t[i_s:i_e], lick_data_clean[i_s:i_e], c='k', lw=lw_thin, label="corrected signal")
+        ax.plot(t[i_s:i_e], lick_data_smooth[i_s:i_e], c='green', lw=lw_env, label="corrected envelope")
+
+        raw_win = (lick_times_raw >= t_start) & (lick_times_raw <= t_stop) & (~matched_raw)
+        for lt in lick_times_raw[raw_win]:
+            ax.axvline(x=lt, color='orange', lw=lw_event_zoom, alpha=0.9, ls=':')
+        common_win = (lick_times_clean >= t_start) & (lick_times_clean <= t_stop) & matched_clean
+        for lt in lick_times_clean[common_win]:
+            ax.axvline(x=lt, color='purple', lw=lw_event_zoom, alpha=0.8)
+        added_win = (lick_times_clean >= t_start) & (lick_times_clean <= t_stop) & (~matched_clean)
+        for lt in lick_times_clean[added_win]:
+            ax.axvline(x=lt, color='tab:blue', lw=lw_event_zoom, alpha=0.9, ls='--')
+
         ax.set_xlim(t_start, t_stop)
-        ax.set_title(title, fontsize=10)
+        ax.set_title(title, fontsize=fs['title'])
         ax.set_xlabel("Time (s)")
+        style_axis(ax)
+        if show_legend:
+            ax.legend(fontsize=fs['legend'], frameon=False, loc='upper right')
 
-    fig = plt.figure(figsize=(16, 8))
-    gs = fig.add_gridspec(2, 3, height_ratios=[1, 1])
+    ax_z1 = fig.add_subplot(gs[1, 0])
+    t0, t1 = 0, min(zoom_window_s, session_duration_s)
+    plot_zoom(ax_z1, t0, t1, f"Beginning ({t0:.0f}-{t1:.0f}s)", show_legend=True)
+    ax_z1.set_ylabel("Signal")
 
-    # Beginning
-    ax1 = fig.add_subplot(gs[0, 0])
-    t_start = 0
-    t_stop = min(zoom_window_s, session_duration_s)
-    plot_window(ax1, t_start, t_stop, f"Beginning ({t_start:.0f}-{t_stop:.0f}s)")
-    ax1.set_ylabel("Signal")
-    ax1.legend(loc='upper right', frameon=False, fontsize=8)
-
-    # Middle
-    ax2 = fig.add_subplot(gs[0, 1])
+    ax_z2 = fig.add_subplot(gs[1, 1])
     mid = session_duration_s / 2.0
-    t_start = max(mid - zoom_window_s / 2.0, 0)
-    t_stop = min(mid + zoom_window_s / 2.0, session_duration_s)
-    plot_window(ax2, t_start, t_stop, f"Middle ({t_start:.0f}-{t_stop:.0f}s)")
+    t0, t1 = max(mid - zoom_window_s / 2.0, 0), min(mid + zoom_window_s / 2.0, session_duration_s)
+    plot_zoom(ax_z2, t0, t1, f"Middle ({t0:.0f}-{t1:.0f}s)")
 
-    # End
-    ax3 = fig.add_subplot(gs[0, 2])
-    t_stop = session_duration_s
-    t_start = max(t_stop - zoom_window_s, 0)
-    plot_window(ax3, t_start, t_stop, f"End ({t_start:.0f}-{t_stop:.0f}s)")
+    ax_z3 = fig.add_subplot(gs[1, 2])
+    t1 = session_duration_s
+    t0 = max(t1 - zoom_window_s, 0)
+    plot_zoom(ax_z3, t0, t1, f"End ({t0:.0f}-{t1:.0f}s)")
 
-    # Full session overview
-    ax4 = fig.add_subplot(gs[1, :])
-    ax4.axhline(y=lick_threshold, color='red', lw=1, ls='--', alpha=0.9, zorder=0)
-    ax4.plot(t, lick_data, c='k', lw=0.5, label="lick_data")
-    ax4.plot(t, lick_data_smooth, c='green', lw=1, label="lick_envelope")
-    for lt in lick_times:
-        ax4.axvline(x=lt, color='red', lw=0.8, alpha=0.6)
-    ax4.set_xlim(0, session_duration_s)
-    ax4.set_title(f"Full session ({session_duration_s:.0f}s, {len(lick_times)} licks detected)", fontsize=10)
-    ax4.set_xlabel("Time (s)")
-    ax4.set_ylabel("Signal")
-    ax4.legend(loc='upper right', frameon=False, fontsize=8)
+    # ============ ROW 3: FULL SESSION BEFORE (raw detections, color-coded) ============
+    ax_full_raw = fig.add_subplot(gs[2, :])
+    ax_full_raw.axhline(y=lick_threshold, color='gray', lw=0.4, ls='--', alpha=0.7, zorder=0)
+    ax_full_raw.plot(t, lick_data_raw, c='k', lw=lw_thin, label="lick_data (raw)")
+    ax_full_raw.plot(t, lick_data_raw_smooth, c='gray', lw=lw_env, label="raw envelope")
 
-    plt.tight_layout()
-    plt.show()
+    common_raw_times = lick_times_raw[matched_raw]
+    removed_times = lick_times_raw[~matched_raw]
+    for lt in removed_times:
+        ax_full_raw.axvline(x=lt, color='orange', lw=lw_event, alpha=0.6)
+    for lt in common_raw_times:
+        ax_full_raw.axvline(x=lt, color='purple', lw=lw_event, alpha=0.5)
+
+    ax_full_raw.set_xlim(0, session_duration_s)
+    ax_full_raw.set_title(
+        f"Full session before correction ({comparison['n_raw']} detected: "
+        f"{comparison['n_common']} common, {comparison['n_removed']} removed)", fontsize=fs['title']
+    )
+    ax_full_raw.set_xlabel("Time (s)")
+    ax_full_raw.set_ylabel("Signal")
+    style_axis(ax_full_raw)
+    legend_elems = [
+        Line2D([0], [0], color='k', lw=1.0, label="lick_data (raw)"),
+        Line2D([0], [0], color='gray', lw=1.0, label="raw envelope"),
+        Line2D([0], [0], color='purple', lw=1.2, alpha=0.6, label="common"),
+        Line2D([0], [0], color='orange', lw=1.2, alpha=0.8, label="removed (artifact)"),
+    ]
+    ax_full_raw.legend(handles=legend_elems, fontsize=fs['legend'], frameon=False, loc='upper right')
+
+    # ============ ROW 4: FULL SESSION AFTER (corrected detections, color-coded) ============
+    ax_full_clean = fig.add_subplot(gs[3, :])
+    ax_full_clean.axhline(y=lick_threshold, color='gray', lw=0.4, ls='--', alpha=0.7, zorder=0)
+    ax_full_clean.plot(t, lick_data_clean, c='k', lw=lw_thin, label="lick_data (corrected)")
+    ax_full_clean.plot(t, lick_data_smooth, c='green', lw=lw_env, label="corrected envelope")
+
+    common_clean_times = lick_times_clean[matched_clean]
+    added_times = lick_times_clean[~matched_clean]
+    for lt in common_clean_times:
+        ax_full_clean.axvline(x=lt, color='purple', lw=lw_event, alpha=0.5)
+    for lt in added_times:
+        ax_full_clean.axvline(x=lt, color='tab:blue', lw=lw_event, alpha=0.7)
+
+    ax_full_clean.set_xlim(0, session_duration_s)
+    ax_full_clean.set_title(
+        f"Full session after correction ({comparison['n_clean']} detected: "
+        f"{comparison['n_common']} common, {comparison['n_added']} added)", fontsize=fs['title']
+    )
+    ax_full_clean.set_xlabel("Time (s)")
+    ax_full_clean.set_ylabel("Signal")
+    style_axis(ax_full_clean)
+    legend_elems2 = [
+        Line2D([0], [0], color='k', lw=1.0, label="lick_data (corrected)"),
+        Line2D([0], [0], color='green', lw=1.0, label="corrected envelope"),
+        Line2D([0], [0], color='purple', lw=1.2, alpha=0.6, label="common"),
+        Line2D([0], [0], color='tab:blue', lw=1.2, alpha=0.8, label="added (recovered)"),
+    ]
+    ax_full_clean.legend(handles=legend_elems2, fontsize=fs['legend'], frameon=False, loc='upper right')
+
+    # ============ ROW 5: EXAMPLE SINGLE EVENTS -- common / removed / added ============
+    def plot_example_event(ax, event_time, marker_color, title, show_legend=False):
+        if event_time is None:
+            ax.text(0.5, 0.5, "no example found", ha='center', va='center',
+                     fontsize=fs['legend'], transform=ax.transAxes)
+            ax.set_title(title, fontsize=fs['title'])
+            style_axis(ax)
+            return
+        t_start = max(event_time - example_window_s / 2.0, 0)
+        t_stop = min(event_time + example_window_s / 2.0, session_duration_s)
+        i_s = int(t_start * ni_session_sr)
+        i_e = int(min(t_stop * ni_session_sr, n_samples))
+        ax.axhline(y=lick_threshold, color='gray', lw=0.6, ls='--', alpha=0.7, zorder=0)
+        ax.plot(t[i_s:i_e], lick_data_raw[i_s:i_e], c='gray', lw=lw_thin, alpha=0.5, label="raw signal")
+        ax.plot(t[i_s:i_e], lick_data_raw_smooth[i_s:i_e], c='orange', lw=lw_env, alpha=0.8, label="raw envelope")
+        ax.plot(t[i_s:i_e], lick_data_clean[i_s:i_e], c='k', lw=lw_thin, label="corrected signal")
+        ax.plot(t[i_s:i_e], lick_data_smooth[i_s:i_e], c='green', lw=lw_env, label="corrected envelope")
+        ax.axvline(x=event_time, color=marker_color, lw=1.2, alpha=0.9)
+        ax.set_xlim(t_start, t_stop)
+        ax.set_title(title, fontsize=fs['title'])
+        ax.set_xlabel("Time (s)")
+        style_axis(ax)
+        if show_legend:
+            ax.legend(fontsize=fs['legend'], frameon=False, loc='upper right')
+
+    # pick one representative example per category (first occurrence of each)
+    common_example = lick_times_clean[matched_clean][0] if comparison['n_common'] > 0 else None
+    removed_example = lick_times_raw[~matched_raw][0] if comparison['n_removed'] > 0 else None
+    added_example = lick_times_clean[~matched_clean][0] if comparison['n_added'] > 0 else None
+
+    ax_ex1 = fig.add_subplot(gs[4, 0])
+    plot_example_event(ax_ex1, common_example, 'purple',
+                        f"Example: common (retained)" if common_example is not None else "Example: common (retained)",
+                        show_legend=True)
+    ax_ex1.set_ylabel("Signal")
+
+    ax_ex2 = fig.add_subplot(gs[4, 1])
+    plot_example_event(ax_ex2, removed_example, 'orange',
+                        f"Example: removed (artifact)" if removed_example is not None else "Example: removed (artifact)")
+
+    ax_ex3 = fig.add_subplot(gs[4, 2])
+    plot_example_event(ax_ex3, added_example, 'tab:blue',
+                        f"Example: added (recovered)" if added_example is not None else "Example: added (recovered)")
+
+    # ============ ROW 6: SUMMARY BAR CHART ============
+    ax_summary = fig.add_subplot(gs[5, 1])
+    labels = ['Raw\n(total)', 'Corrected\n(total)', 'Common', 'Removed\n(artifact)', 'Added\n(recovered)']
+    values = [comparison['n_raw'], comparison['n_clean'], comparison['n_common'],
+              comparison['n_removed'], comparison['n_added']]
+    colors = ['gray', 'green', 'purple', 'orange', 'tab:blue']
+    ax_summary.bar(labels, values, color=colors, alpha=0.8)
+    for i, v in enumerate(values):
+        ax_summary.text(i, v, str(v), ha='center', va='bottom', fontsize=fs['annot'])
+    ax_summary.set_ylabel("Count")
+    ax_summary.set_title("Detection comparison summary", fontsize=fs['title'], pad=6)
+    ax_summary.tick_params(axis='x', labelsize=fs['tick'], rotation=0)
+    ax_summary.tick_params(axis='y', labelsize=fs['tick'])
+    ax_summary.yaxis.label.set_size(fs['label'])
+    ax_summary.margins(y=0.15)
+    style_axis(ax_summary)
+
+    if os.path.exists(save_path) and save_path is not None:
+        figname = f"{session_name}.pdf"
+        fig_path = os.path.join(save_path, figname)
+        fig.savefig(fig_path, bbox_inches='tight')
+
+    #plt.show()
     return
+
 
 
 def plot_continuous_data_dict(continuous_data_dict, timestamps_dict, ni_session_sr=5000, t_start=None, t_stop=None,
@@ -526,11 +683,8 @@ def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scan
 
                 # Detect lick times using behaviour GUI lick threshold
                 lick_threshold = float(threshold_dict.get(key))
-                lick_timestamps = detect_piezo_lick_times_new(continuous_data_dict,
-                                                          ni_session_sr=ni_session_sr,
-                                                          lick_threshold=lick_threshold,
-                                                          #sigma=100,
-                                                          do_plot=True)
+                lick_timestamps, _ = detect_piezo_lick_times(continuous_data_dict, ni_session_sr=ni_session_sr,
+                                                          lick_threshold=lick_threshold, do_plot=False)
 
                 # Format as tuples of on/off times for NWB
                 lick_timestamps_on_off = list(zip(lick_timestamps, itertools.repeat(np.nan)))

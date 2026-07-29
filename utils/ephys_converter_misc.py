@@ -20,7 +20,7 @@ from scipy.spatial import cKDTree
 
 
 from utils import server_paths
-from utils.continuous_processing import detect_piezo_lick_times, detect_piezo_lick_times_new, plot_exposure_times
+from utils.continuous_processing import detect_piezo_lick_times, plot_exposure_times
 #from utils.read_sglx import readMeta, SampRate, makeMemMapRaw, GainCorrectIM, GainCorrectNI, ChannelCountsNI
 from utils.readSLGX import readMeta, SampRate, makeMemMapRaw, GainCorrectIM, GainCorrectNI, ChannelCountsNI
 # MAP of (AP,ML) coordinates relative to bregma
@@ -434,6 +434,11 @@ def extract_ephys_timestamps(config_file, continuous_data_dict, threshold_dict, 
     """
     print("Extract ephys timestamps")
 
+    with open(config_file, 'r') as f:
+        config = yaml.load(f, Loader=yaml.FullLoader)
+
+    session_name = config['session_metadata']['session_id']
+
     # Load and format existing timestamps extracted by CatGT and TPrime
     timestamps_dict = load_ephys_sync_timestamps(config_file, log_timestamps_dict, experimenter=experimenter)
     timestamps_dict = format_ephys_timestamps(config_file, timestamps_dict, n_frames_dict)
@@ -442,12 +447,8 @@ def extract_ephys_timestamps(config_file, continuous_data_dict, threshold_dict, 
     ephys_nidq_meta, _ = server_paths.get_raw_ephys_nidq_files(config_file)
     meta_dict = readMeta(pathlib.Path(ephys_nidq_meta))
     lick_threshold = threshold_dict.get('lick_trace')
-    lick_timestamps = detect_piezo_lick_times_new(continuous_data_dict,
-                                              ni_session_sr=float(meta_dict['niSampRate']),
-                                              lick_threshold=lick_threshold,
-                                                  do_plot=True,
-                                              #sigma=500
-                                              )
+    lick_timestamps, _ = detect_piezo_lick_times(continuous_data_dict, ni_session_sr=float(meta_dict['niSampRate']),
+                                              lick_threshold=lick_threshold, do_plot=True, session_name=session_name)
     # Format as tuples of on/off times for NWB
     lick_timestamps_on_off = list(zip(lick_timestamps, itertools.repeat(np.nan)))
     timestamps_dict['lick_trace'] = lick_timestamps_on_off
