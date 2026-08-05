@@ -1,5 +1,6 @@
 """_summary_
 """
+
 import datetime
 import os
 import platform
@@ -9,12 +10,13 @@ from joblib import Parallel, delayed
 
 import yaml
 import json
+import traceback
 
 import utils.utils_gf as utils_gf
 from continuous_log_analysis import analyze_continuous_log
 from converters.behavior_to_nwb import convert_behavior_data
 from converters.ci_movie_to_nwb import convert_ci_movie
-from converters.ephys_to_nwb_test import convert_ephys_recording #todo: finish
+from converters.ephys_to_nwb_test import convert_ephys_recording
 from converters.nwb_saving import save_nwb_file
 from converters.subject_to_nwb import create_nwb_file
 from converters.suite2p_to_nwb import convert_suite2p_data
@@ -26,7 +28,7 @@ from utils.server_paths import (get_nwb_folder, get_subject_analysis_folder, get
                                 get_subject_data_folder, get_dlc_file_path, get_facemap_file_path)
 
 
-def convert_data_to_nwb(config_file, output_folder, with_time_string=True, experimenter=None):
+def convert_data_to_nwb(config_file, output_folder, with_time_string=True, experimenter=None, add_ephys_recordings=False, remove_extra_ts=False):
     """
     :param config_file: Path to the yaml config file containing mouse ID and metadata for the session to convert
     :param output_folder: Path to the folder to save NWB files
@@ -48,7 +50,7 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True, exper
     if config_dict['session_metadata']['experimenter'] != 'GF':
         timestamps_dict, _ = analyze_continuous_log(config_file=config_file,
                                                     do_plot=False, plot_start=1,
-                                                    plot_stop=100, camera_filtering=False,
+                                                    plot_stop=200, camera_filtering=False,
                                                     experimenter=experimenter)
     else:
         timestamps_dict, _ = utils_gf.infer_timestamps_dict(
@@ -78,13 +80,12 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True, exper
         if config_dict.get("ephys_metadata").get("processed") == 1:
              print(" ")
              print("Convert extracellular electrophysiology data")
-             add_recordings=False
-             if add_recordings:
+
+             if add_ephys_recordings:
                  output_folder = Path(output_folder) / 'nwb_recordings'
-             convert_ephys_recording(nwb_file=nwb_file,
-                                     config_file=config_file,
-                                     add_recordings=add_recordings,
-                                     experimenter=experimenter)
+                 output_folder.mkdir(parents=True, exist_ok=True)
+
+             convert_ephys_recording(nwb_file=nwb_file, config_file=config_file, experimenter=experimenter, add_ephys_recordings=add_ephys_recordings)
 
     # Check we are on WF computer
     platform_info = platform.uname()
@@ -104,7 +105,8 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True, exper
             print("Convert DeepLabCut data")
             convert_dlc_data(nwb_file=nwb_file,
                              config_file=config_file,
-                             video_timestamps={k: timestamps_dict[k] for k in ("cam1", "cam2")})
+                             video_timestamps={k: timestamps_dict[k] for k in ("cam1", "cam2")},
+                             remove_extra_ts=True)
 
         facemap_file = get_facemap_file_path(config_file)
         if facemap_file is not None:
@@ -116,30 +118,42 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True, exper
 
     print(" ")
     print("Saving NWB file")
+
     save_nwb_file(nwb_file=nwb_file, output_folder=output_folder, with_time_string=with_time_string)
 
     return
 
-def convert_single_session(config_yaml, nwb_folder, experimenter_full, isession):
+def convert_single_session(config_yaml, nwb_folder, experimenter_full, isession, add_raw_ephys_recordings, remove_dlc_extra_ts, log_folder):
     """Wrapper function to convert a single session to NWB format."""
     print(" ------------------ ")
     print(f"Session: {isession}")
-    
+
+    log_folder = Path(log_folder)
+    log_folder.mkdir(parents=True, exist_ok=True)
+    log_file = log_folder / f"{isession}.log"
+    timestamp = datetime.datetime.now().isoformat(timespec='seconds')
+
     try:
         convert_data_to_nwb(config_file=config_yaml,
                            output_folder=nwb_folder,
                            with_time_string=False,
-                           experimenter=experimenter_full)
+                           experimenter=experimenter_full,
+                           add_ephys_recordings=add_raw_ephys_recordings,
+                           remove_extra_ts=remove_dlc_extra_ts)
+        log_file.write_text(f"[{timestamp}] SUCCESS: {isession}\n")
+
         return f"Successfully processed {isession}"
     except Exception as e:
+        tb_str = traceback.format_exc()
+        log_file.write_text(f"[{timestamp}] ERROR: {isession}\n{tb_str}")
         print(f"Error processing {isession}: {str(e)}")
-        return f"Error processing {isession}: {str(e)}"
+        return f"Error processing {isession}: {str(e)} (see {log_file})"
+
 if __name__ == '__main__':
 
     # Run the conversion
     mouse_ids_mh = [
         'MH004',
-        'MH006',
         'MH007',
         'MH008',
         'MH009',
@@ -162,34 +176,34 @@ if __name__ == '__main__':
         'MH028',
         'MH029',
         'MH030',
-        #'MH031',
+        #'MH031', #solve error
         'MH032',
         'MH034',
         'MH035',
-        'MH036',
-        'MH037',
+        #'MH036',#finish processing
+        #'MH037',
         #'MH038',
-        'MH039',
-        'MH062',
-        'MH064',
-        'MH065',
-        'MH068',
-        'MH069',
-        'MH070',
+        #'MH039',
+        #'MH062',
+        #'MH064',
+        #'MH065',
+        #'MH068',
+        #'MH069',
+        #'MH070',
     ]
-    mouse_ids = [
+    ab_mouse_ids = [
         'AB077',
-        'AB079',
+         #'AB079',
         'AB080',
         'AB082',
         'AB085',
         'AB086',
         'AB087',
-        'AB091',
         'AB092',
         'AB093',
         'AB094',
         'AB095',
+        'AB096',
         'AB102',
         'AB104',
         'AB107',
@@ -239,20 +253,30 @@ if __name__ == '__main__':
         'AB163',
         'AB164',
     ]
-    mouse_ids = mouse_ids + mouse_ids_mh
-    mouse_ids = ['MH035']
+    mouse_ids = ab_mouse_ids + mouse_ids_mh
+    #mouse_ids = ['AB102','AB142'] #AB144 test for DLC
+    #mouse_ids = ['AB144'] #['AB144'] #AB144 test for DLC
+    mouse_ids = ['MH032', 'MH028', 'MH026', 'AB077']
+    mouse_ids = ['MH028'] # should only run firs tday
+    #mouse_ids = ['MH036'] # should not run as tprime...
 
-
-    session_not_to_do = ['MH007_20250128_110740', 'MH007_20250128_110814']
-
-    experimenter = 'AB'
+    # -------------------------
+    # Set conversion parameters
+    # -------------------------
     experimenter_full = 'Axel_Bisi'
     # last_done_day = '20240506'
     last_done_day = None
     skip_existing_files = False # Overwrite if False
-    n_jobs = 30
+    add_raw_ephys_recordings = False
+    remove_dlc_extra_ts = True
+    n_jobs = 1
     sessions_to_convert = []
+    sessions_to_do = ['MH028_20250503_112316']
+    #session_not_to_do = ['MH007_20250128_110740', 'MH007_20250128_110814']
 
+    # -----------------
+    # Iterate over mice
+    # -----------------
     for mouse_id in mouse_ids:
         data_folder = get_subject_data_folder(mouse_id)
         if os.path.exists(data_folder):
@@ -262,7 +286,14 @@ if __name__ == '__main__':
             continue
         analysis_folder = get_subject_analysis_folder(mouse_id, experimenter=experimenter_full)
         nwb_folder = get_nwb_folder(mouse_id, experimenter=experimenter_full)
-        nwb_folder = r"M:\analysis\Axel_Bisi\NWB_new"
+        if mouse_id.startswith('AB'):
+            experimenter = 'AB'
+        elif mouse_id.startswith('MH'):
+            experimenter = 'MH'
+        if experimenter in ['AB','MH']:
+            nwb_folder = nwb_folder.replace('NWB', 'NWB_ks4')
+
+        log_folder = Path(r"M:\analysis\Axel_Bisi\NWB_log")
 
         sessions_done = Path(nwb_folder).glob('*.nwb')
         sessions_done = [f.stem for f in sessions_done]
@@ -273,8 +304,8 @@ if __name__ == '__main__':
         for isession, iday in training_days:
 
             # Filter session ID to do.
-            #if isession not in sessions_to_do:
-            #    continue
+            if isession not in sessions_to_do:
+                continue
 
            # if skip_existing_files:
            #     session_not_to_do = session_not_to_do + sessions_done
@@ -299,8 +330,12 @@ if __name__ == '__main__':
             #    continue
             #if experimenter == 'MH' and iday not in ['whisker_0']: # not in ['whisker_0', 'whisker_+1', 'whisker_+2', 'whisker_+3', 'whisker_+4']:
             #    continue
+            #if 'whisker' not in iday: # not in ['whisker_0', 'whisker_+1', 'whisker_+2', 'whisker_+3', 'whisker_+4']:
+            #    continue
             #elif experimenter == 'PB' and iday!=last_session_type:
             #    continue
+            if 'whisker' not in iday:
+                continue
 
             print('Converting', isession)
 
@@ -308,14 +343,21 @@ if __name__ == '__main__':
             config_yaml = os.path.join(analysis_folder, isession, f"config_{isession}.yaml")
             
             # Add to list of sessions to convert
-            sessions_to_convert.append((config_yaml, nwb_folder, experimenter_full, isession))
-
+            #sessions_to_convert.append((config_yaml, nwb_folder, experimenter_full, isession, add_raw_ephys_recordings, remove_dlc_extra_ts))
+            sessions_to_convert.append((config_yaml, nwb_folder, experimenter_full, isession, add_raw_ephys_recordings, remove_dlc_extra_ts, log_folder))
     # Now run all conversions in parallel
     print(f"Converting {len(sessions_to_convert)} sessions in parallel...")
 
+    #results = Parallel(n_jobs=n_jobs, verbose=1)(
+    #    delayed(convert_single_session)(config_yaml, nwb_folder, experimenter_full, isession, add_raw_ephys_recordings, remove_dlc_extra_ts)
+    #    for config_yaml, nwb_folder, experimenter_full, isession, add_raw_ephys_recordings, remove_dlc_extra_ts in sessions_to_convert
+    #)
     results = Parallel(n_jobs=n_jobs, verbose=1)(
-        delayed(convert_single_session)(config_yaml, nwb_folder, experimenter_full, isession)
-        for config_yaml, nwb_folder, experimenter_full, isession in sessions_to_convert
+        delayed(convert_single_session)(config_yaml, nwb_folder, experimenter_full, isession, add_raw_ephys_recordings,
+                                        remove_dlc_extra_ts, log_folder)
+        for
+        config_yaml, nwb_folder, experimenter_full, isession, add_raw_ephys_recordings, remove_dlc_extra_ts, log_folder
+        in sessions_to_convert
     )
 
     # Print results
@@ -329,4 +371,4 @@ if __name__ == '__main__':
     if errors:
         print("\nErrors encountered:")
         for error in errors:
-            print(f"  {error}")
+            print(f"{error}\n{'-'*80}")

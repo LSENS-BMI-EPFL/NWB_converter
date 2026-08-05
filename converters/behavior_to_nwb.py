@@ -140,6 +140,41 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
         behavior_events.add_timeseries(lick_timeseries)
         print(f"Adding {len(data_to_store)} piezo lick times to BehavioralEvents")
 
+    # Add full lick trace
+    #if continuous_data_dict is not None and continuous_data_dict.get('lick_trace') is not None:
+    #    lick_trace_data = np.array(continuous_data_dict.get('lick_trace'))
+#
+    #    # Timestamps for the raw trace are expected under the same key in timestamps_dict
+    #    lick_trace_timestamps = timestamps_dict.get('lick_trace')
+    #    if lick_trace_timestamps is None:
+    #        print("No timestamps found for 'lick_trace', skipping raw lick trace addition")
+    #    else:
+    #        lick_trace_timestamps = np.array(lick_trace_timestamps)
+    #        if lick_trace_timestamps.ndim > 1:
+    #            # In case timestamps come as on/off pairs, take the first column
+    #            lick_trace_timestamps = lick_trace_timestamps[:, 0]
+#
+    #        if len(lick_trace_timestamps) != len(lick_trace_data):
+    #            print(f"Mismatch between lick trace data length ({len(lick_trace_data)}) and "
+    #                  f"timestamps length ({len(lick_trace_timestamps)}), skipping raw lick trace addition")
+    #        else:
+    #            lick_trace_timeseries = TimeSeries(name='lick_trace',
+    #                                               data=lick_trace_data,
+    #                                               unit='a.u.',
+    #                                               resolution=-1.0,
+    #                                               conversion=1.0,
+    #                                               offset=0.0,
+    #                                               timestamps=lick_trace_timestamps,
+    #                                               starting_time=None,
+    #                                               rate=None,
+    #                                               comments='no comments',
+    #                                               description='absolute continuous piezoelectric analog lick sensor',
+    #                                               control=None,
+    #                                               control_description=None,
+    #                                               continuity='continuous')
+    #            behavior_events.add_timeseries(lick_trace_timeseries)
+    #            print(f"Adding raw lick trace ({len(lick_trace_data)} samples) to BehavioralEvents")
+
     # Get context timestamps if they exist
     context_timestamps_dict, context_sound_dict = get_context_timestamps_dict(timestamps_dict=timestamps_dict,
                                                                               nwb_trial_table=trial_table)

@@ -210,7 +210,7 @@ def detect_piezo_lick_times(continuous_data_dict, ni_session_sr=5000, lick_thres
     carrier_freq, f_psd, psd = estimate_artifact_frequency(
         lick_data_raw, ni_session_sr, baseline_start_s, baseline_stop_s
     )
-    print(f"Estimated artifact frequency: {carrier_freq:.1f} Hz")
+    #print(f"Estimated lick artifact frequency: {carrier_freq:.1f} Hz")
     lick_data_clean, filters = remove_artifact_notch(
         lick_data_raw, ni_session_sr, carrier_freq, Q=notch_Q, n_harmonics=n_harmonics
     )
@@ -240,9 +240,9 @@ def detect_piezo_lick_times(continuous_data_dict, ni_session_sr=5000, lick_thres
         'n_added': int(np.sum(~matched_clean)),   # in clean only -> recovered real licks
         'n_common': int(np.sum(matched_clean)),   # in both -> robust detections
     }
-    print(f"Raw: {comparison['n_raw']} | Corrected: {comparison['n_clean']} | "
-          f"Common: {comparison['n_common']} | Removed (artifact-driven): {comparison['n_removed']} | "
-          f"Added (recovered): {comparison['n_added']}")
+    #print(f"Raw: {comparison['n_raw']} | Corrected: {comparison['n_clean']} | "
+    #      f"Common: {comparison['n_common']} | Removed (artifact-driven): {comparison['n_removed']} | "
+    #      f"Added (recovered): {comparison['n_added']}")
 
     if do_plot:
         save_path = r'M:\analysis\Axel_Bisi\processing\piezo_lick_trace'
@@ -693,7 +693,7 @@ def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scan
             else:
                 timestamps_dict[key] = None
 
-        if key == "galvo_position":
+        elif key == "galvo_position":
 
             # If no actual imaging data, do not extract timestamps
             if scanimage_dict is None:

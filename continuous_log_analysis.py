@@ -142,6 +142,7 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
             print(f"Motion JPEG 2000 file found, reading number of widefield frames")
             widefield_utils.read_motion_jpeg_2000_movie(mj2_file=mj2_file)
 
+
     return timestamps_dict, n_frames_dict
 
 

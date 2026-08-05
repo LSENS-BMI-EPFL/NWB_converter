@@ -17,6 +17,7 @@ import re
 import matplotlib.pyplot as plt
 from pandas import Int64Dtype
 from scipy.spatial import cKDTree
+from scipy.interpolate import interp1d
 
 
 from utils import server_paths
@@ -417,8 +418,51 @@ def get_sglx_behaviour_log_delay(log_timestamps_dict, ephys_timestamps_dict):
 
     return time_delay
 
+def piecewise_align_timestamps(t_ref_source, t_ref_target, t_query, event_name='event', return_shifts=True):
+    """
+    Align timestamps from a source clock to a target clock using piecewise-linear
+    interpolation through shared reference events (e.g. trial TTLs) recorded in both clocks.
 
-def extract_ephys_timestamps(config_file, continuous_data_dict, threshold_dict, log_timestamps_dict, n_frames_dict, experimenter=None):
+    Args:
+        ...
+        return_shifts: if True, also return (t_query_aligned - t_query)
+
+    Returns:
+        t_query_aligned, and optionally shifts
+    """
+    t_ref_source = np.asarray(t_ref_source, dtype=float)
+    t_ref_target = np.asarray(t_ref_target, dtype=float)
+    t_query = np.asarray(t_query, dtype=float)
+
+    if len(t_ref_source) != len(t_ref_target):
+        raise ValueError(
+            f"Reference event count mismatch for '{event_name}': "
+            f"source={len(t_ref_source)}, target={len(t_ref_target)}."
+        )
+    if len(t_ref_source) < 2:
+        raise ValueError(f"Need >=2 reference events to interpolate '{event_name}', got {len(t_ref_source)}")
+
+    diffs_source = np.diff(t_ref_source)
+    diffs_target = np.diff(t_ref_target)
+    ratio = diffs_target / diffs_source
+    if np.std(ratio) / np.mean(ratio) > 0.01:
+        print(f"[{event_name}] inter-TTL-interval ratio unstable, check for dropped pulses.")
+
+    n_out_of_range = np.sum((t_query < t_ref_source.min()) | (t_query > t_ref_source.max()))
+    if n_out_of_range > 0:
+        print(f"[{event_name}] {n_out_of_range}/{len(t_query)} timestamps extrapolated.")
+
+    interp_func = interp1d(t_ref_source, t_ref_target, kind='linear',
+                            bounds_error=False, fill_value='extrapolate')
+    t_query_aligned = interp_func(t_query)
+
+    if return_shifts:
+        shifts = t_query_aligned - t_query
+        return t_query_aligned, shifts
+    return t_query_aligned
+
+
+def extract_ephys_timestamps_original(config_file, continuous_data_dict, threshold_dict, log_timestamps_dict, n_frames_dict, experimenter=None):
     """
     Load and format ephys timestamps for continuous_log_analysis.
     Args:
@@ -448,7 +492,7 @@ def extract_ephys_timestamps(config_file, continuous_data_dict, threshold_dict, 
     meta_dict = readMeta(pathlib.Path(ephys_nidq_meta))
     lick_threshold = threshold_dict.get('lick_trace')
     lick_timestamps, _ = detect_piezo_lick_times(continuous_data_dict, ni_session_sr=float(meta_dict['niSampRate']),
-                                              lick_threshold=lick_threshold, do_plot=True, session_name=session_name)
+                                              lick_threshold=lick_threshold, do_plot=False, session_name=session_name)
     # Format as tuples of on/off times for NWB
     lick_timestamps_on_off = list(zip(lick_timestamps, itertools.repeat(np.nan)))
     timestamps_dict['lick_trace'] = lick_timestamps_on_off
@@ -459,6 +503,186 @@ def extract_ephys_timestamps(config_file, continuous_data_dict, threshold_dict, 
 
     n_frames_dict = {k: len(v) for k, v in timestamps_dict.items()}
 
+    return timestamps_dict, n_frames_dict
+
+def check_ttl_alignment_assumptions(log_timestamps_dict, timestamps_dict, lick_timestamps, event_name='trial_TTL'):
+    """
+    Diagnostic checks for the assumptions behind piecewise TTL-based clock alignment.
+    Prints a report; does not raise (except on hard structural mismatches), so you can
+    inspect before deciding whether to trust the alignment.
+    """
+    print(f"\n{'='*60}\nAlignment assumption checks: {event_name}\n{'='*60}")
+
+    # --- 0. Presence & structure ---
+    assert event_name in log_timestamps_dict, f"{event_name} missing from log_timestamps_dict"
+    assert event_name in timestamps_dict, f"{event_name} missing from timestamps_dict"
+
+    log_ttl_raw = log_timestamps_dict[event_name]
+    imec_ttl_raw = timestamps_dict[event_name]
+
+    print(f"log_timestamps_dict['{event_name}']: {len(log_ttl_raw)} entries, "
+          f"example: {log_ttl_raw[:3]}")
+    print(f"timestamps_dict['{event_name}']:     {len(imec_ttl_raw)} entries, "
+          f"example: {imec_ttl_raw[:3]}")
+
+    is_tuple_log = isinstance(log_ttl_raw[0], tuple)
+    is_tuple_imec = isinstance(imec_ttl_raw[0], tuple)
+    print(f"log entries are tuples: {is_tuple_log} | imec entries are tuples: {is_tuple_imec}")
+
+    t_ttl_log = np.array([t[0] for t in log_ttl_raw]) if is_tuple_log else np.asarray(log_ttl_raw, dtype=float)
+    t_ttl_imec = np.array([t[0] for t in imec_ttl_raw]) if is_tuple_imec else np.asarray(imec_ttl_raw, dtype=float)
+
+    # --- 1. Count match ---
+    n_log, n_imec = len(t_ttl_log), len(t_ttl_imec)
+    print(f"\n[1] Count match: log={n_log}, imec={n_imec}  -> {'OK' if n_log == n_imec else 'MISMATCH !!'}")
+    if n_log != n_imec:
+        print(f"    Difference: {n_log - n_imec} pulses. Likely dropped TTL in one stream.")
+        print(f"    -> STOP: cannot safely zip by index until this is resolved.")
+
+    # --- 2. Monotonicity (sorted, no duplicates) ---
+    log_sorted = np.all(np.diff(t_ttl_log) > 0)
+    imec_sorted = np.all(np.diff(t_ttl_imec) > 0)
+    print(f"\n[2] Monotonic strictly increasing: log={log_sorted}, imec={imec_sorted}")
+    if not log_sorted or not imec_sorted:
+        print("    -> WARNING: timestamps not sorted or contain duplicates/zero-diffs.")
+
+    # --- 3. Units sanity (raw values + range) ---
+    print(f"\n[3] Range check (units sanity):")
+    print(f"    log:  min={t_ttl_log.min():.4f}, max={t_ttl_log.max():.4f}, "
+          f"span={t_ttl_log.max()-t_ttl_log.min():.4f}")
+    print(f"    imec: min={t_ttl_imec.min():.4f}, max={t_ttl_imec.max():.4f}, "
+          f"span={t_ttl_imec.max()-t_ttl_imec.min():.4f}")
+    span_ratio = (t_ttl_imec.max() - t_ttl_imec.min()) / (t_ttl_log.max() - t_ttl_log.min())
+    print(f"    span ratio (imec/log): {span_ratio:.6f}  (expect ~1.0 if both in seconds)")
+    if not (0.9 < span_ratio < 1.1):
+        print("    -> WARNING: span ratio far from 1.0 - possible units mismatch (samples vs seconds) "
+              "or genuinely different pulse sets.")
+
+    # --- 4. IFI (inter-TTL-interval) consistency: catches drops/misordering the count check misses ---
+    if n_log == n_imec and n_log > 1:
+        diffs_log = np.diff(t_ttl_log)
+        diffs_imec = np.diff(t_ttl_imec)
+        ratio = diffs_imec / diffs_log
+        print(f"\n[4] Inter-TTL-interval ratio (imec_diff / log_diff):")
+        print(f"    mean={np.mean(ratio):.6f}, std={np.std(ratio):.6e}, "
+              f"cv={np.std(ratio)/np.mean(ratio):.4e}")
+        print(f"    min={ratio.min():.6f}, max={ratio.max():.6f}")
+        n_outliers = np.sum(np.abs(ratio - np.median(ratio)) > 5 * np.std(ratio))
+        print(f"    outlier intervals (>5 std from median): {n_outliers}")
+        if np.std(ratio) / np.mean(ratio) > 0.01 or n_outliers > 0:
+            print("    -> WARNING: IFI ratio not stable. Possible dropped/misaligned pulse "
+                  "even though counts match (e.g. one dropped at start + one dropped at end).")
+    else:
+        print(f"\n[4] Skipped IFI check (count mismatch).")
+
+    # --- 5. Linear fit residuals (quick global check, even though we'll use piecewise interp) ---
+    if n_log == n_imec and n_log > 1:
+        import scipy
+        fit = scipy.stats.linregress(t_ttl_log, t_ttl_imec)
+        pred = fit.slope * t_ttl_log + fit.intercept
+        resid = t_ttl_imec - pred
+        print(f"\n[5] Global linear fit sanity: slope={fit.slope:.8f}, "
+              f"intercept={fit.intercept:.4f}, r={fit.rvalue:.8f}")
+        print(f"    residuals: mean={np.mean(resid):.6f}, std={np.std(resid):.6f}, "
+              f"max_abs={np.max(np.abs(resid)):.6f}  (units = imec clock units, likely seconds)")
+        if np.max(np.abs(resid)) > 0.01:
+            print("    -> WARNING: residuals >10ms, drift may be nonlinear (fine, piecewise interp will handle it) "
+                  "or there's a mismatched pulse.")
+
+    # --- 6. Lick timestamps vs TTL range (extrapolation check) ---
+    lick_arr = np.asarray(lick_timestamps, dtype=float)
+    n_before = np.sum(lick_arr < t_ttl_log.min())
+    n_after = np.sum(lick_arr > t_ttl_log.max())
+    print(f"\n[6] Lick timestamps range: min={lick_arr.min():.4f}, max={lick_arr.max():.4f}")
+    print(f"    TTL (log clock) range: min={t_ttl_log.min():.4f}, max={t_ttl_log.max():.4f}")
+    print(f"    licks before first TTL: {n_before}/{len(lick_arr)}  "
+          f"({100*n_before/len(lick_arr):.1f}%)")
+    print(f"    licks after last TTL:   {n_after}/{len(lick_arr)}  "
+          f"({100*n_after/len(lick_arr):.1f}%)")
+    if n_before + n_after > 0:
+        print(f"    -> These {n_before + n_after} licks will be linearly extrapolated - less reliable.")
+
+    # --- 7. Same-clock assumption for lick trace vs log trial_TTL ---
+    print(f"\n[7] Reminder (not directly checkable here): confirm `detect_piezo_lick_times` "
+          f"was run on the SAME nidq/log recording stream as log_timestamps_dict['{event_name}'], "
+          f"i.e. lick_timestamps and t_ttl_log are genuinely on the same clock.")
+
+    print(f"{'='*60}\n")
+
+    return {
+        't_ttl_log': t_ttl_log,
+        't_ttl_imec': t_ttl_imec,
+        'count_match': n_log == n_imec,
+    }
+
+def extract_ephys_timestamps(config_file, continuous_data_dict, threshold_dict, log_timestamps_dict, n_frames_dict, experimenter=None):
+    """
+    Load and format ephys timestamps for continuous_log_analysis.
+    ...
+    """
+    print("Extract ephys timestamps")
+    with open(config_file, 'r') as f:
+        config = yaml.load(f, Loader=yaml.FullLoader)
+    session_name = config['session_metadata']['session_id']
+
+    # Load and format existing timestamps extracted by CatGT and TPrime (imec/neural clock)
+    timestamps_dict = load_ephys_sync_timestamps(config_file, log_timestamps_dict, experimenter=experimenter)
+    timestamps_dict = format_ephys_timestamps(config_file, timestamps_dict, n_frames_dict)
+
+    # Extract lick timestamps from ephys-related binary files (log/nidq clock, NOT TPrime-aligned)
+    ephys_nidq_meta, _ = server_paths.get_raw_ephys_nidq_files(config_file)
+    meta_dict = readMeta(pathlib.Path(ephys_nidq_meta))
+    lick_threshold = threshold_dict.get('lick_trace')
+    lick_timestamps, _ = detect_piezo_lick_times(continuous_data_dict, ni_session_sr=float(meta_dict['niSampRate']),
+                                              lick_threshold=lick_threshold, do_plot=False, session_name=session_name)
+    lick_timestamps = log_timestamps_dict['lick_trace']
+
+    # --- Align licks (log clock) to neural/imec clock using trial_TTL as shared reference ---
+    assert 'trial_TTL' in log_timestamps_dict.keys(), "trial_TTL missing from log_timestamps_dict"
+    assert 'trial_TTL' in timestamps_dict.keys(), "trial_TTL missing from timestamps_dict"
+
+    # trial_TTL entries are (on, off) tuples; use onset times as the anchor events
+    t_ttl_log = np.array([t[0] for t in log_timestamps_dict['trial_TTL']])
+    t_ttl_imec = np.array([t[0] for t in timestamps_dict['trial_TTL']])
+
+    # --- Diagnostic: verify assumptions before trusting the alignment ---
+    check_result = check_ttl_alignment_assumptions(
+        log_timestamps_dict, timestamps_dict, lick_timestamps, event_name='trial_TTL'
+    )
+    assert check_result['count_match'], "trial_TTL count mismatch between log and imec clocks - fix before aligning"
+
+    lick_timestamps_aligned, lick_shifts = piecewise_align_timestamps(
+        t_ref_source=t_ttl_log,
+        t_ref_target=t_ttl_imec,
+        t_query=np.asarray(lick_timestamps),
+        event_name='lick_trace',
+        return_shifts=True
+    )
+
+    print("shapes:", lick_timestamps.shape if hasattr(lick_timestamps, 'shape') else len(lick_timestamps),
+          lick_timestamps_aligned.shape, lick_shifts.shape)
+    print("first 10 raw lick times:", np.asarray(lick_timestamps)[:10])
+    print("first 10 aligned lick times:", lick_timestamps_aligned[:10])
+    print("first 10 shifts:", lick_shifts[:10])
+    print("n unique shifts (rounded to 6dp):", len(np.unique(np.round(lick_shifts, 6))))
+    print("all licks in TTL range?",
+          np.all((np.asarray(lick_timestamps) >= t_ttl_log.min()) & (np.asarray(lick_timestamps) <= t_ttl_log.max())))
+
+    onset_shifts = lick_shifts[:, 0]  # drop the NaN 'off' column
+    print(f"n={len(onset_shifts)}")
+    print(f"mean={np.nanmean(onset_shifts):.6f} s, std={np.nanstd(onset_shifts):.6f} s")
+    print(f"min={np.nanmin(onset_shifts):.6f} s, max={np.nanmax(onset_shifts):.6f} s")
+    print(f"median={np.nanmedian(onset_shifts):.6f} s")
+
+    # Format as tuples of on/off times for NWB
+    #lick_timestamps_on_off = list(zip(lick_timestamps_aligned, itertools.repeat(np.nan)))
+    #timestamps_dict['lick_trace'] = lick_timestamps_on_off
+    timestamps_dict['lick_trace'] = lick_timestamps_aligned
+
+    # The only mandatory timestamps
+    assert 'trial_TTL' in timestamps_dict.keys()
+    assert isinstance(timestamps_dict['trial_TTL'][0], tuple)
+    n_frames_dict = {k: len(v) for k, v in timestamps_dict.items()}
     return timestamps_dict, n_frames_dict
 
 

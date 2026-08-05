@@ -197,6 +197,17 @@ def plot_channel_map(imec_id, xcoords, ycoords, channel_map,
     plt.close()
     return
 
+def ensure_unit_table(nwb_file, config):
+    if nwb_file.units is None:
+        if config.get('ephys_metadata').get('unit_table') == 'simple':
+            create_simplified_unit_table(nwb_file=nwb_file)
+        else:
+            create_unit_table(nwb_file=nwb_file)
+
+
+def ensure_electrode_table(nwb_file):
+    if nwb_file.electrodes is None:
+        create_electrode_table(nwb_file=nwb_file)
 
 def convert_ephys_recording(nwb_file, config_file, experimenter=None, add_ephys_recordings=False):
     """
@@ -215,12 +226,12 @@ def convert_ephys_recording(nwb_file, config_file, experimenter=None, add_ephys_
     with open(config_file, 'r') as stream:
         config = yaml.safe_load(stream)
 
-    # Create dynamic tables
-    create_electrode_table(nwb_file=nwb_file)
-    if config.get('ephys_metadata').get('unit_table') == 'simple':
-        create_simplified_unit_table(nwb_file=nwb_file)
-    else:
-        create_unit_table(nwb_file=nwb_file)
+    ## Create dynamic tables
+    #create_electrode_table(nwb_file=nwb_file)
+    #if config.get('ephys_metadata').get('unit_table') == 'simple':
+    #    create_simplified_unit_table(nwb_file=nwb_file)
+    #else:
+    #    create_unit_table(nwb_file=nwb_file)
 
     electrode_counter = 0
     neuron_counter = 0
@@ -275,7 +286,6 @@ def convert_ephys_recording(nwb_file, config_file, experimenter=None, add_ephys_
             device=device,
             #location=location_dict.get('area', str(location_dict)),
             location=str(location_dict),
-
         )
 
         # ------------------
@@ -349,7 +359,7 @@ def convert_ephys_recording(nwb_file, config_file, experimenter=None, add_ephys_
         # in the JSON; missing channels (above brain surface) filled
         # by nearest-neighbor (labels) and linear interpolation (coords).
         # --------------------------------------------------------
-        if mouse_name.startswith('MH'): #Note: keeping previous alignment ephys
+        if mouse_name.startswith('MH') and mouse_name not in ['MH032']: #Note: keeping previous alignment ephys
              imec_folder_ibl = imec_folder.replace('Axel_Bisi', 'Myriam_Hamon')
         else:
             imec_folder_ibl = imec_folder
@@ -447,6 +457,8 @@ def convert_ephys_recording(nwb_file, config_file, experimenter=None, add_ephys_
         # --------------------------------------------------------
         # Add units to NWB Units table
         # --------------------------------------------------------
+        if len(unit_table) > 0:
+            ensure_unit_table(nwb_file, config)
         for neuron_id in range(len(unit_table)):
             nwb_file.add_unit(
                 id=neuron_counter,
@@ -528,7 +540,11 @@ def convert_ephys_recording(nwb_file, config_file, experimenter=None, add_ephys_
         for col in cols_to_str:
             assert ephys_align_df[col].map(lambda x: isinstance(x, str)).all(), col
 
-        len_table = nwb_file.electrodes.to_dataframe().shape[0]
+            # before the electrode loop
+        if n_chan_total > 1:
+            ensure_electrode_table(nwb_file)
+        len_table = electrode_counter  # replaces nwb_file.electrodes.to_dataframe().shape[0]
+        #len_table = nwb_file.electrodes.to_dataframe().shape[0]
         for electrode_id in range(n_chan_total - 1):  # exclude sync channel 768
             elec_info = ephys_align_df[ephys_align_df['ch_id'] == str(electrode_id)].iloc[0]
             if len(elec_info) == 0:
