@@ -103,6 +103,16 @@ def get_nwb_folder(subject_id, experimenter=None):
         os.makedirs(nwb_folder)
     return nwb_folder
 
+def get_log_folder(subject_id, experimenter=None):
+    if experimenter is None:
+        if subject_id in ['PB124']:
+            experimenter = 'Robin_Dard'
+        else:
+            experimenter = EXPERIMENTER_MAP[subject_id[:2]]
+    log_folder = os.path.join(get_analysis_root(), experimenter, 'NWB_log')
+    if not os.path.exists(log_folder):
+        os.makedirs(log_folder)
+    return log_folder
 
 def get_ref_weight_folder(experimenter):
     """

@@ -24,7 +24,7 @@ from converters.widefield_to_nwb import convert_widefield_recording
 from converters.DLC_to_nwb import convert_dlc_data
 from converters.facemap_to_nwb import convert_facemap_data
 from utils.behavior_converter_misc import find_training_days
-from utils.server_paths import (get_nwb_folder, get_subject_analysis_folder, get_experimenter_analysis_folder,
+from utils.server_paths import (get_nwb_folder, get_log_folder, get_subject_analysis_folder, get_experimenter_analysis_folder,
                                 get_subject_data_folder, get_dlc_file_path, get_facemap_file_path)
 
 
@@ -257,8 +257,7 @@ if __name__ == '__main__':
     #mouse_ids = ['AB102','AB142'] #AB144 test for DLC
     #mouse_ids = ['AB144'] #['AB144'] #AB144 test for DLC
     mouse_ids = ['MH032', 'MH028', 'MH026', 'AB077']
-    mouse_ids = ['MH028'] # should only run firs tday
-    #mouse_ids = ['MH036'] # should not run as tprime...
+    mouse_ids = ['MH036'] # should not run as tprime...
 
     # -------------------------
     # Set conversion parameters
@@ -286,6 +285,7 @@ if __name__ == '__main__':
             continue
         analysis_folder = get_subject_analysis_folder(mouse_id, experimenter=experimenter_full)
         nwb_folder = get_nwb_folder(mouse_id, experimenter=experimenter_full)
+        log_folder = get_log_folder(mouse_id, experimenter=experimenter_full)
         if mouse_id.startswith('AB'):
             experimenter = 'AB'
         elif mouse_id.startswith('MH'):
@@ -293,7 +293,6 @@ if __name__ == '__main__':
         if experimenter in ['AB','MH']:
             nwb_folder = nwb_folder.replace('NWB', 'NWB_ks4')
 
-        log_folder = Path(r"M:\analysis\Axel_Bisi\NWB_log")
 
         sessions_done = Path(nwb_folder).glob('*.nwb')
         sessions_done = [f.stem for f in sessions_done]
@@ -304,8 +303,8 @@ if __name__ == '__main__':
         for isession, iday in training_days:
 
             # Filter session ID to do.
-            if isession not in sessions_to_do:
-                continue
+            #if isession not in sessions_to_do:
+            #    continue
 
            # if skip_existing_files:
            #     session_not_to_do = session_not_to_do + sessions_done
