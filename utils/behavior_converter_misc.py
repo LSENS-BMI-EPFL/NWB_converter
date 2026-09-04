@@ -464,6 +464,8 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
                          for i, t in enumerate(trial_timestamps[:, 0])]
     auditory_stim_time = [t + trial_table['baseline_window'][i] / 1000 if trial_table.loc[i].is_auditory == 1 else np.nan
                           for i, t in enumerate(trial_timestamps[:, 0])]
+    light_stim_time = [t + trial_table['baseline_window'][i] / 1000 if trial_table.loc[i].is_light == 1 else np.nan
+                       for i, t in enumerate(trial_timestamps[:, 0])]
     no_stim_time = [t + trial_table['baseline_window'][i] / 1000 if trial_table.loc[i].is_stim == 0 else np.nan
                     for i, t in enumerate(trial_timestamps[:, 0])]
 
@@ -477,11 +479,13 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
     # Define rewards availability
     if 'partial_reward_flag' in session_config.keys() and session_config['partial_reward_flag'] == 1:
         reward_available = [1 if(trial_table.loc[i].is_auditory == 1 or
-                                 (trial_table.loc[i].is_whisker == 1 and trial_table.loc[i].is_reward == 1)) else 0
+                                 (trial_table.loc[i].is_whisker == 1 and trial_table.loc[i].is_reward == 1)  or
+                                 (trial_table.loc[i].is_light == 1 and trial_table.loc[i].light_reward == 1)) else 0
                             for i in range(n_trials)]
     else:
         reward_available = [1 if (trial_table.loc[i].is_auditory == 1 or
-                                  (trial_table.loc[i].is_whisker == 1 and trial_table.loc[i].wh_reward == 1)) else 0
+                                  (trial_table.loc[i].is_whisker == 1 and trial_table.loc[i].wh_reward == 1) or
+                                  (trial_table.loc[i].is_light == 1 and trial_table.loc[i].light_reward == 1)) else 0
                             for i in range(n_trials)]
 
     # Build trial table
@@ -491,8 +495,8 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
     standard_trial_table['trial_type'] = trial_type_list
     standard_trial_table['perf'] = trial_table['perf']
 
+    # Whisker trials
     standard_trial_table['whisker_stim'] = trial_table['is_whisker']
-
     standard_trial_table['whisker_stim_amplitude'] = trial_table['wh_stim_amp']
     if 'wh_stim_amp_mT' in trial_table.columns:
         standard_trial_table['whisker_stim_strength'] = trial_table['wh_stim_amp_mT']
@@ -505,24 +509,38 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
     standard_trial_table['whisker_stim_duration'] = trial_table['wh_stim_duration']
     standard_trial_table['whisker_stim_time'] = whisker_stim_time
 
+    # Auditory trials
     standard_trial_table['auditory_stim'] = trial_table['is_auditory']
     standard_trial_table['auditory_stim_amplitude'] = trial_table['aud_stim_amp']
     standard_trial_table['auditory_stim_frequency'] = trial_table['aud_stim_freq']
     standard_trial_table['auditory_stim_duration'] = trial_table['aud_stim_duration']
     standard_trial_table['auditory_stim_time'] = auditory_stim_time
 
+    # Light trials (optogenetic activation / whisker substitution)
+    if config['session_metadata']['experiment_description']['light_stim_weight'] > 0:
+            print('Detected light trials in behaviour session')
+            standard_trial_table['light_stim'] = trial_table['is_light']
+            standard_trial_table['light_stim_voltage'] = trial_table['light_amp']  # Voltage applied to LED driver, not the actual light intensity
+            standard_trial_table['light_stim_power'] = trial_table['light_power']  # Actual light power measured at the tip of the fiber, in mW
+            standard_trial_table['light_stim_duration'] = trial_table['light_stim_duration']
+            standard_trial_table['light_stim_time'] = light_stim_time
+
+    # Catch trials
     standard_trial_table['no_stim'] = (~trial_table['is_stim'].astype(bool)).astype(int)
     standard_trial_table['no_stim_time'] = no_stim_time
     
     # Combine the stim time of all stim types in one vector. 
     standard_trial_table['stim_onset'] = np.nanmax([no_stim_time,
                                                    auditory_stim_time,
-                                                   whisker_stim_time], axis=0)
+                                                   whisker_stim_time,
+                                                   light_stim_time], axis=0)
 
+    # Reward availability and response window times
     standard_trial_table['reward_available'] = reward_available
     standard_trial_table['response_window_start_time'] = response_window_start_time
     standard_trial_table['response_window_stop_time'] = response_window_stop_time
 
+    # Lick information
     standard_trial_table['lick_flag'] = trial_table['lick_flag']
     standard_trial_table['lick_time'] = response_window_start_time + trial_table['reaction_time']  # first lick time in response windows only
     standard_trial_table['abort_window_start_time'] = trial_timestamps[:, 0] - trial_table['quiet_window'] / 1000  # baseline is already at start, if not zero
@@ -549,12 +567,11 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
             if set(trial_table['context_block'].unique()) == set(['passive', 'active']):
                 standard_trial_table['context'] = trial_table['context_block']  # 'active' or 'passive'
                 standard_trial_table['context_background'] = np.nan
-
     else:  # case if context_flag is absence from session_config.json i.e. older sessions prior 2023
         standard_trial_table['context'] = np.nan
         standard_trial_table['context_background'] = np.nan
 
-    # Add optogenetics information if relevant, nan otherwise
+    # Add optogenetics inhibition information if relevant, nan otherwise
     if session_config['opto_session']:
         
         if experimenter == 'GF':
@@ -585,7 +602,7 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
             standard_trial_table['opto_stim_start_time'] = standard_trial_table['start_time'] + opto_trial_table['baseline']
             standard_trial_table['opto_stim_stop_time'] = standard_trial_table['start_time'] + opto_trial_table['baseline'] + opto_trial_table['opto_duration']
             standard_trial_table['opto_stim_amplitude'] = opto_trial_table['opto_amp']
-            standard_trial_table['opto_stim_frequency'] = opto_trial_table['opto_freq']
+            standard_trial_table['opto_stim_frequency'] = opto_trial_table['opto_freq']       
     else:
         standard_trial_table['opto_stim'] = 0
         standard_trial_table['opto_grid_ap'] = np.nan
@@ -604,12 +621,14 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
         standard_trial_table['pdco_trial'] = np.nan
         standard_trial_table['pdco_activation'] = np.nan
 
+    # GF & MI early licks
     if experimenter in ['GF', 'MI']:
         # Remove early licks.
         standard_trial_table = standard_trial_table.loc[standard_trial_table.perf != 6]
         standard_trial_table['id'] = np.arange(0,standard_trial_table.shape[0])
         standard_trial_table = standard_trial_table.reset_index(drop=True)
 
+    # AB specifics
     if experimenter == 'AB':
 
         # Ensure string formatting of context
