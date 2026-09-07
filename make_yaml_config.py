@@ -177,6 +177,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
         "no_stim_weight": json_config['no_stim_weight'],
         "wh_stim_weight": sum([v for k, v in json_config.items() if 'wh_stim_weight' in k]),
         "aud_stim_weight": sum([v for k, v in json_config.items() if 'aud_stim_weight' in k]),
+        "light_stim_weight": sum([v for k, v in json_config.items() if 'light_stim_weight' in k]),
         "camera_flag": json_config['camera_flag'],
         "camera_freq": json_config['camera_freq'],
         "camera_exposure_time":
@@ -184,7 +185,6 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
         "camera_start_delay":
             [json_config['camera_start_delay'] if 'camera_start_delay' in json_config.keys() else 'na'][0],
         "artifact_window": json_config['artifact_window'],
-
     }
 
     # Session metadata.
