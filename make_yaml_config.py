@@ -63,7 +63,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     try:
         slims_csv = sorted(os.listdir(os.path.join(input_folder, 'SLIMS')))[
             0]  # post-euthanasia SLIMS file has more information
-        if experimenter == 'MH' and subject_id == 'MH038':
+        if subject_id == 'MH038':
             slims_csv = 'Content_20260608_184615.csv'
 
         if experimenter == 'JL':
@@ -112,8 +112,13 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     sess_folder = os.path.join(input_folder, 'Training', session_id)
     session_config_file = 'session_config_corrected.json' if 'session_config_corrected.json' in os.listdir(sess_folder) else 'session_config.json' # seek any corrected file if it exists, default to GUI output otherwise
     session_config_json_path = os.path.join(sess_folder, session_config_file)
-    with open(session_config_json_path, 'r') as f:
-        json_config = json.load(f)
+
+    if not os.path.isfile(session_config_json_path):
+        print('Error yaml creation: session_config.json file not found. Please check the session folder.')
+        return
+    else:
+        with open(session_config_json_path, 'r') as f:
+            json_config = json.load(f)
 
     # Get mouse session weight
     if 'mouse_weight_before' in json_config:
@@ -277,7 +282,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
         main_dict.update({'two_photon_metadata': two_photon_metadata})
 
     elif json_config['ephys_session'] and ephys_metadata['processed'] == 1:
-        main_dict.update({'ephys_metadata': ephys_metadata})
+        main_dict.update({'ephys_metadata': ephys_metadata}) # only if ephys_metadata present, will convert ephys to NWB
 
     elif json_config['wf_session']:
         widefield_metadata = create_wf_metadata(config_path=os.path.join(input_folder, 'Training', session_id))
@@ -431,10 +436,12 @@ def create_behaviour_metadata(experimenter, path_to_json_config):
     # Experimenter specific behaviour metadata - change setup per mouse
     if experimenter in ['AB']:
         behaviour_metadata.update({'trial_table': 'standard',
+                                   'add_raw_lick_trace': True if 'whisker' in behaviour_metadata['behaviour_type'] else False,
                                   'setup': 'Neuropixels setup 1 AI3209'})
     elif experimenter in ['MH']:
         behaviour_metadata.update({'trial_table': 'standard',
-                                  'setup': 'Neuropixels setup 2 AI3209'})
+                                   'add_raw_lick_trace': True if 'whisker' in behaviour_metadata['behaviour_type'] else False,
+                                   'setup': 'Neuropixels setup 2 AI3209'})
     return behaviour_metadata
 
 
@@ -457,6 +464,7 @@ def create_ephys_metadata(subject_id, experimenter, session_date):
         - cwaves 
         - imaging
         - anatomy
+    # Note: these checks have become somewhat obsolete with the new processing pipeline but are still good to use
     """
 
     experimenter_full = EXPERIMENTER_MAP[experimenter]
@@ -494,7 +502,7 @@ def create_ephys_metadata(subject_id, experimenter, session_date):
         setup = selected_rows['Setup']
         setup = setup.iloc[0] if not setup.empty else None
 
-    # Now, check if any row in selected_rows has all of the following columns == 1
+    # Now, check if any row in selected_rows has all of the following columns == 1 in the excel metadata file
     if initials in ['AB','MH']:
         processed = 1
     else:
@@ -509,10 +517,10 @@ def create_ephys_metadata(subject_id, experimenter, session_date):
             processed = 0
 
     if setup is None:
-        warnings.warn(f"Setup information not found for subject {subject_id} on date {session_date.strftime('%Y-%m-%d')}.")
+        warnings.warn(f"Setup information not found for subject {subject_id} on date {session_date.strftime('%Y-%m-%d')}. Setting to a default value.")
+        setup = 'setup 1 AI3209'
 
     setup = f'Neuropixels {setup}'
-
 
     path_to_atlas_dict = {
         'AB': r'C:\Users\bisi\.brainglobe\allen_mouse_bluebrain_barrels_10um_v1.0',
@@ -526,7 +534,7 @@ def create_ephys_metadata(subject_id, experimenter, session_date):
 
     # Set SpikeGLX-NIDQ channel mapping, experiment-dependent
     # Note: if the setup is changed, the channel mapping should be updated
-    # TODO: use it later on in preprocessing
+    # TODO: use it later on in preprocessing, only if it is correct
     ephys_channels_dict_map = {
         'Neuropixels setup 1 AI3209': {
             'default': {
@@ -574,7 +582,7 @@ def create_ephys_metadata(subject_id, experimenter, session_date):
         },
     }
     channel_map = 'default'
-    if initials in ['JL', 'PB', 'RD']:
+    if initials in ['JL', 'PB', 'RD']: # for context-task
         channel_map = 'context'
 
     ephys_channels_dict = ephys_channels_dict_map[setup][channel_map]
@@ -629,7 +637,7 @@ if __name__ == '__main__':
     # Select mouse IDs.
     experimenter = 'AB'
     experimenter_full = 'Axel_Bisi'
-    mouse_ids = [
+    mouse_ids_ab = [
         'AB077',
         'AB079',
         'AB080',
@@ -644,9 +652,17 @@ if __name__ == '__main__':
         'AB095',
         'AB102',
         'AB104',
+        'AB105',
         'AB107',
+        'AB110',
+        'AB111',
+        'AB112',
+        'AB113',
+        'AB114',
+        'AB115',
         'AB116',
         'AB117',
+        'AB118',
         'AB119',
         'AB120',
         'AB121',
@@ -674,7 +690,9 @@ if __name__ == '__main__':
         'AB143',
         'AB144',
         'AB145',
+        'AB146',
         'AB147',
+        'AB148',
         'AB149',
         'AB150',
         'AB151',
@@ -690,11 +708,56 @@ if __name__ == '__main__':
         'AB162',
         'AB163',
         'AB164',
-
-        #'MH031', missing session data
-        #'MH038', # SLIMS from 039 redo
     ]
-    mouse_ids = ['AB126']
+    mouse_ids_mh = [
+        'MH001',
+        'MH002',
+        'MH003',
+        'MH004',
+        'MH005',
+        'MH006',
+        'MH007',
+        'MH008',
+        'MH009',
+        'MH010',
+        'MH011',
+        'MH012',
+        'MH013',
+        'MH014',
+        'MH015',
+        'MH016',
+        'MH017',
+        'MH018',
+        'MH019',
+        'MH020',
+        'MH021',
+        'MH022',
+        'MH023',
+        'MH025',
+        'MH026',
+        'MH027',
+        'MH028',
+        'MH029',
+        'MH030',
+        'MH031',
+        'MH033',
+        'MH032',
+        'MH034',
+        'MH035',
+        'MH036',
+        'MH037',
+        'MH038',
+        'MH039',
+        'MH062',
+        'MH064',
+        'MH065',
+        'MH067',
+        'MH068',
+        'MH069',
+        'MH070',
+    ]
+    mouse_ids = mouse_ids_ab+mouse_ids_mh
+    mouse_ids = ['AB100','AB101']
 
     # Note for MH mice, input_folder should be MH data for SLIMS
     sessions_to_do = []
@@ -724,11 +787,6 @@ if __name__ == '__main__':
             #         continue#
 
             #if session_id not in sessions_to_do:
-            #    continue
-
-            #if experimenter == 'AB' and 'auditory' not in day: #day != 'whisker_0':
-            #    continue
-            #elif experimenter == 'MH' and day != 'whisker_0':
             #    continue
 
             #if experimenter == 'AB' and 'whisker' not in day:

@@ -4,7 +4,7 @@ import re
 import numpy as np
 import yaml
 from pynwb.base import TimeSeries
-from pynwb.behavior import BehavioralEpochs, BehavioralEvents
+from pynwb.behavior import BehavioralEpochs, BehavioralEvents, BehavioralTimeSeries
 from pynwb.image import ImageSeries
 
 from utils import continuous_processing, server_paths
@@ -15,10 +15,10 @@ from utils.behavior_converter_misc import (add_trials_standard_to_nwb,
                                            get_context_timestamps_dict,
                                            get_piezo_licks_timestamps_dict,
                                            get_trial_timestamps_dict,
-                                           get_motivated_epoch_ts)
+                                           get_motivated_epoch_ts, get_passive_active_epoch_bounds,
+                )
 
-#TODO: add raw piezo lick trace
-def convert_behavior_data(nwb_file, timestamps_dict, config_file):
+def convert_behavior_data(nwb_file, timestamps_dict, continuous_data_dict, config_file):
     """
     Convert behavior data to NWB format and add to NWB file.
     Args:
@@ -85,6 +85,13 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
         behavior_events = BehavioralEvents(name='BehavioralEvents')
         bhv_module.add_data_interface(behavior_events)
 
+    # Get the behavioral timeseries module (that we will use for continuous data)
+    try:
+        behavior_t_series = bhv_module.get(name='BehavioralTimeSeries')
+    except KeyError:
+        behavior_t_series = BehavioralTimeSeries(name='BehavioralTimeSeries')
+        bhv_module.add_data_interface(behavior_t_series)
+
     # Get trial timestamps and indexes
     trial_timestamps_dict, trial_indexes_dict = get_trial_timestamps_dict(timestamps_dict,
                                                                           behavior_results_file, config_file)
@@ -140,40 +147,40 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
         behavior_events.add_timeseries(lick_timeseries)
         print(f"Adding {len(data_to_store)} piezo lick times to BehavioralEvents")
 
-    # Add full lick trace
-    #if continuous_data_dict is not None and continuous_data_dict.get('lick_trace') is not None:
-    #    lick_trace_data = np.array(continuous_data_dict.get('lick_trace'))
-#
-    #    # Timestamps for the raw trace are expected under the same key in timestamps_dict
-    #    lick_trace_timestamps = timestamps_dict.get('lick_trace')
-    #    if lick_trace_timestamps is None:
-    #        print("No timestamps found for 'lick_trace', skipping raw lick trace addition")
-    #    else:
-    #        lick_trace_timestamps = np.array(lick_trace_timestamps)
-    #        if lick_trace_timestamps.ndim > 1:
-    #            # In case timestamps come as on/off pairs, take the first column
-    #            lick_trace_timestamps = lick_trace_timestamps[:, 0]
-#
-    #        if len(lick_trace_timestamps) != len(lick_trace_data):
-    #            print(f"Mismatch between lick trace data length ({len(lick_trace_data)}) and "
-    #                  f"timestamps length ({len(lick_trace_timestamps)}), skipping raw lick trace addition")
-    #        else:
-    #            lick_trace_timeseries = TimeSeries(name='lick_trace',
-    #                                               data=lick_trace_data,
-    #                                               unit='a.u.',
-    #                                               resolution=-1.0,
-    #                                               conversion=1.0,
-    #                                               offset=0.0,
-    #                                               timestamps=lick_trace_timestamps,
-    #                                               starting_time=None,
-    #                                               rate=None,
-    #                                               comments='no comments',
-    #                                               description='absolute continuous piezoelectric analog lick sensor',
-    #                                               control=None,
-    #                                               control_description=None,
-    #                                               continuity='continuous')
-    #            behavior_events.add_timeseries(lick_trace_timeseries)
-    #            print(f"Adding raw lick trace ({len(lick_trace_data)} samples) to BehavioralEvents")
+    # Add full raw piezosensor lick trace
+    if (continuous_data_dict is not None) and (continuous_data_dict.get('lick_trace') is not None) and config_dict['behaviour_metadata']['add_raw_lick_trace']:
+        lick_trace_rate = 25000 if 'ephys_metadata' in config_dict else 5000 #ephys vs behavior_control acquisition
+
+        # Bin raw lick trace to 1ms bins
+        lick_trace_data = np.array(continuous_data_dict.get('lick_trace'))
+        target_bin_width = 0.001  # 1 ms
+        lick_start_time = 0.0
+        factor = int(round(lick_trace_rate * target_bin_width))  # samples per 1ms bin
+        n_samples = len(lick_trace_data)
+        n_complete_bins = n_samples // factor
+        trimmed_data = lick_trace_data[:n_complete_bins * factor]
+        binned_data = trimmed_data.reshape(n_complete_bins, factor).mean(axis=1)
+        bin_width = factor / lick_trace_rate  # actual achieved bin width, given rounding
+        binned_timestamps = lick_start_time + (np.arange(n_complete_bins) + 0.5) * bin_width
+
+        lick_trace_timeseries = TimeSeries(
+            name='lick_trace',
+            data=binned_data,
+            unit='a.u.',
+            resolution=-1.0,
+            conversion=1.0,
+            offset=0.0,
+            timestamps=binned_timestamps,
+            starting_time=None,
+            rate=None,
+            comments='absolute value of signal',
+            description='continuous piezoelectric analog lick sensor data, 1ms-binned',
+            control=None,
+            control_description=None,
+            continuity='continuous'
+        )
+        behavior_t_series.add_timeseries(lick_trace_timeseries)
+        print(f"Adding raw lick trace ({len(lick_trace_data)} samples) to BehavioralTimeSeries")
 
     # Get context timestamps if they exist
     context_timestamps_dict, context_sound_dict = get_context_timestamps_dict(timestamps_dict=timestamps_dict,
@@ -244,28 +251,7 @@ def convert_behavior_data(nwb_file, timestamps_dict, config_file):
             behavior_epochs = BehavioralEpochs(name='BehavioralEpochs')
             bhv_module.add_data_interface(behavior_epochs)
 
-        if has_passive and has_active:
-            passive_trials = trial_table[trial_table['context'] == 'passive'].sort_values('start_time')
-            active_trials = trial_table[trial_table['context'] == 'active'].sort_values('start_time')
-            active_start = active_trials['start_time'].iloc[0]
-
-            passive_pre_trials = passive_trials[passive_trials['start_time'] < active_start]
-            passive_post_trials = passive_trials[passive_trials['start_time'] > active_start]
-
-            epoch_bounds = {}
-            inter_epoch_delay = 5 # seconds
-            if len(passive_pre_trials) > 0:
-                epoch_bounds['passive_pre'] = (0.0,
-                                               float(active_trials['start_time'].iloc[0]) - inter_epoch_delay)
-            if len(active_trials) > 0:
-                epoch_bounds['active'] = (float(active_trials['start_time'].iloc[0]) - inter_epoch_delay,
-                                          float(active_trials['stop_time'].iloc[-1]) + inter_epoch_delay)
-            if len(passive_post_trials) > 0:
-                epoch_bounds['passive_post'] = (float(passive_post_trials['start_time'].iloc[0]) - inter_epoch_delay,
-                                            float(passive_post_trials['stop_time'].iloc[-1])) # at end, not sure that delay is available
-        else:
-            # No passive context or ambiguous — entire session is active
-            epoch_bounds = {'active': (0.0, float(trial_table['stop_time'].iloc[-1]))}
+        epoch_bounds = get_passive_active_epoch_bounds(trial_table)
 
         ephys_epoch_descriptions = {
             'passive_pre':'Passive stimulus presentation period before the mouse is engaged in the task. Whisker and auditory stimuli are interleaved. The lick spout is retracted and the mouse cannot lick. ',

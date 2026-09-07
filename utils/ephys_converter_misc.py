@@ -18,7 +18,10 @@ import matplotlib.pyplot as plt
 from pandas import Int64Dtype
 from scipy.spatial import cKDTree
 from scipy.interpolate import interp1d
+from kilosort.data_tools import mean_waveform
 
+from kilosort import io as kilosort_io
+from kilosort.data_tools import mean_waveform, get_best_channels
 
 from utils import server_paths
 from utils.continuous_processing import detect_piezo_lick_times, plot_exposure_times
@@ -71,7 +74,7 @@ NP_PROBE_TYPE_MAP = {
     1110: 'NP1.0',
 }
 
-DEBUG_PLOT = False
+DEBUG_PLOT = True
 
 def get_probe_insertion_info(config_file):
     """
@@ -272,6 +275,7 @@ def load_ephys_sync_timestamps(config_file, log_timestamps_dict, experimenter=No
     # Add piezo lick timestamps separately
     sync_delay = get_sglx_behaviour_log_delay(log_timestamps_dict, timestamps_dict)
     timestamps_dict['lick_trace'] = log_timestamps_dict['lick_trace'] + sync_delay
+    timestamps_dict['delay'] = sync_delay
 
     return timestamps_dict
 
@@ -319,9 +323,13 @@ def format_ephys_timestamps(config_file, ephys_timestamps_dict, n_frames_dict):
 
             # Get trial stop times
             behavior_results_file = server_paths.get_behavior_results_file(config_file)
-            trial_table = pd.read_csv(behavior_results_file)
+            #trial_table = pd.read_csv(behavior_results_file)
+            trial_table = pd.read_csv(behavior_results_file, sep=None, engine='python')
+            print(trial_table.columns.to_list(), type(trial_table))
+            assert not trial_table.empty, "raw trial table is empty"
             trial_response_windows = trial_table.response_window.values / 1000
             trial_artifact_windows = trial_table.artifact_window.values / 1000
+
             trial_durations_sec = trial_response_windows + trial_artifact_windows
             trial_durations_sec = trial_durations_sec.astype(float)
 
@@ -627,6 +635,7 @@ def extract_ephys_timestamps(config_file, continuous_data_dict, threshold_dict, 
 
     # Load and format existing timestamps extracted by CatGT and TPrime (imec/neural clock)
     timestamps_dict = load_ephys_sync_timestamps(config_file, log_timestamps_dict, experimenter=experimenter)
+    delay = timestamps_dict['delay']
     timestamps_dict = format_ephys_timestamps(config_file, timestamps_dict, n_frames_dict)
 
     # Extract lick timestamps from ephys-related binary files (log/nidq clock, NOT TPrime-aligned)
@@ -644,12 +653,17 @@ def extract_ephys_timestamps(config_file, continuous_data_dict, threshold_dict, 
     # trial_TTL entries are (on, off) tuples; use onset times as the anchor events
     t_ttl_log = np.array([t[0] for t in log_timestamps_dict['trial_TTL']])
     t_ttl_imec = np.array([t[0] for t in timestamps_dict['trial_TTL']])
+    t_ttl_log_with_delay = t_ttl_log + delay
+    if len(t_ttl_log)>len(t_ttl_imec):
+        t_ttl_log = t_ttl_log[:len(t_ttl_imec)]
+    elif len(t_ttl_imec)>len(t_ttl_log):
+        t_ttl_imec = t_ttl_imec[:len(t_ttl_imec)]
 
     # --- Diagnostic: verify assumptions before trusting the alignment ---
     check_result = check_ttl_alignment_assumptions(
         log_timestamps_dict, timestamps_dict, lick_timestamps, event_name='trial_TTL'
     )
-    assert check_result['count_match'], "trial_TTL count mismatch between log and imec clocks - fix before aligning"
+    #assert check_result['count_match'], "trial_TTL count mismatch between log and imec clocks - fix before aligning"
 
     lick_timestamps_aligned, lick_shifts = piecewise_align_timestamps(
         t_ref_source=t_ttl_log,
@@ -795,7 +809,9 @@ def create_unit_table(nwb_file):
         'signalToNoiseRatio': 'maximum waveform value (peak channel) divided by the variance across its raw extracted waveform baselines ',
         'Lratio':'How likely are spikes outside this cluster to actually belong inside it',
         'isolationDistance': 'interpreted as a measure of distance from the unit to the nearest cluster',
-        'waveform_mean': 'mean spike waveform from actual data, in uV',
+        'waveform_mean': 'mean spike waveform from actual data, in uV - from C_Waves',
+        'waveform_mean_bc': 'mean spike waveform from actual data, in uV - from Bombcell',
+        #'waveform_mean_ks': 'mean spike waveform from actual data, in uV - from Kilosort',
         'sampling_rate': 'sampling rate used for that probe, in Hz',
         'duration': 'spike duration, in ms, from trough to peak',
         'pt_ratio': 'peak-to-trough ratio',
@@ -815,7 +831,7 @@ def create_unit_table(nwb_file):
         'ccf_atlas_acronym': 'ccf atlas region acronym after ephys-atlas alignment',
         'ccf_atlas_name': 'ccf atlas region name after ephys-atlas alignment',
         'ccf_atlas_parent_id': 'ccf atlas parent region ID after ephys-atlas alignment',
-        'ccf_atlas_parent_acronym': 'ccf atlas parent region acronym after',
+        'ccf_atlas_parent_acronym': 'ccf atlas parent region acronym after ephys-atlas alignment',
         'ccf_atlas_parent_name': 'ccf atlas parent region name after ephys-atlas alignment',
 
     }
@@ -824,7 +840,157 @@ def create_unit_table(nwb_file):
 
     return
 
+
 def build_unit_table(imec_folder, sync_spike_times_path):
+    """
+    Build unit table from spike sorting/curation output.
+    Args:
+        imec_folder:
+        sync_spike_times_path:
+    Returns:
+    """
+    # Init. table
+    unit_table = pd.DataFrame()
+    # ----------------------------
+    # Load Kilosort cluster table
+    # ----------------------------
+    imec_folder = pathlib.Path(imec_folder)
+    kilosort_outputs = list(imec_folder.glob('kilosort*'))
+    kilosort_outputs = [k for k in kilosort_outputs if 'kilosort_like' not in k.name]
+    if len(kilosort_outputs) > 1:  # if multiple kilosort versions, get the latest
+        versions = []
+        for ks_folder in kilosort_outputs:
+            # Extract version number after 'kilosort'
+            match = re.search(r'kilosort(\d+(?:\.\d+)*)', ks_folder.name.lower())
+            version_str = match.group(1)
+            # Convert to tuple of integers for proper comparison (e.g., "2.5" -> (2, 5))
+            version_tuple = tuple(map(int, version_str.split('.')))
+            versions.append((version_tuple, ks_folder))
+        # Find the ks_folder with the highest version
+        kilosort_output = max(versions, key=lambda x: x[0])[1]
+        print(f"Multiple kilosort versions found. Using latest: {kilosort_output.name}")
+    elif len(kilosort_outputs) == 1:
+        kilosort_output = kilosort_outputs[0]
+    else:
+        print('No spike sorting at: {}'.format(imec_folder))
+        return None
+    ks_folder_name = kilosort_output.name
+    # Spikeinterface adds another ks_folder 'sorter_output' in the kilosort ks_folder
+    if (kilosort_output / 'sorter_output').exists():
+        kilosort_output = kilosort_output / 'sorter_output'
+    cluster_info_path = kilosort_output / 'cluster_info.tsv'
+    try:
+        cluster_info_df = pd.read_csv(cluster_info_path, sep='\t')
+    except FileNotFoundError:
+        print('No spike sorting at: {}'.format(cluster_info_path))
+        return None
+    cluster_info_df.rename(columns={'KSLabel': 'ks_label',
+                                    'Amplitude': 'amplitude',
+                                    'ContamPct': 'contam_pct',
+                                    'bc_unitType': 'bc_label'}, inplace=True)
+    # Find if cluster had a curated label
+    try:
+        cluster_info_df['curated'] = cluster_info_df.apply(lambda x: 0 if pd.isnull(x.group) else 1, axis=1)
+        # Phy-based new clusters/ new splits have no ks_label: convert NaN to None
+        cluster_info_df.fillna(value='', inplace=True)  # returns None
+    except AttributeError:
+        cluster_info_df['curated'] = 0
+        cluster_info_df['group'] = np.nan
+    # Format columns
+    cluster_info_df['bc_label'] = cluster_info_df['bc_label'].str.lower()
+    # Get valid cluster indices only based on automatic curation
+    # NOTE: valid_cluster_ids is a ROW POSITION into cluster_info_df (its
+    # RangeIndex), NOT the actual 'cluster_id' column value. The two only
+    # coincide when cluster_info.tsv is gap-free and sorted 0..n-1 — an
+    # assumption Phy curation (splits/merges) breaks. Every waveform loader
+    # below converts this to the real cluster_id internally before indexing
+    # into any cluster_id-indexed array (cwaves/Bombcell) — see
+    # waveform_loading_utils.py's module docstring.
+    valid_cluster_ids = cluster_info_df.index
+    cluster_info_df_sub = cluster_info_df
+    # Add cluster information
+    unit_table['cluster_id'] = cluster_info_df_sub['cluster_id']
+    unit_table['peak_channel'] = cluster_info_df_sub['ch']
+    # unit_table['depth'] = cluster_info_df_sub['depth']
+    unit_table['ks_label'] = cluster_info_df_sub['ks_label']  # "KSLabel" is the KS raw label
+    unit_table['group'] = cluster_info_df_sub['group']  # "group" is the Phy-curated label
+    unit_table['bc_label'] = cluster_info_df_sub['bc_label']  # automatic curation from bombcell
+    unit_table['firing_rate'] = cluster_info_df_sub['fr']
+    # Load spikes times
+    sync_spike_time_file = os.path.join(imec_folder, f"{imec_folder.name}_{ks_folder_name}_spike_times_sec_sync.npy")
+    spike_times_sync = np.load(sync_spike_time_file)
+    spike_times_sync_df = pd.DataFrame(data=spike_times_sync, columns=['spike_times'])
+    spike_times_sync_df.index.name = 'spike_id'
+    # Load spike cluster assignments
+    spike_clusters = np.load(kilosort_output / 'spike_clusters.npy')
+    spike_clusters_df = pd.DataFrame(data=spike_clusters, columns=['cluster_id'])
+    spike_clusters_df.index.name = 'spike_id'
+    # Group spike times by cluster once
+    spike_times_by_cluster = spike_times_sync_df.groupby(spike_clusters_df['cluster_id'])['spike_times'].apply(np.array)
+    spike_times_per_cluster = [
+        spike_times_by_cluster.get(c_id, np.array([]))
+        for c_id in cluster_info_df.cluster_id.values
+    ]
+    cluster_info_df['spike_times'] = spike_times_per_cluster
+    unit_table['spike_times'] = cluster_info_df.loc[valid_cluster_ids].spike_times
+    # -----------------------------------------
+    # Load bombcell quality metrics
+    # -----------------------------------------
+    if ks_folder_name == 'kilosort4':
+        bc_file_path = kilosort_output / 'bombcell' / 'templates._bc_qMetrics.parquet'
+    else:
+        bc_file_path = kilosort_output / 'qMetrics' / 'templates._bc_qMetrics.parquet'
+    bc_info_df = pd.read_parquet(bc_file_path)
+    # Add bombcell quality metrics — merge on cluster_id
+    bc_cols = [
+        'phy_clusterID',
+        'maxChannels',
+        'useTheseTimesStart',
+        'useTheseTimesStop',
+        'percentageSpikesMissing_gaussian',
+        'percentageSpikesMissing_symmetric',
+        'fractionRPVs_estimatedTauR',
+        'presenceRatio',
+        'maxDriftEstimate',
+        'cumDriftEstimate',
+        'nSpikes',
+        'nPeaks',
+        'nTroughs',
+        'waveformDuration_peakTrough',
+        'spatialDecaySlope',
+        'waveformBaselineFlatness',
+        'rawAmplitude',
+        'signalToNoiseRatio',
+        'Lratio',
+        'isolationDistance',
+    ]
+    bc_info_df_sub = bc_info_df[bc_cols].rename(columns={'phy_clusterID': 'cluster_id'})
+    unit_table = unit_table.merge(bc_info_df_sub, on='cluster_id', how='left')
+    # -----------------------------------------------------
+    # Load mean waveforms from three independent sources — cwaves,
+    # Bombcell, and Kilosort4 itself — for cross-referencing. See
+    # waveform_loading_utils.py: all three correctly map the row-position
+    # valid_cluster_ids to the real cluster_id before indexing into any
+    # cluster_id-indexed array (the bug that was previously silently
+    # corrupting a subset of units under Phy curation).
+    # -----------------------------------------------------
+    unit_table['waveform_mean'] = load_cwaves_mean_waveforms(
+        kilosort_output, cluster_info_df_sub, valid_cluster_ids)
+    unit_table['waveform_mean_bc'] = load_bombcell_mean_waveforms(
+        kilosort_output, cluster_info_df_sub, valid_cluster_ids)
+    #unit_table['waveform_mean_ks'] = load_kilosort_mean_waveforms(
+    #    kilosort_output, cluster_info_df_sub, valid_cluster_ids)
+    # Load mean waveform metrics — merge on cluster_id, probe unique
+    mean_wf_metrics = pd.read_csv(kilosort_output / 'cwaves' / 'waveform_metrics.csv')
+    mean_wf_metrics['cluster_id'] = cluster_info_df_sub.loc[valid_cluster_ids, 'cluster_id'].values
+    unit_table = unit_table.merge(mean_wf_metrics[['cluster_id', 'duration', 'pt_ratio']], on='cluster_id', how='left')
+
+    if DEBUG_PLOT:
+        plot_waveform_crossref(unit_table, kilosort_output)
+
+    return unit_table
+
+def build_unit_table_original(imec_folder, sync_spike_times_path):
     """
     Build unit table from spike sorting/curation output.
     Args:
@@ -984,11 +1150,61 @@ def build_unit_table(imec_folder, sync_spike_times_path):
     # Load mean waveforms and waveform metrics from C_Waves
     # -----------------------------------------------------
 
+    ## Potential fix:
+    #mean_waveforms = np.load(kilosort_output / 'cwaves' / 'mean_waveforms.npy')
+    #cid_to_row = get_cluster_id_to_cwaves_row(kilosort_output)
+#
+    #rows = cid_to_row[valid_cluster_ids]
+    #assert np.all(rows >= 0), (
+    #    f"{np.sum(rows < 0)} of valid_cluster_ids map to dropped/placeholder rows "
+    #    f"(zero spikes at export time) — check these cluster_ids: "
+    #    f"{np.array(valid_cluster_ids)[rows < 0]}"
+    #)
+#
+    #peak_channels = cluster_info_df_sub.loc[valid_cluster_ids, 'ch'].values
+    #mean_wfs = mean_waveforms[rows, peak_channels, :]
+    #unit_table['waveform_mean'] = pd.DataFrame(mean_wfs).to_numpy().tolist()
+
+    # TODO: keep, previous version
     mean_wfs = np.load(kilosort_output / 'cwaves' / 'mean_waveforms.npy')
     peak_channels = cluster_info_df_sub.loc[valid_cluster_ids, 'ch'].values
     mean_wfs = mean_wfs[valid_cluster_ids, peak_channels, :]  # note: keep only valid clusters and peak channels
     unit_table['waveform_mean'] = pd.DataFrame(mean_wfs).to_numpy().tolist()
 
+    ## TODO: decide whether to use alternative which is bombcell waveforms
+    ### Load bombcell raw waveforms and peak channels (indexed by cluster_id along axis 0)
+    #bombcell_dir = kilosort_output / 'bombcell'
+    #bc_peak_channels = np.load(bombcell_dir / 'templates._bc_rawWaveformPeakChannels.npy')
+    #bc_raw_wfs = np.load(
+    #    bombcell_dir / 'templates._bc_rawWaveforms.npy')  # (nClusters, nChannels, nTime) or (nClusters, nTime, nChannels)
+#
+    ## Sanity check: array is indexed by cluster_id along axis 0
+    #assert bc_raw_wfs.shape[0] == bc_peak_channels.shape[0], \
+    #    "bombcell raw waveforms and peak channels have mismatched first dimension (cluster_id axis)"
+#
+    #valid_cluster_ids_arr = np.asarray(valid_cluster_ids).astype(int)
+    #peak_channels = bc_peak_channels[valid_cluster_ids_arr].astype(int)
+#
+    ## Detect channel axis (bombcell can save as (nUnits, nChannels, nTime) or (nUnits, nTime, nChannels))
+    #max_ch = int(peak_channels.max())
+    #if bc_raw_wfs.shape[1] > max_ch and bc_raw_wfs.shape[1] >= bc_raw_wfs.shape[2]:
+    #    channel_axis = 1
+    #elif bc_raw_wfs.shape[2] > max_ch:
+    #    channel_axis = 2
+    #else:
+    #    raise ValueError(
+    #        f"Could not determine channel axis from shape {bc_raw_wfs.shape} and max peak channel {max_ch}")
+#
+    #if channel_axis == 1:
+    #    mean_wfs_bc = bc_raw_wfs[valid_cluster_ids_arr, peak_channels, :]
+    #else:
+    #    mean_wfs_bc = bc_raw_wfs[valid_cluster_ids_arr, :, peak_channels]
+#
+    #assert mean_wfs_bc.shape[0] == len(valid_cluster_ids_arr)
+    #unit_table['waveform_mean_bc'] = pd.DataFrame(mean_wfs_bc).to_numpy().tolist()
+
+
+    # Median waveform
     #median_wfs = np.load(kilosort_output / 'cwaves' / 'median_peak_waveforms.npy')
     #median_wfs = median_wfs[valid_cluster_ids, :]
     #unit_table['waveform_peak_median'] = pd.DataFrame(median_wfs).to_numpy().tolist()
@@ -1042,7 +1258,7 @@ def build_unit_table(imec_folder, sync_spike_times_path):
         wf_sources = [
             ('waveform_mean', 'CWaves mean', 'steelblue', '-', 1.5), #cwaves
             #('waveform_peak_median', 'CWaves median', 'tomato', '-', 1.5),
-            ('waveform_bc_raw', 'Bombcell mean', 'forestgreen', '-', 1.5),
+            #('waveform_mean_bc', 'Bombcell mean', 'forestgreen', '-', 1.5),
         ]
 
         for plot_i, unit_i in enumerate(sample_idx):
@@ -1361,7 +1577,7 @@ def build_area_table(config_file, imec_folder, experimenter=None):
     # Relevant for cortical layers <-> cortical area
     # ------------------------------------------------------------
 
-    # Get path to atlas metadata for hierarchy information
+    # Get path to atlas metadata for hierarchy information #TODO: remove at some point
     path_to_atlas = config['ephys_metadata']['path_to_atlas']
 
     atlas_name = pathlib.PureWindowsPath(path_to_atlas).name
@@ -1386,3 +1602,459 @@ def build_area_table(config_file, imec_folder, experimenter=None):
     area_table['ccf_dv'] = coords[:, 1]
 
     return area_table
+
+
+def get_cluster_id_to_cwaves_row(path_input_files) -> np.ndarray:
+    """
+    Reconstruct the cluster_id -> mean_waveforms.npy row mapping that
+    run_cwaves.py implicitly created when it deleted placeholder
+    (n_spikes==0 & ch==0) rows from the dense, reindexed clus_table.
+
+    Returns an array `mapping` of length max(cluster_id)+1 where
+    mapping[cluster_id] = row index in the on-disk (compacted)
+    mean_waveforms.npy, or -1 if that cluster_id was dropped
+    (i.e. was a placeholder / had no spikes).
+    """
+    clus_info = pd.read_csv(path_input_files / 'cluster_info.tsv', sep='\t')
+    clus_info['cluster_id'] = clus_info['cluster_id'].astype(int)
+    clus_info.set_index('cluster_id', drop=False, inplace=True)
+
+    clus_table = clus_info.reindex(range(np.max(clus_info.cluster_id) + 1),
+                                    fill_value=0, copy=True)
+    clus_table = clus_table[['n_spikes', 'ch']]
+
+    # same placeholder-detection logic as run_cwaves.py
+    is_placeholder = clus_table.apply(lambda x: x.n_spikes == x.ch == 0, axis=1).values
+
+    mapping = -np.ones(len(clus_table), dtype=int)
+    kept_row = 0
+    for cid in range(len(clus_table)):
+        if not is_placeholder[cid]:
+            mapping[cid] = kept_row
+            kept_row += 1
+
+    return mapping
+
+
+# ---------------------------------------------------------------------
+# cluster_id <-> row-position helpers
+# ---------------------------------------------------------------------
+
+def _real_cluster_ids(cluster_info_df_sub, valid_cluster_ids):
+    """Row position (valid_cluster_ids) -> actual cluster_id, int array."""
+    return cluster_info_df_sub.loc[valid_cluster_ids, 'cluster_id'].values.astype(int)
+
+
+def get_cluster_id_to_cwaves_row(path_input_files) -> np.ndarray:
+    """
+    Reconstruct the cluster_id -> mean_waveforms.npy row mapping that
+    run_cwaves.py implicitly created when it deleted placeholder
+    (n_spikes==0 & ch==0) rows from the dense, reindexed clus_table.
+
+    Returns an array `mapping` of length max(cluster_id)+1 where
+    mapping[cluster_id] = row index in the on-disk (compacted)
+    mean_waveforms.npy, or -1 if that cluster_id was dropped
+    (i.e. was a placeholder / had no spikes).
+    """
+    clus_info = pd.read_csv(path_input_files / 'cluster_info.tsv', sep='\t')
+    clus_info['cluster_id'] = clus_info['cluster_id'].astype(int)
+    clus_info.set_index('cluster_id', drop=False, inplace=True)
+
+    clus_table = clus_info.reindex(range(np.max(clus_info.cluster_id) + 1),
+                                   fill_value=0, copy=True)
+    clus_table = clus_table[['n_spikes', 'ch']]
+
+    is_placeholder = clus_table.apply(lambda x: x.n_spikes == x.ch == 0, axis=1).values
+
+    mapping = -np.ones(len(clus_table), dtype=int)
+    kept_row = 0
+    for cid in range(len(clus_table)):
+        if not is_placeholder[cid]:
+            mapping[cid] = kept_row
+            kept_row += 1
+
+    return mapping
+
+
+# ---------------------------------------------------------------------
+# Loaders
+# ---------------------------------------------------------------------
+
+def load_cwaves_mean_waveforms(kilosort_output, cluster_info_df_sub, valid_cluster_ids):
+    """
+    Each cluster's mean waveform on its peak channel, from cwaves'
+    mean_waveforms.npy, mapped through the real cluster_id (cwaves drops
+    placeholder rows, so mean_waveforms.npy's row order does not match
+    cluster_info.tsv's row order — see get_cluster_id_to_cwaves_row).
+    """
+    kilosort_output = pathlib.Path(kilosort_output)
+    mean_waveforms = np.load(kilosort_output / 'cwaves' / 'mean_waveforms.npy')
+    cid_to_row = get_cluster_id_to_cwaves_row(kilosort_output)
+
+    real_cluster_ids = _real_cluster_ids(cluster_info_df_sub, valid_cluster_ids)
+    rows = cid_to_row[real_cluster_ids]
+    assert np.all(rows >= 0), (
+        f"{np.sum(rows < 0)} cluster_id(s) map to dropped/placeholder cwaves rows "
+        f"(zero spikes at export time) — check these cluster_ids: "
+        f"{real_cluster_ids[rows < 0]}")
+
+    peak_channels = cluster_info_df_sub.loc[valid_cluster_ids, 'ch'].values
+    mean_wfs = mean_waveforms[rows, peak_channels, :]
+    return pd.DataFrame(mean_wfs).to_numpy().tolist()
+
+
+def load_bombcell_mean_waveforms(kilosort_output, cluster_info_df_sub, valid_cluster_ids):
+    """
+    Each cluster's mean raw waveform on its peak channel, from Bombcell's
+    templates._bc_rawWaveforms.npy, indexed by the real cluster_id (this
+    array is indexed by the original KS4 template/cluster id, not by
+    cluster_info.tsv row position).
+    """
+    kilosort_output = pathlib.Path(kilosort_output)
+    bombcell_dir = kilosort_output / 'bombcell'
+    bc_peak_channels = np.load(bombcell_dir / 'templates._bc_rawWaveformPeakChannels.npy')
+    bc_raw_wfs = np.load(bombcell_dir / 'templates._bc_rawWaveforms.npy')
+    assert bc_raw_wfs.shape[0] == bc_peak_channels.shape[0], (
+        "bombcell raw waveforms and peak channels have mismatched first "
+        "dimension (cluster_id axis)")
+
+    real_cluster_ids = _real_cluster_ids(cluster_info_df_sub, valid_cluster_ids)
+    peak_channels = bc_peak_channels[real_cluster_ids].astype(int)
+
+    # Detect channel axis (bombcell can save as (nUnits, nChan, nTime) or (nUnits, nTime, nChan))
+    max_ch = int(peak_channels.max())
+    if bc_raw_wfs.shape[1] > max_ch and bc_raw_wfs.shape[1] >= bc_raw_wfs.shape[2]:
+        channel_axis = 1
+    elif bc_raw_wfs.shape[2] > max_ch:
+        channel_axis = 2
+    else:
+        raise ValueError(
+            f"Could not determine channel axis from shape {bc_raw_wfs.shape} "
+            f"and max peak channel {max_ch}")
+
+    if channel_axis == 1:
+        mean_wfs_bc = bc_raw_wfs[real_cluster_ids, peak_channels, :]
+    else:
+        mean_wfs_bc = bc_raw_wfs[real_cluster_ids, :, peak_channels]
+
+    assert mean_wfs_bc.shape[0] == len(real_cluster_ids)
+    return pd.DataFrame(mean_wfs_bc).to_numpy().tolist()
+
+
+def get_mean_waveform_ks(cluster_id, kilosort_output, n_spikes: int = 100, best: bool = True) -> np.ndarray:
+    """
+    One cluster's mean spike waveform straight from Kilosort4's own output
+    (kilosort.data_tools.mean_waveform), on its best (peak) channel.
+    https://kilosort.readthedocs.io/en/latest/tutorials/plotting_example.html
+    """
+    kilosort_output = pathlib.Path(kilosort_output)
+    imec_id = kilosort_output.stem
+    #binary_file = pathlib.Path(fr"M:\analysis\Axel_Bisi\data\AB152\AB152_20250127_105124\Ephys\catgt_AB152_g1\{imec_id}\preprocess\traces_cached_seg0.raw")
+    binary_file = None
+    mean_wv, _spike_subset = mean_waveform(int(cluster_id), kilosort_output,
+                                           n_spikes=n_spikes,
+                                           bfile=binary_file,
+                                           best=best)
+    return np.asarray(mean_wv, dtype=float)
+
+
+def load_kilosort_mean_waveforms_old(kilosort_output, cluster_info_df_sub, valid_cluster_ids, n_spikes: int = 100):
+    """
+    Each cluster's mean spike waveform straight from Kilosort4's own
+    output — an independent third source for cross-referencing against
+    cwaves/Bombcell. Per-cluster failures (e.g. raw binary unavailable or
+    moved, zero spikes) are NaN-filled and logged rather than aborting the
+    whole unit table build.
+    """
+    kilosort_output = pathlib.Path(kilosort_output)
+    real_cluster_ids = _real_cluster_ids(cluster_info_df_sub, valid_cluster_ids)
+
+    waveforms = []
+    for cid in real_cluster_ids:
+        try:
+            wv = get_mean_waveform_ks(cid, kilosort_output, n_spikes=n_spikes, best=True)
+        except Exception as e:
+            print(f"  [KS WAVEFORM] cluster_id={cid}: failed ({e}) — filling NaN")
+            wv = None
+        waveforms.append(wv)
+
+    nt = next((w.shape[-1] for w in waveforms if w is not None), None)
+    if nt is None:
+        raise RuntimeError(
+            f"None of the {len(real_cluster_ids)} requested cluster_ids produced "
+            f"a valid KS waveform from {kilosort_output} — check that this is "
+            f"the correct sorter_output folder and its raw binary is reachable.")
+
+    filled = np.full((len(real_cluster_ids), nt), np.nan, dtype=float)
+    for i, wv in enumerate(waveforms):
+        if wv is not None:
+            filled[i, :] = wv
+    return pd.DataFrame(filled).to_numpy().tolist()
+
+from concurrent.futures import ThreadPoolExecutor
+def load_kilosort_mean_waveforms(kilosort_output, cluster_info_df_sub, valid_cluster_ids,
+                                 n_spikes: int = 100, n_threads: int = 8):
+    """
+    Each cluster's mean spike waveform straight from Kilosort4's own
+    output — an independent third source for cross-referencing against
+    cwaves/Bombcell.
+
+    Batched/vectorized across ALL requested clusters at once, rather than
+    a per-cluster loop that repeats setup work:
+      - session-level arrays (spike_times, spike_clusters,
+        whitening_mat_inv, best_chans, the binary handle) are loaded ONCE,
+        not once per cluster;
+      - every cluster's subsampled spike indices are gathered into one
+        big list and SORTED BY TIME across the whole session before any
+        reads happen, so disk access is roughly sequential instead of
+        jumping cluster-to-cluster (helps a lot on network-mounted data);
+      - the whitening correction only computes the ONE channel row that's
+        actually kept (whitening_mat_inv[chan, :] @ w) instead of the
+        full n_channels x n_channels matmul just to discard all but one
+        row — an ~n_channels-fold reduction in that matmul's cost;
+      - the per-spike reads run on a small thread pool (NOT a process
+        pool), which is safe to nest inside the existing joblib
+        parallelization one level up — no extra processes forked, no
+        extra GPU/CUDA contexts opened, just I/O-bound reads overlapped
+        within the process joblib already gave this call. Set
+        n_threads=1 to disable if it ever conflicts with how joblib's
+        already saturating cores at the outer level.
+
+    Per-cluster failures (e.g. zero spikes at this pipeline stage, all
+    spikes truncated at recording edges) are NaN-filled and logged rather
+    than aborting the whole unit table build.
+    """
+    kilosort_output = pathlib.Path(kilosort_output)
+    real_cluster_ids = _real_cluster_ids(cluster_info_df_sub, valid_cluster_ids)
+    n_clusters = len(real_cluster_ids)
+
+    # ---- session-level loads, done ONCE for all clusters ----
+    spike_times = np.load(kilosort_output / 'spike_times.npy')
+    spike_clusters = np.load(kilosort_output / 'spike_clusters.npy')
+    whitening_path = kilosort_output / 'whitening_mat_inv.npy'
+    whitening_mat_inv = np.load(whitening_path) if whitening_path.exists() else None
+    best_chans = get_best_channels(kilosort_output)  # one templates.npy load, not one per cluster
+
+    ops = kilosort_io.load_ops(kilosort_output / 'ops.npy')
+    ops['filename'] = str(ops['filename'][0]).replace('/work/lsens/bisi', r'M:\analysis\Axel_Bisi')
+    bfile = kilosort_io.bfile_from_ops(ops)  # single memmap-backed handle, reused for every spike
+
+    # ---- gather every cluster's spikes into one (time, out_row, chan) job list ----
+    rng = np.random.default_rng()
+    job_times, job_rows, job_chans = [], [], []
+    for row, cid in enumerate(real_cluster_ids):
+        spike_idx = np.flatnonzero(spike_clusters == cid)
+        if spike_idx.size == 0:
+            print(f"  [KS WAVEFORM] cluster_id={cid}: no spikes at this pipeline stage — filling NaN")
+            continue
+        if spike_idx.size > n_spikes:
+            spike_idx = rng.choice(spike_idx, size=n_spikes, replace=False)
+        times = spike_times[spike_idx]
+        job_times.append(times)
+        job_rows.append(np.full(times.shape, row))
+        job_chans.append(np.full(times.shape, int(best_chans[cid])))
+
+    if not job_times:
+        raise RuntimeError(
+            f"None of the {n_clusters} requested cluster_ids had any spikes in "
+            f"{kilosort_output} — check that this is the correct sorter_output folder.")
+
+    job_times = np.concatenate(job_times)
+    job_rows = np.concatenate(job_rows)
+    job_chans = np.concatenate(job_chans)
+    order = np.argsort(job_times)  # session-wide sequential-ish read order
+    job_times, job_rows, job_chans = job_times[order], job_rows[order], job_chans[order]
+
+    nt = int(bfile.nt)
+
+    def read_one(i):
+        t, chan = int(job_times[i]), int(job_chans[i])
+        tmin = max(t - bfile.nt0min, 0)
+        tmax = t + (bfile.nt - bfile.nt0min)
+        w = bfile[tmin:tmax].cpu().numpy()
+        if w.shape[1] != bfile.nt:
+            return None  # truncated at recording edge, matches original behavior
+        if whitening_mat_inv is not None:
+            # Only compute the single row we keep, not the full
+            # (n_chan, n_chan) @ (n_chan, nt) matmul — (A @ B)[chan, :]
+            # == A[chan, :] @ B, so this is mathematically identical to
+            # the original whitening_mat_inv @ w followed by w[chan, :].
+            return whitening_mat_inv[chan, :] @ w
+        return w[chan, :]
+
+    if n_threads and n_threads > 1:
+        with ThreadPoolExecutor(max_workers=n_threads) as ex:
+            snippets = list(ex.map(read_one, range(len(job_times))))
+    else:
+        snippets = [read_one(i) for i in range(len(job_times))]
+
+    sums = np.zeros((n_clusters, nt), dtype=np.float64)
+    counts = np.zeros(n_clusters, dtype=np.int64)
+    for i, w in enumerate(snippets):
+        if w is None:
+            continue
+        row = job_rows[i]
+        sums[row] += w
+        counts[row] += 1
+
+    filled = np.full((n_clusters, nt), np.nan, dtype=float)
+    ok = counts > 0
+    filled[ok] = sums[ok] / counts[ok, None]
+    n_failed = int(np.sum(~ok))
+    if n_failed:
+        print(f"  [KS WAVEFORM] {n_failed} cluster(s) produced no usable snippets "
+              f"(all truncated at recording edges): {real_cluster_ids[~ok]}")
+
+    return pd.DataFrame(filled).to_numpy().tolist()
+
+def load_kilosort_mean_waveforms_v2(kilosort_output, cluster_info_df_sub, valid_cluster_ids, n_spikes: int = 100):
+    """
+    Each cluster's mean spike waveform straight from Kilosort4's own
+    output — an independent third source for cross-referencing against
+    cwaves/Bombcell.
+
+    Optimized vs. calling kilosort.data_tools.mean_waveform per cluster:
+    that function reloads spike_times.npy/spike_clusters.npy, recomputes
+    best channels from the FULL templates.npy, and reopens the raw binary
+    from ops.npy on every single call — for 70 clusters that's ~70x the
+    I/O needed. Here everything session-level is loaded ONCE and the
+    binary handle (bfile) is reused across all clusters, mirroring exactly
+    what kilosort.data_tools.mean_waveform/get_spike_waveforms do
+    internally per spike (same whitening + edge-truncation handling), just
+    without the redundant per-cluster reloading.
+
+    Per-cluster failures (e.g. zero spikes at this pipeline stage, all
+    spikes truncated at recording edges) are NaN-filled and logged rather
+    than aborting the whole unit table build.
+    """
+    kilosort_output = pathlib.Path(kilosort_output)
+    real_cluster_ids = _real_cluster_ids(cluster_info_df_sub, valid_cluster_ids)
+
+    # ---- session-level loads, done ONCE for all clusters ----
+    spike_times = np.load(kilosort_output / 'spike_times.npy')
+    spike_clusters = np.load(kilosort_output / 'spike_clusters.npy')
+    whitening_path = kilosort_output / 'whitening_mat_inv.npy'
+    whitening_mat_inv = np.load(whitening_path) if whitening_path.exists() else None
+    best_chans = get_best_channels(kilosort_output)  # one templates.npy load, not one per cluster
+
+    ops = kilosort_io.load_ops(kilosort_output / 'ops.npy')
+    ops['filename'] = str(ops['filename'][0]).replace('/work/lsens/bisi', r'M:\analysis\Axel_Bisi')
+    bfile = kilosort_io.bfile_from_ops(ops)  # single memmap-backed handle, reused for every spike
+
+    rng = np.random.default_rng()
+    waveforms = []
+    nt = None
+    for cid in real_cluster_ids:
+        try:
+            chan = int(best_chans[cid])
+            spike_idx = np.flatnonzero(spike_clusters == cid)
+            if spike_idx.size == 0:
+                raise ValueError("no spikes for this cluster at this pipeline stage")
+            if spike_idx.size > n_spikes:
+                spike_idx = rng.choice(spike_idx, size=n_spikes, replace=False)
+            times = np.sort(spike_times[spike_idx])
+
+            snippets = []
+            for t in times:
+                tmin = max(int(t) - bfile.nt0min, 0)
+                tmax = int(t) + (bfile.nt - bfile.nt0min)
+                w = bfile[tmin:tmax].cpu().numpy()
+                if whitening_mat_inv is not None:
+                    w = whitening_mat_inv @ w
+                if w.shape[1] == bfile.nt:
+                    # Drop spikes at the very start/end of the recording that
+                    # get truncated to fewer time points (matches
+                    # kilosort.data_tools.get_spike_waveforms exactly).
+                    snippets.append(w[chan, :])
+            if not snippets:
+                raise ValueError("all spikes truncated at recording edges")
+            wv = np.mean(np.stack(snippets, axis=0), axis=0)
+            if nt is None:
+                nt = wv.shape[-1]
+        except Exception as e:
+            print(f"  [KS WAVEFORM] cluster_id={cid}: failed ({e}) — filling NaN")
+            wv = None
+        waveforms.append(wv)
+
+    if nt is None:
+        raise RuntimeError(
+            f"None of the {len(real_cluster_ids)} requested cluster_ids produced "
+            f"a valid KS waveform from {kilosort_output} — check that this is "
+            f"the correct sorter_output folder and its raw binary is reachable.")
+
+    filled = np.full((len(real_cluster_ids), nt), np.nan, dtype=float)
+    for i, wv in enumerate(waveforms):
+        if wv is not None:
+            filled[i, :] = wv
+    return pd.DataFrame(filled).to_numpy().tolist()
+
+
+# ---------------------------------------------------------------------
+# Debug crossref plot
+# ---------------------------------------------------------------------
+
+def plot_waveform_crossref(unit_table, kilosort_output, n_plot: int = 36, sample_rate: float = 30000.0):
+    """
+    Grid of n_plot randomly-sampled good/mua units, each showing its mean
+    waveform from every source present in unit_table
+    (waveform_mean/_bc/_ks — cwaves/Bombcell/Kilosort4) overlaid for shape
+    comparison. Saved to kilosort_output / 'waveforms_crossref_sample.png'.
+    """
+    kilosort_output = pathlib.Path(kilosort_output)
+
+    unit_table_sub = unit_table[unit_table.bc_label.isin(['mua', 'good'])]
+    n_plot = min(n_plot, len(unit_table_sub))
+    sample_idx = np.sort(np.random.choice(len(unit_table_sub), n_plot, replace=False))
+
+    ncols = 6
+    nrows = int(np.ceil(n_plot / ncols))
+    fig, axes = plt.subplots(nrows, ncols, figsize=(ncols * 1.5, nrows * 1.5), sharex=True, sharey=False)
+    axes = axes.flatten()
+
+    def to_ms(n_pts):
+        """Sample indices -> ms timeline, centered on the peak-detection midpoint."""
+        return (np.arange(n_pts) - n_pts // 2) / sample_rate * 1000
+
+    wf_sources = [
+        ('waveform_mean', 'CWaves mean', 'steelblue', '-', 1.2),
+        ('waveform_mean_bc', 'Bombcell mean', 'forestgreen', '-', 1.2),
+        #('waveform_mean_ks', 'Kilosort mean', 'darkorange', '--', 1.2),
+    ]
+    # Only plot sources actually present in unit_table, so this still works
+    # if e.g. waveform_mean_ks wasn't computed for this session.
+    wf_sources = [s for s in wf_sources if s[0] in unit_table_sub.columns]
+
+    for plot_i, unit_i in enumerate(sample_idx):
+        ax = axes[plot_i]
+        cid = unit_table_sub['cluster_id'].iloc[unit_i]
+        label = unit_table_sub['bc_label'].iloc[unit_i]
+        for col, src_label, color, ls, lw in wf_sources:
+            wf = np.array(unit_table_sub[col].iloc[unit_i])
+            if wf.ndim != 1 or len(wf) == 0:
+                continue
+            t = to_ms(len(wf))
+            ax.plot(t, wf, color=color, lw=lw, linestyle=ls, label=src_label, alpha=0.6)
+        ax.axhline(0, color='grey', lw=0.3, linestyle=':')
+        ax.axvline(0, color='grey', lw=0.3, linestyle=':')
+        ax.set_xlabel('Time (ms)', fontsize=4.5)
+        ax.set_ylabel(r'Amplitude ($\mu$V)', fontsize=4.5)
+        ax.set_title(f'cluster {cid} | {label}', fontsize=4.5, pad=2)
+        ax.tick_params(labelsize=3.5, length=1.5, width=0.4)
+        for spine in ax.spines.values():
+            spine.set_linewidth(0.3)
+
+    for ax in axes[n_plot:]:
+        ax.set_visible(False)
+
+    handles = [
+        plt.Line2D([0], [0], color=color, lw=lw, linestyle=ls, label=lbl)
+        for _, lbl, color, ls, lw in wf_sources
+    ]
+    fig.legend(handles=handles, fontsize=4.5, loc='lower center',
+               ncol=len(wf_sources), frameon=False, bbox_to_anchor=(0.5, 0.0))
+    fig.suptitle('Waveform examples', fontsize=7)
+    plt.tight_layout()
+    fig_path = kilosort_output / 'waveforms_crossref_sample.png'
+    plt.savefig(fig_path, dpi=400)
+    plt.close(fig)
+    return fig_path

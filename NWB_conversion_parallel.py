@@ -7,7 +7,6 @@ import platform
 from pathlib import Path
 import numpy as np
 from joblib import Parallel, delayed
-
 import yaml
 import json
 import traceback
@@ -16,16 +15,20 @@ import utils.utils_gf as utils_gf
 from continuous_log_analysis import analyze_continuous_log
 from converters.behavior_to_nwb import convert_behavior_data
 from converters.ci_movie_to_nwb import convert_ci_movie
+#from converters.ephys_to_nwb import convert_ephys_recording
 from converters.ephys_to_nwb_test import convert_ephys_recording
 from converters.nwb_saving import save_nwb_file
 from converters.subject_to_nwb import create_nwb_file
 from converters.suite2p_to_nwb import convert_suite2p_data
 from converters.widefield_to_nwb import convert_widefield_recording
 from converters.DLC_to_nwb import convert_dlc_data
+#from converters.DLC_to_nwb_test import convert_dlc_data
 from converters.facemap_to_nwb import convert_facemap_data
 from utils.behavior_converter_misc import find_training_days
 from utils.server_paths import (get_nwb_folder, get_log_folder, get_subject_analysis_folder, get_experimenter_analysis_folder,
                                 get_subject_data_folder, get_dlc_file_path, get_facemap_file_path)
+
+os.environ['HDF5_USE_FILE_LOCKING'] = 'FALSE' # some errors on smb/network shares
 
 
 def convert_data_to_nwb(config_file, output_folder, with_time_string=True, experimenter=None, add_ephys_recordings=False, remove_extra_ts=False):
@@ -48,7 +51,7 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True, exper
     print("Extract timestamps")
 
     if config_dict['session_metadata']['experimenter'] != 'GF':
-        timestamps_dict, _ = analyze_continuous_log(config_file=config_file,
+        timestamps_dict, _, cont_data_dict = analyze_continuous_log(config_file=config_file,
                                                     do_plot=False, plot_start=1,
                                                     plot_stop=200, camera_filtering=False,
                                                     experimenter=experimenter)
@@ -62,7 +65,8 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True, exper
 
     print(" ")
     print("Convert behavior data")
-    convert_behavior_data(nwb_file=nwb_file, timestamps_dict=timestamps_dict, config_file=config_file)
+    convert_behavior_data(nwb_file=nwb_file, timestamps_dict=timestamps_dict,
+                          continuous_data_dict=cont_data_dict, config_file=config_file)
 
     if config_dict.get("two_photon_metadata") is not None:
         print(" ")
@@ -106,7 +110,8 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True, exper
             convert_dlc_data(nwb_file=nwb_file,
                              config_file=config_file,
                              video_timestamps={k: timestamps_dict[k] for k in ("cam1", "cam2")},
-                             remove_extra_ts=True)
+                             remove_extra_ts=remove_extra_ts,
+                             )
 
         facemap_file = get_facemap_file_path(config_file)
         if facemap_file is not None:
@@ -152,48 +157,9 @@ def convert_single_session(config_yaml, nwb_folder, experimenter_full, isession,
 if __name__ == '__main__':
 
     # Run the conversion
-    mouse_ids_mh = [
-        'MH004',
-        'MH007',
-        'MH008',
-        'MH009',
-        'MH010',
-        'MH011',
-        'MH013',
-        'MH014',
-        'MH015',
-        'MH016',
-        'MH017',
-        'MH018',
-        'MH019',
-        'MH020',
-        'MH021',
-        'MH022',
-        'MH023',
-        'MH025',
-        'MH026',
-        'MH027',
-        'MH028',
-        'MH029',
-        'MH030',
-        #'MH031', #solve error
-        'MH032',
-        'MH034',
-        'MH035',
-        #'MH036',#finish processing
-        #'MH037',
-        #'MH038',
-        #'MH039',
-        #'MH062',
-        #'MH064',
-        #'MH065',
-        #'MH068',
-        #'MH069',
-        #'MH070',
-    ]
-    ab_mouse_ids = [
+    mouse_ids_ab = [
         'AB077',
-         #'AB079',
+        'AB079',
         'AB080',
         'AB082',
         'AB085',
@@ -203,12 +169,21 @@ if __name__ == '__main__':
         'AB093',
         'AB094',
         'AB095',
-        'AB096',
+        'AB100',
+        'AB101',
         'AB102',
         'AB104',
+        'AB105',
         'AB107',
+        'AB110',
+        'AB111',
+        'AB112',
+        'AB113',
+        'AB114',
+        'AB115',
         'AB116',
         'AB117',
+        'AB118',
         'AB119',
         'AB120',
         'AB121',
@@ -236,7 +211,9 @@ if __name__ == '__main__':
         'AB143',
         'AB144',
         'AB145',
+        'AB146',
         'AB147',
+        'AB148',
         'AB149',
         'AB150',
         'AB151',
@@ -253,11 +230,54 @@ if __name__ == '__main__':
         'AB163',
         'AB164',
     ]
-    mouse_ids = ab_mouse_ids + mouse_ids_mh
-    #mouse_ids = ['AB102','AB142'] #AB144 test for DLC
-    #mouse_ids = ['AB144'] #['AB144'] #AB144 test for DLC
-    mouse_ids = ['MH032', 'MH028', 'MH026', 'AB077']
-    mouse_ids = ['MH036'] # should not run as tprime...
+    mouse_ids_mh = [
+        'MH001',
+        'MH002',
+        'MH003',
+        'MH004',
+        'MH005',
+        'MH006',
+        'MH007',
+        'MH008',
+        'MH009',
+        'MH010',
+        'MH011',
+        'MH012',
+        'MH013',
+        'MH014',
+        'MH015',
+        'MH016',
+        'MH017',
+        'MH018',
+        'MH019',
+        'MH020',
+        'MH021',
+        'MH022',
+        'MH023',
+        'MH025',
+        'MH026',
+        'MH027',
+        'MH028',
+        'MH029',
+        'MH030',
+        'MH031',
+        'MH033',
+        'MH032',
+        'MH034',
+        'MH035',
+        'MH036',
+        'MH037',
+        'MH038',
+        'MH039',
+        'MH062',
+        'MH064',
+        'MH065',
+        'MH067',
+        'MH068',
+        'MH069',
+        'MH070',
+    ]
+    mouse_ids = mouse_ids_ab + mouse_ids_mh
 
     # -------------------------
     # Set conversion parameters
@@ -267,11 +287,11 @@ if __name__ == '__main__':
     last_done_day = None
     skip_existing_files = False # Overwrite if False
     add_raw_ephys_recordings = False
-    remove_dlc_extra_ts = True
-    n_jobs = 1
+    remove_dlc_extra_ts = False
+    n_jobs = 25
     sessions_to_convert = []
-    sessions_to_do = ['MH028_20250503_112316']
-    #session_not_to_do = ['MH007_20250128_110740', 'MH007_20250128_110814']
+    sessions_to_do = []
+    sessions_to_ignore = []
 
     # -----------------
     # Iterate over mice
@@ -303,7 +323,9 @@ if __name__ == '__main__':
         for isession, iday in training_days:
 
             # Filter session ID to do.
-            #if isession not in sessions_to_do:
+            #if isession not in sessions_to_do and sessions_to_do is not None:
+            #    continue
+            #if isession in sessions_to_ignore and sessions_to_ignore is not None:
             #    continue
 
            # if skip_existing_files:
@@ -336,6 +358,7 @@ if __name__ == '__main__':
             if 'whisker' not in iday:
                 continue
 
+
             print('Converting', isession)
 
             # Find yaml config file and behavior results for this session.
@@ -344,6 +367,7 @@ if __name__ == '__main__':
             # Add to list of sessions to convert
             #sessions_to_convert.append((config_yaml, nwb_folder, experimenter_full, isession, add_raw_ephys_recordings, remove_dlc_extra_ts))
             sessions_to_convert.append((config_yaml, nwb_folder, experimenter_full, isession, add_raw_ephys_recordings, remove_dlc_extra_ts, log_folder))
+
     # Now run all conversions in parallel
     print(f"Converting {len(sessions_to_convert)} sessions in parallel...")
 
@@ -370,4 +394,4 @@ if __name__ == '__main__':
     if errors:
         print("\nErrors encountered:")
         for error in errors:
-            print(f"{error}\n{'-'*80}")
+            print(f"{error}")

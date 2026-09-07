@@ -48,9 +48,9 @@ def find_training_days(subject_id, input_folder):
 
         if not os.path.isfile(json_path):
             print(f"File {json_path} not found.")
-
-        with open(json_path, 'r') as f:
-            json_config = json.load(f)
+        else:
+            with open(json_path, 'r') as f:
+                json_config = json.load(f)
 
         if isession == 'AB131_20240904_123728':
             json_config['behaviour_type'] = 'auditory'
@@ -187,7 +187,6 @@ def get_trial_timestamps_dict(timestamps_dict, behavior_results_file, config_fil
             behavior_results = pd.read_csv(behavior_results_file, sep=';', engine='python')
         n_trials_max = len(behavior_results)
 
-    # TODO: get max number of trials possible
     if len(behavior_results) > len(timestamps_dict['trial_TTL']):
         n_trials_max = len(timestamps_dict['trial_TTL'])
         print(f"Found more trials in .csv file than TTL up/down signal, session must have been stopped "
@@ -296,6 +295,119 @@ def get_context_timestamps_dict(timestamps_dict, nwb_trial_table):
 
     return context_timestamps_dict, context_sound_dict
 
+def get_passive_active_epoch_bounds(trial_table, inter_epoch_delay=5.0):
+    """
+    Compute passive_pre / active / passive_post epoch boundaries from a trial
+    table's 'context' column, WITHOUT modifying trial_table (context labels
+    are read-only anchors, never changed).
+
+    Simple positional rule:
+      - passive_pre  = the first contiguous stretch of passive trials at the
+                        very start of the session (empty if the session
+                        starts with an active trial).
+      - passive_post = starts at the first passive trial found in the second
+                        half of the session (by trial index) and runs to the
+                        end of the session.
+      - active       = everything strictly in between: from the first trial
+                        after passive_pre up to (but not including) the
+                        first trial of passive_post. Any stray passive trials
+                        that fall in this window (e.g. a couple of embedded
+                        catch trials) are simply absorbed into the active
+                        time span -- their context label is left untouched.
+
+    Boundaries between adjacent epochs are placed inside the real time gap
+    between the bordering trials, padded by up to `inter_epoch_delay` on
+    each side (padding shrinks if the gap is smaller than
+    2 * inter_epoch_delay, so boundaries can never overlap).
+
+    Returns a dict with up to {'passive_pre', 'active', 'passive_post'} keys,
+    each a (start_time, stop_time) tuple, guaranteed ordered and non-overlapping.
+    Raises ValueError if a valid structure can't be established.
+    """
+    VALID_EPOCH_NAMES = ('passive_pre', 'active', 'passive_post')
+    trial_table = trial_table.sort_values('start_time').reset_index(drop=True)
+    n = len(trial_table)
+
+    is_passive = trial_table['context'].astype(str).str.contains('passive', na=False).to_numpy()
+    has_passive = is_passive.any()
+    has_active = trial_table['context'].astype(str).str.contains('active', na=False).any()
+    if not (has_passive and has_active):
+        return {'active': (0.0, float(trial_table['stop_time'].iloc[-1]))}
+
+    def _padded_boundary(left_stop, right_start, delay):
+        gap = max(right_start - left_stop, 0.0)
+        pad = min(delay, gap / 2.0)
+        left_boundary  = left_stop  + pad
+        right_boundary = right_start - pad
+        # Guard: if gap is tiny, collapse to midpoint
+        if left_boundary >= right_boundary:
+            mid = (left_stop + right_start) / 2.0
+            return mid, mid
+        return left_boundary, right_boundary
+
+    # --- passive_pre: leading contiguous run of passive trials ---
+    pre_end_idx = -1
+    i = 0
+    while i < n and is_passive[i]:
+        pre_end_idx = i
+        i += 1
+    active_start_idx = pre_end_idx + 1
+
+    # --- passive_post: first passive trial in the second half ---
+    mid_idx = n // 2
+    post_candidates = [j for j in range(mid_idx, n) if is_passive[j]]
+    post_start_idx = post_candidates[0] if post_candidates else None
+    active_end_idx = post_start_idx if post_start_idx is not None else n  # exclusive
+
+    if active_start_idx >= active_end_idx:
+        raise ValueError(
+            "No room left for an 'active' epoch between passive_pre and "
+            "passive_post -- check context labels / session structure."
+        )
+
+    bounds = {}
+
+    if pre_end_idx >= 0:
+        pre_end, active_lo = _padded_boundary(
+            float(trial_table['stop_time'].iloc[pre_end_idx]),
+            float(trial_table['start_time'].iloc[active_start_idx]),
+            inter_epoch_delay,
+        )
+        bounds['passive_pre'] = (0.0, pre_end)
+    else:
+        active_lo = 0.0
+
+    if post_start_idx is not None:
+        active_hi, post_start = _padded_boundary(
+            float(trial_table['stop_time'].iloc[active_end_idx - 1]),
+            float(trial_table['start_time'].iloc[post_start_idx]),
+            inter_epoch_delay,
+        )
+        bounds['passive_post'] = (post_start, float(trial_table['stop_time'].iloc[-1]))
+    else:
+        active_hi = float(trial_table['stop_time'].iloc[-1])
+
+    bounds['active'] = (active_lo, active_hi)
+
+    # Hard invariant: active must always be the longest block.
+    active_dur = bounds['active'][1] - bounds['active'][0]
+    for name in ('passive_pre', 'passive_post'):
+        if name in bounds:
+            passive_dur = bounds[name][1] - bounds[name][0]
+            assert passive_dur < active_dur, (
+                f"'{name}' duration ({passive_dur}) is not shorter than 'active' "
+                f"duration ({active_dur}): {bounds}"
+            )
+
+    # Structural guarantee: only these three, correctly ordered, non-overlapping
+    unexpected = set(bounds) - set(VALID_EPOCH_NAMES)
+    if unexpected:
+        raise ValueError(f"Unexpected epoch name(s) {unexpected}; only {VALID_EPOCH_NAMES} allowed.")
+    ordered = [name for name in VALID_EPOCH_NAMES if name in bounds]
+    for a, b in zip(ordered, ordered[1:]):
+        if bounds[a][1] > bounds[b][0]:
+            raise ValueError(f"'{a}' ends after '{b}' starts -- epochs overlap or are out of order: {bounds}")
+    return bounds
 
 def get_motivated_epoch_ts(timestamps_dict, nwb_trial_table):
     motivated_timestamps_dict = dict()
@@ -418,9 +530,11 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
     else:
         if os.path.splitext(behavior_results_file)[1] == '.txt':
             sep = r'\s+'
+            trial_table = pd.read_csv(behavior_results_file, sep=sep, engine='python')
         else:
             sep = ','
-        trial_table = pd.read_csv(behavior_results_file, sep=sep, engine='python')
+            #trial_table = pd.read_csv(behavior_results_file, sep=sep, engine='python')
+            trial_table = pd.read_csv(behavior_results_file, sep=None, engine='python')
         # Because stitching tables manually with excel changes sep character.
         #if trial_table.columns.shape[0] == 1:
         #    trial_table = pd.read_csv(behavior_results_file, sep=';', engine='python')
@@ -610,7 +724,7 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
         standard_trial_table['id'] = np.arange(0,standard_trial_table.shape[0])
         standard_trial_table = standard_trial_table.reset_index(drop=True)
 
-    if experimenter == 'AB':
+    if experimenter in ['AB', 'MH']:
 
         # Ensure string formatting of context
         standard_trial_table['context'] = standard_trial_table['context'].astype(str)
@@ -624,18 +738,15 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
             mask_nan_to_auditory = standard_trial_table['trial_type'].isna() & standard_trial_table['auditory_stim_duration'].notnull()
             standard_trial_table.loc[mask_nan_to_auditory, 'trial_type'] = 'auditory_trial'
 
-        # Get overstriked times
-        overstrike_file = server_paths.get_overstrike_file(config_file=config_file)
-        if overstrike_file is not None:
-            with open(overstrike_file,'r') as f:
-                overstrike = yaml.load(f, Loader=yaml.FullLoader)
-                overstrike_periods = overstrike['timespans_list']
-
-            # Modify perf to 6 for all trials start time in overstrike periods
-            for period in overstrike_periods:
-                print('Marking overstriked trials as excluded (perf=6) for period: {}'.format(period))
-                mask_overstrike = (standard_trial_table['start_time'] >= period[0]) & (standard_trial_table['start_time'] <= period[1])
-                standard_trial_table.loc[mask_overstrike, 'perf'] = 6
+        # Get excluded timespans
+        excluded_timespans = server_paths.get_overstrike_excluded_timespans(config_file=config_file)
+        if excluded_timespans is not None:
+            # Modify perf to 6 for all trials start time in excluded periods
+            for period in excluded_timespans:
+                mask_excluded = (standard_trial_table['start_time'] >= float(period[0])) & (
+                            standard_trial_table['start_time'] <= float(period[1]))
+                print('Marking {} excluded trials as excluded (perf=6) for period: {}'.format(mask_excluded.sum(), period))
+                standard_trial_table.loc[mask_excluded, 'perf'] = 6
 
 
     return standard_trial_table

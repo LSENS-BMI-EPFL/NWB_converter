@@ -121,6 +121,7 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
                                                                         n_frames_dict=n_frames_dict,
                                                                         experimenter=experimenter,
                                                                         )
+        continuous_data_dict = ephys_cont_data_dict
         timestamps_dict = ephys_timestamps_dict
         print('Number of timestamps per acquisition (ephys):')
         print_info_dict(ephys_n_frames_dict)
@@ -143,7 +144,7 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
             widefield_utils.read_motion_jpeg_2000_movie(mj2_file=mj2_file)
 
 
-    return timestamps_dict, n_frames_dict
+    return timestamps_dict, n_frames_dict, continuous_data_dict
 
 
 if __name__ == "__main__":

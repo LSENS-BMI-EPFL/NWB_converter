@@ -16,6 +16,7 @@ EXPERIMENTER_MAP = {
     'GF': 'Anthony_Renard',
     'MI': 'Anthony_Renard',
     'JL': 'Jules_Lebert',
+    'LG': 'Lynn_Geyer',
 }
 
 
@@ -140,7 +141,11 @@ def get_behavior_results_file(config_file):
     mouse_name = config['subject_metadata']['subject_id']
     session_name = config['session_metadata']['session_id']
     data_folder = get_subject_data_folder(mouse_name)
-    behavior_results_file = os.path.join(data_folder, 'Training', session_name, 'results.csv')
+    behavior_results_file_corrected = os.path.join(data_folder, 'Training', session_name, 'results_corrected_bis.csv') # Note: in case there is another, corrected file
+    if os.path.exists(behavior_results_file_corrected):
+        behavior_results_file = behavior_results_file_corrected
+    else:
+        behavior_results_file = os.path.join(data_folder, 'Training', session_name, 'results.csv')
     if not os.path.exists(behavior_results_file):
         behavior_results_file = os.path.join(data_folder, 'Training', session_name, 'results.txt')
 
@@ -323,7 +328,8 @@ def get_raw_ephys_folder(config_file):
     raw_ephys_path = os.path.join(data_folder, 'Recording', session_name, 'Ephys')
     if not os.path.exists(raw_ephys_path):
         raw_ephys_path = os.path.join(data_folder, 'Recording', 'Ephys', session_name)
-    run_name = [f for f in os.listdir(raw_ephys_path) if 'DS' not in f][0]
+    run_name = [f for f in os.listdir(raw_ephys_path) if 'DS' not in f]
+    run_name = [f for f in run_name if mouse_name in f][0]
     raw_ephys_run_folder = os.path.join(raw_ephys_path, run_name)
 
     return raw_ephys_run_folder
@@ -581,15 +587,14 @@ def get_dlc_file_path(config_file):
         dlc_folder = os.path.join(get_analysis_root(), experimenter, "data", session_id.split("_")[0], session_id).replace("\\", "/")
         dlc_file = glob.glob(dlc_folder + "/**/*view.csv")
 
-    elif initials == 'AB':
+    elif session_id.startswith("AB"):
         experimenter = "Axel_Bisi"
         dlc_folder = os.path.join(get_analysis_root(), experimenter, "data", session_id.split("_")[0], session_id, 'Video').replace("\\", "/")
         dlc_file = glob.glob(dlc_folder + "/*filtered.h5")
 
-    elif initials == 'MH':
+    elif session_id.startswith("MH"):
         experimenter = "Myriam_Hamon"
-        dlc_folder = os.path.join(get_analysis_root(), experimenter, "data", session_id.split("_")[0], session_id,
-                                  'Video').replace("\\", "/")
+        dlc_folder = os.path.join(get_analysis_root(), experimenter, "data", session_id.split("_")[0], session_id,'Video').replace("\\", "/")
         dlc_file = glob.glob(dlc_folder + "/*filtered.h5")
 
     else:
@@ -632,6 +637,27 @@ def get_overstrike_file(config_file):
         return overstrike_path
     else:
         return None
+
+def get_overstrike_excluded_timespans(config_file):
+    with open(config_file, 'r', encoding='utf8') as stream:
+        config = yaml.safe_load(stream)
+
+    mouse_name = config['subject_metadata']['subject_id']
+    session_name = config['session_metadata']['session_id']
+
+    timespans_config_path = os.path.join(get_share_internal_root(), 'Axel_Bisi_Share', 'dataset_info', 'timespans_exclusions.yaml')
+    with open(timespans_config_path, 'r', encoding='utf8') as stream:
+        timespans_data = yaml.safe_load(stream)
+
+    timespans_by_mouse = timespans_data.get('timespans', {})
+
+    if mouse_name in timespans_by_mouse and session_name in timespans_by_mouse[mouse_name]:
+        print(f"Excluded timespans found for {session_name} session from {mouse_name}")
+        raw_spans = timespans_by_mouse[mouse_name][session_name]
+        return [tuple(span) for span in raw_spans]
+    else:
+        return None
+
 
 def get_path_to_probe_insertion_info(config_file):
     with open(config_file, 'r', encoding='utf8') as stream:

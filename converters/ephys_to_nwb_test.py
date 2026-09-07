@@ -17,7 +17,7 @@ import matplotlib.patches as mpatches
 from utils import read_sglx
 from utils import readSLGX
 from utils.ephys_converter_misc import ( NP_PROBE_TYPE_MAP,
-    build_unit_table,
+    build_unit_table, build_unit_table_original,
     build_area_table,
     create_electrode_table,
     create_simplified_unit_table,
@@ -237,7 +237,6 @@ def convert_ephys_recording(nwb_file, config_file, experimenter=None, add_ephys_
     neuron_counter = 0
 
     imec_probe_list = get_imec_probe_folder_list(config_file=config_file, experimenter=experimenter)
-
     for _, imec_folder in enumerate(imec_probe_list):
         imec_id = int(pathlib.Path(imec_folder).stem[-1])
         print(f'\nProbe IMEC{imec_id}: {imec_folder}')
@@ -359,7 +358,7 @@ def convert_ephys_recording(nwb_file, config_file, experimenter=None, add_ephys_
         # in the JSON; missing channels (above brain surface) filled
         # by nearest-neighbor (labels) and linear interpolation (coords).
         # --------------------------------------------------------
-        if mouse_name.startswith('MH') and mouse_name not in ['MH032']: #Note: keeping previous alignment ephys
+        if mouse_name.startswith('MH') and mouse_name: #Note: keeping previous alignment ephys #TODO: why MH032 exception
              imec_folder_ibl = imec_folder.replace('Axel_Bisi', 'Myriam_Hamon')
         else:
             imec_folder_ibl = imec_folder
@@ -433,7 +432,9 @@ def convert_ephys_recording(nwb_file, config_file, experimenter=None, add_ephys_
         unit_table['depth'] = unit_table['axial']
 
         # Convert non-array columns to string for NWB compatibility
-        cols_to_str = [c for c in unit_table.columns if c not in ['spike_times', 'waveform_mean', 'electrode_group', 'location']]
+        cols_to_str = [c for c in unit_table.columns if c not in ['spike_times',
+                                                                  'waveform_mean', 'waveform_mean_bc', #'waveform_mean_ks',
+                                                                        'electrode_group', 'location']]
         unit_table[cols_to_str] = unit_table[cols_to_str].astype(str)
         # print data types
         for col in cols_to_str:
@@ -472,6 +473,8 @@ def convert_ephys_recording(nwb_file, config_file, experimenter=None, add_ephys_
                 firing_rate=unit_table['firing_rate'].values[neuron_id],
                 spike_times=unit_table['spike_times'].values[neuron_id],
                 waveform_mean=unit_table['waveform_mean'].values[neuron_id],
+                waveform_mean_bc=unit_table['waveform_mean_bc'].values[neuron_id],
+                #waveform_mean_ks=unit_table['waveform_mean_ks'].values[neuron_id],
                 sampling_rate=ap_meta_data['imSampRate'],
                 duration=unit_table['duration'].values[neuron_id],
                 pt_ratio=unit_table['pt_ratio'].values[neuron_id],

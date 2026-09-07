@@ -64,11 +64,14 @@ def convert_dlc_data(nwb_file, config_file, video_timestamps, remove_extra_ts=Fa
         for name, data in side_dlc.items():
             ts = [timestamp[0] for timestamp in video_timestamps['cam1']]
             rate = np.round(1 / np.median(np.diff(ts[0:200])), 2)
+
             if 'velocity' in name:  # scale frame difference wrt. to sampling rate
                 data = data * rate
+
             if (len(ts) > len(data)) and (remove_extra_ts):
                 print(f'Find. {len(ts) - len(data)} more timestamps than dlc data points; remove extra timestamps')
                 ts = ts[:len(data)]
+
             # Add times series for bodybarts
             timeseries = TimeSeries(name=f'{name}',
                                     data=data.to_numpy(),
