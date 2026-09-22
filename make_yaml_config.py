@@ -281,8 +281,8 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     if json_config['twophoton_session']:
         main_dict.update({'two_photon_metadata': two_photon_metadata})
 
-    elif json_config['ephys_session'] and ephys_metadata['processed'] == 1:
-        main_dict.update({'ephys_metadata': ephys_metadata}) # only if ephys_metadata present, will convert ephys to NWB
+    elif json_config['extracell_ephys_session'] and ephys_metadata['processed'] == 1:
+        main_dict.update({'ephys_metadata': ephys_metadata})
 
     elif json_config['wf_session']:
         widefield_metadata = create_wf_metadata(config_path=os.path.join(input_folder, 'Training', session_id))
@@ -322,7 +322,7 @@ def create_channels_threshold_dict(experimenter, json_config, session_type):
     """
     channels_dict, threshold_dict = {}, {}
 
-    if experimenter in ['AB'] or json_config['ephys_session']: # note: this differs from SpikeGLX ephys setup
+    if experimenter in ['AB'] or json_config['extracell_ephys_session']: # note: this differs from SpikeGLX ephys setup
         lick_threshold = json_config['lick_threshold']
         channels_dict = {
             'trial_TTL': 2,

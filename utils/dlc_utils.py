@@ -1,7 +1,6 @@
 import os
 import numpy as np
 import pandas as pd
-import dlc2kinematics
 import matplotlib.pyplot as plt
 
 from scipy.signal import filtfilt, firwin
@@ -37,6 +36,7 @@ def get_dlc_dataframe(dlc_file_path):
             side_dlc = side_dlc.drop([('bodyparts', 'coords'), ('Unnamed: 0_level_0', 'Unnamed: 0_level_1'), ('split', 'Unnamed: 35_level_1')], axis=1)
             side_dlc.columns = ["_".join(a) for a in side_dlc.columns.to_flat_index()]
         elif filetype == 'h5':
+            import dlc2kinematics
             side_dlc, bodyparts, scorer = dlc2kinematics.load_data(side_path[0], smooth=True, filter_window=3, order=1)
             side_dlc.columns = side_dlc.columns.droplevel(0) # remove multiindex
             side_dlc.columns = ["_".join(a) for a in side_dlc.columns.to_flat_index()] # change column names
@@ -51,6 +51,7 @@ def get_dlc_dataframe(dlc_file_path):
             top_dlc = top_dlc.drop([('bodyparts', 'coords'), ('Unnamed: 0_level_0', 'Unnamed: 0_level_1'), ('split', 'Unnamed: 17_level_1')], axis=1)
             top_dlc.columns = ["_".join(a) for a in top_dlc.columns.to_flat_index()]
         elif filetype == 'h5':
+            import dlc2kinematics
             top_dlc, bodyparts, scorer = dlc2kinematics.load_data(top_path[0], smooth=True, filter_window=3, order=1)
             top_dlc.columns = top_dlc.columns.droplevel(0)  # remove multiindex
             top_dlc.columns = ["_".join(a) for a in top_dlc.columns.to_flat_index()]  # change column names
