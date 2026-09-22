@@ -6,7 +6,7 @@ numpy>=2.0
 opencv-python
 pandas
 Pillow
-pynwb>=3.0
+pynwb>=3.0,<4.0
 PyYAML
 ruamel.yaml
 scanimage-tiff-reader==1.4.1.3
