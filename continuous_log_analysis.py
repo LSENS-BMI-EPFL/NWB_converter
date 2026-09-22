@@ -65,7 +65,7 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
                 else:
                     print("No continuous data found for this session. No timestamps available: using trial table "
                           "information only")
-                    return None, None
+                    return None, None, None
 
             movie_files = server_paths.get_session_movie_files(config_file)
         else:
@@ -91,7 +91,7 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
                                                       t_stop=None)
     if continuous_data_dict is None:
         print("No continuous data found for this session. No timestamps available: using trial table information only")
-        return None, None
+        return None, None, None
 
     if movie_files is None:
         camera_filtering = False

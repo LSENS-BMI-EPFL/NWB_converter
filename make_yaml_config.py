@@ -442,6 +442,8 @@ def create_behaviour_metadata(experimenter, path_to_json_config):
         behaviour_metadata.update({'trial_table': 'standard',
                                    'add_raw_lick_trace': True if 'whisker' in behaviour_metadata['behaviour_type'] else False,
                                    'setup': 'Neuropixels setup 2 AI3209'})
+    else:
+        behaviour_metadata.update({'add_raw_lick_trace': False})
     return behaviour_metadata
 
 

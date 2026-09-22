@@ -18,10 +18,6 @@ import matplotlib.pyplot as plt
 from pandas import Int64Dtype
 from scipy.spatial import cKDTree
 from scipy.interpolate import interp1d
-from kilosort.data_tools import mean_waveform
-
-from kilosort import io as kilosort_io
-from kilosort.data_tools import mean_waveform, get_best_channels
 
 from utils import server_paths
 from utils.continuous_processing import detect_piezo_lick_times, plot_exposure_times
@@ -1747,6 +1743,7 @@ def get_mean_waveform_ks(cluster_id, kilosort_output, n_spikes: int = 100, best:
     (kilosort.data_tools.mean_waveform), on its best (peak) channel.
     https://kilosort.readthedocs.io/en/latest/tutorials/plotting_example.html
     """
+    from kilosort.data_tools import mean_waveform
     kilosort_output = pathlib.Path(kilosort_output)
     imec_id = kilosort_output.stem
     #binary_file = pathlib.Path(fr"M:\analysis\Axel_Bisi\data\AB152\AB152_20250127_105124\Ephys\catgt_AB152_g1\{imec_id}\preprocess\traces_cached_seg0.raw")
@@ -1824,6 +1821,8 @@ def load_kilosort_mean_waveforms(kilosort_output, cluster_info_df_sub, valid_clu
     spikes truncated at recording edges) are NaN-filled and logged rather
     than aborting the whole unit table build.
     """
+    from kilosort import io as kilosort_io
+    from kilosort.data_tools import get_best_channels
     kilosort_output = pathlib.Path(kilosort_output)
     real_cluster_ids = _real_cluster_ids(cluster_info_df_sub, valid_cluster_ids)
     n_clusters = len(real_cluster_ids)
@@ -1927,6 +1926,8 @@ def load_kilosort_mean_waveforms_v2(kilosort_output, cluster_info_df_sub, valid_
     spikes truncated at recording edges) are NaN-filled and logged rather
     than aborting the whole unit table build.
     """
+    from kilosort import io as kilosort_io
+    from kilosort.data_tools import get_best_channels
     kilosort_output = pathlib.Path(kilosort_output)
     real_cluster_ids = _real_cluster_ids(cluster_info_df_sub, valid_cluster_ids)
 

@@ -148,7 +148,7 @@ def convert_behavior_data(nwb_file, timestamps_dict, continuous_data_dict, confi
         print(f"Adding {len(data_to_store)} piezo lick times to BehavioralEvents")
 
     # Add full raw piezosensor lick trace
-    if (continuous_data_dict is not None) and (continuous_data_dict.get('lick_trace') is not None) and config_dict['behaviour_metadata']['add_raw_lick_trace']:
+    if (continuous_data_dict is not None) and (continuous_data_dict.get('lick_trace') is not None) and config_dict['behaviour_metadata'].get('add_raw_lick_trace', False):
         lick_trace_rate = 25000 if 'ephys_metadata' in config_dict else 5000 #ephys vs behavior_control acquisition
 
         # Bin raw lick trace to 1ms bins

@@ -46,13 +46,14 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True, exper
     print("Extract timestamps")
 
     if config_dict['session_metadata']['experimenter'] != 'GF':
-        timestamps_dict, _ = analyze_continuous_log(config_file=config_file,
+        timestamps_dict, _, continuous_data_dict = analyze_continuous_log(config_file=config_file,
                                                     do_plot=False, plot_start=1,
                                                     plot_stop=100, camera_filtering=False,
                                                     experimenter=experimenter)
     else:
         timestamps_dict, _ = utils_gf.infer_timestamps_dict(
             config_file=config_file)
+        continuous_data_dict = None
 
     print(" ")
     print("Open NWB file and add metadata")
@@ -61,7 +62,8 @@ def convert_data_to_nwb(config_file, output_folder, with_time_string=True, exper
     print(" ")
     print("Convert behavior data")
     convert_behavior_data(
-        nwb_file=nwb_file, timestamps_dict=timestamps_dict, config_file=config_file)
+        nwb_file=nwb_file, timestamps_dict=timestamps_dict,
+        continuous_data_dict=continuous_data_dict, config_file=config_file)
 
     if config_dict.get("two_photon_metadata") is not None:
         print(" ")
