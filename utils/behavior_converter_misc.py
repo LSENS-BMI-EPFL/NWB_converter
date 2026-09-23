@@ -1,3 +1,4 @@
+import ast
 import json
 import os
 from collections import defaultdict
@@ -631,7 +632,10 @@ def build_standard_trial_table(config_file, behavior_results_file, timestamps_di
     standard_trial_table['auditory_stim_time'] = auditory_stim_time
 
     # Light trials (optogenetic activation / whisker substitution) 
-    if config['session_metadata']['experiment_description']['light_stim_weight'] > 0: 
+    exp_desc = config['session_metadata']['experiment_description']
+    if isinstance(exp_desc, str):
+        exp_desc = ast.literal_eval(exp_desc.replace("nan", "None"))
+    if (exp_desc.get('light_stim_weight') or 0) > 0:
             print('Detected light trials in behaviour session') 
             standard_trial_table['light_stim'] = trial_table['is_light'] 
             standard_trial_table['light_stim_voltage'] = trial_table['light_amp']  # Voltage applied to LED driver, not the actual light intensity 
