@@ -45,11 +45,27 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
     # Load Suite2p data
     print('Loading suite2p data.')
     # Assumes that non-cells are already filtered out.
-    stat, is_cell, F_raw, F_neu, F0_cor, F0_raw, dff = utils_ci.get_processed_ci(suite2p_folder)
+    stat, is_cell, F_raw, F_neu, F0_cor, F0_raw, dff, spike_rate, discrete_spikes = utils_ci.get_processed_ci(suite2p_folder)
     if dff is None:
         print('Suite 2p data is not processed, no dff yet. Return')
         return
+    
+    # Infer imaging rate from timestamps and convert spike rate from number of spikes within bin to Hz
+    imaging_rate = np.round(1 / (np.median(np.diff(ci_frame_timestamps[0:200]))), 2)
+    if spike_rate is not None:
+        spike_rate = spike_rate * imaging_rate
 
+    # From discrete spikes to spike raster (Cascade discrete spikes are lists of frame index with spikes for each neuron)
+    n_cells = (is_cell[:, 0] == 1).sum()
+    if discrete_spikes is not None:
+        spike_counts = np.zeros((n_cells, dff.shape[1]), dtype=np.int16)
+        for cell, frames in enumerate(discrete_spikes):
+            frames = np.asarray(frames, dtype=int) + 1                    # correct the 1-frame offset
+            frames = frames[(frames >= 0) & (frames < dff.shape[1])]      # safety check
+            np.add.at(spike_counts[cell], frames, 1)                      # counts repeated frames correctly
+    else:
+        spike_counts = None
+    
     # Only if we are going to add data
     img_seg = ImageSegmentation(name="all_cells")
     ophys_module.add_data_interface(img_seg)
@@ -73,17 +89,19 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
     ophys_module.add_data_interface(fl)
 
     # Create rt region (dynamical table to store roi information)
-    n_cells = (is_cell[:, 0] == 1).sum()
     rt_region = ps.create_roi_table_region('all cells', region=list(np.arange(n_cells)))
 
     # List fluorescence data to save
-    data = [F_raw, F_neu, F0_cor, F0_raw, dff]
-    data_labels = ["F_raw", "F_neu", "F0_cor", "F0_raw", "dff",]
+    data = [F_raw, F_neu, F0_cor, F0_raw, dff, spike_rate, spike_counts]
+    data_labels = ["F_raw", "F_neu", "F0_cor", "F0_raw", "dff", "infered_spike_rate", "infered_spike_count"]
     descriptions = ["F_raw: raw fluorescence traces extracted by Suite2p",
                     "F_neu: neuropil fluorescence traces extracted by Suite2p",
                     'F0_cor: 5% percentile baseline computed over a 2 min rolling window of F_raw - 0.7 * F_neu.',
                     'F0_raw: 5% percentile baseline computed over a 2 min rolling window of F_raw.',
-                    'dff: Normalized fissa output, dff = (F_raw - 0.7 * F_neu) - F0_cor / F0_raw.']
+                    'dff: Normalized fissa output, dff = (F_raw - 0.7 * F_neu) - F0_cor / F0_raw.',
+                    'infered_spike_rate: the deconvolved instantaneous firing rate using Cascade (converted to Hz)',
+                    'infered_spike_count: the number of discrete spike at each imaging frame inferred using Cascade'
+                    ]
 
     # Add information about cell type (projections, ... ).
     # ####################################################

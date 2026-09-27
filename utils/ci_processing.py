@@ -98,7 +98,7 @@ def get_processed_ci(suite2p_folder):
     suite2p_folder = os.path.join(suite2p_folder, "plane0")
     if not os.path.isfile(os.path.join(suite2p_folder, "dff.npy")):
         print(f"dff file missing in {suite2p_folder}, first run 'compute_dff'")
-        return None, None, None, None, None, None, None
+        return None, None, None, None, None, None, None, None, None
     else:
         stat = np.load(os.path.join(suite2p_folder, "stat.npy"), allow_pickle=True)
         is_cell = np.load(os.path.join(suite2p_folder, "iscell.npy"), allow_pickle=True)
@@ -107,13 +107,21 @@ def get_processed_ci(suite2p_folder):
         F0_cor = np.load(os.path.join(suite2p_folder, "F0_cor.npy"), allow_pickle=True)
         F0_raw = np.load(os.path.join(suite2p_folder, "F0_raw.npy"), allow_pickle=True)
         dff = np.load(os.path.join(suite2p_folder, "dff.npy"), allow_pickle=True)
+        if os.path.isfile(os.path.join(suite2p_folder, 'spike_rate_prediction.npy')):
+            spike_rate = np.load(os.path.join(suite2p_folder, 'spike_rate_prediction.npy'), allow_pickle=True)
+        else:
+            spike_rate = None
+        if os.path.isfile(os.path.join(suite2p_folder, 'discrete_spikes.npy')):
+            discrete_spikes = np.load(os.path.join(suite2p_folder, 'discrete_spikes.npy'), allow_pickle=True)
+        else:
+            discrete_spikes = None
         # spks = np.load(os.path.join(suite2p_folder, "spks.npy"), allow_pickle=True)
         # if os.path.isfile(os.path.join(suite2p_folder, "separated.npz")):
         #     fissa_output = np.load(os.path.join(suite2p_folder, "separated.npz"), allow_pickle=True)
         # else:
         #     fissa_output = None
 
-    return stat, is_cell, F_raw, F_neu, F0_cor, F0_raw, dff
+    return stat, is_cell, F_raw, F_neu, F0_cor, F0_raw, dff, spike_rate, discrete_spikes
 
 
 def get_roi_labels(rois_label_folder, default_info_dict=None):
