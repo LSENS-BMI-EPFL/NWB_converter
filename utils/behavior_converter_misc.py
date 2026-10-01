@@ -278,6 +278,10 @@ def get_context_timestamps_dict(timestamps_dict, nwb_trial_table):
             continue
         if len(np.unique(data_table.context.values[:])) > 1:
             print(f"Seems like there is more than one context trial in this {context_bloc} block")
+            print(f"Bloc start: {on_time}, bloc stop: {off_time}")
+            print(f"n trials : {len(data_table)}")
+            print(f"trial starts : {np.array(data_table.start_time)}")
+            print(f"Context : {np.array(data_table.context)}")
         rewarded_context.append(data_table.context.values[0])
         context_sound.append(data_table.context_background.values[0])
 

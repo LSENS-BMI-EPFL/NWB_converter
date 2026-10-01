@@ -652,7 +652,102 @@ def detect_ci_pause(ci_frame_times):
         return has_pause, None, None
 
 
-def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scanimage_dict=None, filter_cameras=False, wf_file=False):
+def align_trial_ttl_to_results(on_off_timestamps, results_table, early_lick_iti=0.4, match_tol=0.5):
+    """
+    Pair trial TTL (on, off) periods with the rows of the behaviour results table using the logged 'trial_time'
+    instead of their order, so that a missing / extra TTL does not shift all following trials.
+    A TTL preceded by a short ITI is only considered an early-lick reset if it is not claimed by any results
+    table row AND the table confirms it (early_lick == 1, or more TTLs than table rows).
+    Args:
+        on_off_timestamps: list of (on, off) trial TTL timestamps
+        results_table: behaviour results table (must contain 'trial_time')
+        early_lick_iti: ITI (s) below which a TTL is a candidate early-lick reset
+        match_tol: max distance (s) between offset-corrected trial_time and TTL onset to accept a match
+
+    Returns:
+        List of (on, off) tuples, one per results table row (trailing unmatched rows are left out so that downstream
+        code truncates the table as before), or None if alignment is not possible.
+    """
+    if len(on_off_timestamps) == 0 or 'trial_time' not in results_table.columns:
+        return None
+
+    on_off = [tuple(t) for t in on_off_timestamps]
+    ttl_on = np.array([t[0] for t in on_off])
+    trial_time = results_table['trial_time'].values.astype(float)
+    n_trials, n_ttl = len(trial_time), len(ttl_on)
+
+    def nearest_ttl(times):
+        idx = np.clip(np.searchsorted(ttl_on, times), 1, n_ttl - 1) if n_ttl > 1 else np.zeros(len(times), dtype=int)
+        if n_ttl > 1:
+            idx = np.where(np.abs(ttl_on[idx - 1] - times) <= np.abs(ttl_on[idx] - times), idx - 1, idx)
+        return idx
+
+    # Constant offset between behaviour software clock and TTL clock (robust to a few mismatches)
+    offset = np.median(trial_time - ttl_on[nearest_ttl(trial_time)])
+    corrected_time = trial_time - offset
+
+    # Match each table row to its nearest TTL onset
+    ttl_idx = nearest_ttl(corrected_time)
+    distance = np.abs(ttl_on[ttl_idx] - corrected_time)
+    matched = distance < match_tol
+    used = set()
+    for row in range(n_trials):
+        if matched[row]:
+            if ttl_idx[row] in used:
+                matched[row] = False
+            else:
+                used.add(ttl_idx[row])
+    print(f"Trial TTL / results table alignment: offset {np.round(offset, 3)} s, "
+          f"max distance {np.round(distance[matched].max(), 3) if matched.any() else np.nan} s, "
+          f"{matched.sum()}/{n_trials} trials matched to {n_ttl} TTLs")
+
+    if matched.sum() < 0.5 * n_trials:
+        print("Alignment of trial TTLs to results table failed (less than half the trials matched)")
+        return None
+
+    # Check short-ITI TTLs (candidate early-lick resets) against the results table
+    has_early_lick_col = 'early_lick' in results_table.columns
+    ttl_to_row = {ttl_idx[row]: row for row in range(n_trials) if matched[row]}
+    iti = np.array([on_off[i + 1][0] - on_off[i][1] for i in range(n_ttl - 1)])
+    for i in np.where(iti < early_lick_iti)[0]:
+        if (i + 1) in ttl_to_row:
+            print(f"Short ITI ({np.round(iti[i], 3)} s) before TTL at {np.round(ttl_on[i + 1], 2)} s, but it matches "
+                  f"trial {ttl_to_row[i + 1]} of results table: not an early lick, keeping it")
+            continue
+        prev_row = ttl_to_row.get(i)
+        confirmed = (n_ttl > n_trials) or (has_early_lick_col and prev_row is not None
+                                            and results_table['early_lick'].values[prev_row] == 1)
+        if confirmed:
+            print(f"Early lick reset detected at {np.round(ttl_on[i + 1], 2)} s, removing extra TTL")
+        else:
+            print(f"Warning: short ITI TTL at {np.round(ttl_on[i + 1], 2)} s not confirmed as early lick by results "
+                  f"table and matching no trial, removing it")
+
+    # Report other unclaimed TTLs
+    unclaimed = sorted(set(range(n_ttl)) - set(ttl_to_row.keys()) - set(np.where(iti < early_lick_iti)[0] + 1))
+    if len(unclaimed) > 0:
+        print(f"Warning: {len(unclaimed)} trial TTL(s) not matching any results table trial, removed: "
+              f"{np.round(ttl_on[unclaimed], 2)}")
+
+    # Build aligned timestamps; trailing unmatched rows are left out (session stopped before last TTL)
+    last_matched = np.where(matched)[0][-1]
+    median_duration = np.median([on_off[i][1] - on_off[i][0] for i in ttl_to_row.keys()])
+    aligned = []
+    for row in range(last_matched + 1):
+        if matched[row]:
+            aligned.append(on_off[ttl_idx[row]])
+        else:
+            print(f"Warning: no trial TTL found for trial {row} (trial_time {np.round(trial_time[row], 2)} s), "
+                  f"using results table time instead")
+            aligned.append((corrected_time[row], corrected_time[row] + median_duration))
+    if last_matched + 1 < n_trials:
+        print(f"{n_trials - last_matched - 1} last trial(s) of results table have no TTL")
+
+    return aligned
+
+
+def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scanimage_dict=None, filter_cameras=False, wf_file=False,
+                       results_table=None):
     """
     Extract timestamps from continuous logging data.
     Args:
@@ -661,6 +756,7 @@ def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scan
         ni_session_sr: Sampling rate of session
         scanimage_dict: Dictionary with ScanImage information
         filter_cameras: Boolean, whether to filter camera timestamps
+        results_table: Optional behaviour results table, used to align trial TTLs to trials by time
 
     Returns:
 
@@ -719,6 +815,7 @@ def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scan
                 print(f"{n_pauses} pauses detected in CI recording")
                 print(f"CI pauses times (s): {ci_frame_times[pause_frame_index]}")
                 # Remove the last 2 detected frames at each pause
+                # TODO : remove -1 or -2
                 false_ci_fame_times = []
                 for pause_index in pause_frame_index:
                     false_ci_fame_times.extend(np.arange(pause_index - 1, pause_index + 1))
@@ -726,8 +823,8 @@ def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scan
                                          for i in range(len(ci_frame_times))]
                 filtered_ci_frame_times = ci_frame_times[ci_timestamps_to_keep]
                 # Remove the 2 last detected frames
-                # Todo : always true so far but check every time
-                end_filtered_ci_frame_times = filtered_ci_frame_times[0: -2]
+                # Todo : always true so far but check every time this could be either -1 or -2
+                end_filtered_ci_frame_times = filtered_ci_frame_times[0: -1]
                 # Save this
                 timestamps_dict[key] = end_filtered_ci_frame_times
                 n_frames_dict[key] = len(end_filtered_ci_frame_times)
@@ -773,7 +870,19 @@ def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scan
                     n_frames_dict.update({f"{key}_info": {"last_exposure_cut":True}})
 
 
-            if key in ["trial_TTL"]:
+            aligned_on_off_timestamps = None
+            if key in ["trial_TTL"] and results_table is not None:
+                print('Checking trial TTL content (aligned to results table):')
+                ttl_to_align = on_off_timestamps[0: -1] if binary_data[-1] == 1 else on_off_timestamps
+                if binary_data[-1] == 1:
+                    print(f"Session likely stopped before end of last {key}, cut the last detected trial TTL")
+                aligned_on_off_timestamps = align_trial_ttl_to_results(ttl_to_align, results_table)
+                if aligned_on_off_timestamps is not None:
+                    on_off_timestamps = aligned_on_off_timestamps
+                else:
+                    print("Falling back to trial TTL order with early lick filtering, check trial timestamps")
+
+            if key in ["trial_TTL"] and aligned_on_off_timestamps is None:
                 print('Checking trial TTL content:')
                 # Detection of early licks (whether there is a baseline window or not)
                 iti = np.array([on_off_timestamps[i+1][0] - on_off_timestamps[i][1]
@@ -788,10 +897,10 @@ def extract_timestamps(continuous_data_dict, threshold_dict, ni_session_sr, scan
                     filtered_on_off_timestamps = np.delete(on_off_timestamps, on_off_to_remove, axis=0)
                     on_off_timestamps = list(filtered_on_off_timestamps)
 
-            if key in ["trial_TTL"] and binary_data[-1] == 1:
-                print(f"Session likely stopped before end of last {key}, cut the last detected trial TTL")
-                filtered_on_off_timestamps = on_off_timestamps[0: -1]  # remove last timestamp that signals session end
-                on_off_timestamps = filtered_on_off_timestamps
+                if binary_data[-1] == 1:
+                    print(f"Session likely stopped before end of last {key}, cut the last detected trial TTL")
+                    filtered_on_off_timestamps = on_off_timestamps[0: -1]  # remove last timestamp that signals session end
+                    on_off_timestamps = filtered_on_off_timestamps
 
             if key in ["widefield"] and wf_file is not None:
                 import imageio as iio

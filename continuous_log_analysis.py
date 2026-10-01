@@ -3,6 +3,7 @@ import os
 import pathlib
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+import pandas as pd
 #mpl.use('QtAgg')
 import yaml
 
@@ -96,11 +97,20 @@ def analyze_continuous_log(config_file, do_plot=False, plot_start=None, plot_sto
     if movie_files is None:
         camera_filtering = False
 
+    # Load behaviour results table to align trial TTLs to trials by time (not for ephys: log and imec
+    # trial TTLs are matched by index downstream)
+    results_table = None
+    if __name__ != "__main__" and 'ephys_metadata' not in config:
+        behavior_results_file = server_paths.get_behavior_results_file(config_file)
+        if os.path.splitext(behavior_results_file)[1] in ['.csv', '.txt'] and os.path.exists(behavior_results_file):
+            results_table = pd.read_csv(behavior_results_file, sep=None, engine='python')
+
     timestamps_dict, n_frames_dict = extract_timestamps(continuous_data_dict, threshold_dict,
                                                         ni_session_sr=5000,
                                                         scanimage_dict=scanimage_dict,
                                                         filter_cameras=camera_filtering,
-                                                        wf_file=mj2_file[0] if mj2_file is not None else None)
+                                                        wf_file=mj2_file[0] if mj2_file is not None else None,
+                                                        results_table=results_table)
 
     # Optionally plot log_continuous.bin data for inspection, given a start and stop time
     if do_plot:
