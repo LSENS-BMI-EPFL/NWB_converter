@@ -1,6 +1,7 @@
 import os
 import yaml
 import numpy as np
+from pynwb.epoch import TimeIntervals
 from pynwb.ophys import Fluorescence, ImageSegmentation, RoiResponseSeries
 
 
@@ -9,11 +10,35 @@ import utils.ci_processing as utils_ci
 import utils.server_paths as server_paths
 
 
-def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
+def add_motion_artifacts(nwb_file, artifact_frames, ci_frame_timestamps):
+    """
+    Add motion artifacts (artifact_frames.npy from compute_dff_updated.py, one bool per frame) as a
+    'motion_artifacts' time intervals table. Nothing is added if artifact_frames is None or has no artifact.
+    """
+    if artifact_frames is None or not np.any(artifact_frames):
+        return
+    timestamps = np.asarray(ci_frame_timestamps)
+    mask = np.asarray(artifact_frames, dtype=bool)[:len(timestamps)]
+    edges = np.diff(np.r_[0, mask.astype(int), 0])
+    starts, stops = np.flatnonzero(edges == 1), np.flatnonzero(edges == -1) - 1  # first / last artifact frame
+    motion_artifacts = TimeIntervals(name='motion_artifacts',
+                                     description='Motion artifacts: suite2p bad frames merged and padded '
+                                                 '(compute_dff_updated.py). Excluded from F0 and set to NaN in '
+                                                 'F_cor_masked / dff_masked.')
+    for start, stop in zip(starts, stops):
+        motion_artifacts.add_row(start_time=float(timestamps[start]), stop_time=float(timestamps[stop]))
+    nwb_file.add_time_intervals(motion_artifacts)
+    print(f'Add {len(starts)} motion artifact intervals.')
+
+
+def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps,
+                         cascade_model_name='GC8s_EXC_30Hz_smoothing50ms_causalkernel'):
     """
     :param nwb_file: nwb file
     :param config_file : general config file allowing to reconstruct path to suite2p folder
     :param ci_frame_timestamps: timestamps of each imaging frame obtained from analyse of continuous log
+    :param cascade_model_name: Cascade model whose outputs are read from plane0/<cascade_model_name>/
+                               (falls back to plane0/ for older sessions)
     :return:
     """
 
@@ -45,11 +70,13 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
     # Load Suite2p data
     print('Loading suite2p data.')
     # Assumes that non-cells are already filtered out.
-    stat, is_cell, F_raw, F_neu, F0_cor, F0_raw, dff, spike_rate, discrete_spikes = utils_ci.get_processed_ci(suite2p_folder)
-    if dff is None:
+    ci = utils_ci.get_processed_ci(suite2p_folder, cascade_model_name=cascade_model_name)
+    if ci is None:
         print('Suite 2p data is not processed, no dff yet. Return')
         return
-    
+    stat, is_cell, dff = ci['stat'], ci['iscell'], ci['dff']
+    spike_rate, discrete_spikes = ci['spike_rate'], ci['discrete_spikes']
+
     # Infer imaging rate from timestamps and convert spike rate from number of spikes within bin to Hz
     imaging_rate = np.round(1 / (np.median(np.diff(ci_frame_timestamps[0:200]))), 2)
     if spike_rate is not None:
@@ -65,7 +92,9 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
             np.add.at(spike_counts[cell], frames, 1)                      # counts repeated frames correctly
     else:
         spike_counts = None
-    
+
+    add_motion_artifacts(nwb_file, ci['artifact_frames'], ci_frame_timestamps)
+
     # Only if we are going to add data
     img_seg = ImageSegmentation(name="all_cells")
     ophys_module.add_data_interface(img_seg)
@@ -91,17 +120,30 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
     # Create rt region (dynamical table to store roi information)
     rt_region = ps.create_roi_table_region('all cells', region=list(np.arange(n_cells)))
 
-    # List fluorescence data to save
-    data = [F_raw, F_neu, F0_cor, F0_raw, dff, spike_rate, spike_counts]
-    data_labels = ["F_raw", "F_neu", "F0_cor", "F0_raw", "dff", "infered_spike_rate", "infered_spike_count"]
-    descriptions = ["F_raw: raw fluorescence traces extracted by Suite2p",
-                    "F_neu: neuropil fluorescence traces extracted by Suite2p",
-                    'F0_cor: 5% percentile baseline computed over a 2 min rolling window of F_raw - 0.7 * F_neu.',
-                    'F0_raw: 5% percentile baseline computed over a 2 min rolling window of F_raw.',
-                    'dff: Normalized fissa output, dff = (F_raw - 0.7 * F_neu) - F0_cor / F0_raw.',
-                    'infered_spike_rate: the deconvolved instantaneous firing rate using Cascade (converted to Hz)',
-                    'infered_spike_count: the number of discrete spike at each imaging frame inferred using Cascade'
-                    ]
+    # List fluorescence data to save. Series whose file is missing (None) are skipped below.
+    # compute_dff_updated.py writes F_cor and F0, compute_dff.py (older sessions) writes F0_cor and F0_raw.
+    if ci['F0'] is not None:
+        dff_series = [
+            (ci['F_cor'], "F_cor", "F_cor: neuropil-corrected fluorescence, F_raw - 0.7 * F_neu (not clipped)."),
+            (ci['F0'], "F0", "F0: baseline of F_cor, rolling low percentile after gaussian smoothing, "
+                             "motion artifact frames excluded (compute_dff_updated.py)."),
+            (dff, "dff", "dff: (F_cor - F0) / F0, motion artifact frames kept (no NaN)."),
+            (ci['F_cor_masked'], "F_cor_masked", "F_cor_masked: F_cor with motion artifact frames set to NaN."),
+            (ci['dff_masked'], "dff_masked", "dff_masked: dff with motion artifact frames set to NaN."),
+        ]
+    else:
+        dff_series = [
+            (ci['F0_cor'], "F0_cor", 'F0_cor: 5% percentile baseline computed over a 2 min rolling window of F_raw - 0.7 * F_neu.'),
+            (ci['F0_raw'], "F0_raw", 'F0_raw: 5% percentile baseline computed over a 2 min rolling window of F_raw.'),
+            (dff, "dff", 'dff: Normalized fissa output, dff = (F_raw - 0.7 * F_neu) - F0_cor / F0_raw.'),
+        ]
+    series = [(ci['F_raw'], "F_raw", "F_raw: raw fluorescence traces extracted by Suite2p"),
+              (ci['F_neu'], "F_neu", "F_neu: neuropil fluorescence traces extracted by Suite2p")] + dff_series + [
+              (spike_rate, "infered_spike_rate",
+               'infered_spike_rate: the deconvolved instantaneous firing rate using Cascade (converted to Hz)'),
+              (spike_counts, "infered_spike_count",
+               'infered_spike_count: the number of discrete spike at each imaging frame inferred using Cascade')]
+    data, data_labels, descriptions = zip(*series)
 
     # Add information about cell type (projections, ... ).
     # ####################################################
@@ -149,18 +191,25 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps):
         rt_region.table.add_column(name='markers', data=cell_markers, description='anatomical marker of the cells')
         rt_region.table.add_column(name='cell_type', data=cell_type_names, description='type of the cells')
     
-    # Add suite2p SNR to the dynamic roi table as custom column.
-    # ##########################################################
-    
-    snr_list = []
-    for cell in np.arange(len(stat)):
-        if is_cell[cell][0] == 0:
-            continue
-        if ('snr' in stat[cell].keys()) and (stat[cell]['snr'] is not None):
-            snr_list.append(stat[cell]['snr'])
-        else:
-            snr_list.append('nd')
-    rt_region.table.add_column(name='s2p_snr', data=snr_list, description='Suite2p SNR')
+    # Add SNR (snr.npy from compute_dff_updated.py, one value per cell) to the dynamic roi table as custom column.
+    # ###########################################################################################################
+
+    if ci['snr'] is not None and len(ci['snr']) == n_cells:
+        rt_region.table.add_column(name='snr', data=list(ci['snr']),
+                                   description='SNR: 99.9th percentile of dff / frame noise of dff '
+                                               '(compute_dff_updated.py)')
+    else:
+        print('No snr.npy matching the number of cells, SNR column not added.')
+
+    # Add neuropil contamination (contamination.npy from compute_dff_updated.py, one value per cell).
+    if ci['contamination'] is not None and len(ci['contamination']) == n_cells:
+        rt_region.table.add_column(name='contamination', data=list(ci['contamination']),
+                                   description='Neuropil contamination: neuropil_ratio * neuropil_f_rho, with '
+                                               'neuropil_ratio = 0.7 * median(F_neu) / median(F_raw) and '
+                                               'neuropil_f_rho = correlation of band-passed F_raw and F_neu. '
+                                               '~0: clean, > ~0.8: mostly neuropil (compute_dff_updated.py)')
+    else:
+        print('No contamination.npy matching the number of cells, contamination column not added.')
 
     
     # Add fluorescence data to roi response series.
