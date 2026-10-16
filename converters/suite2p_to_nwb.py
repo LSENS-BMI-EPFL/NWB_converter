@@ -191,25 +191,25 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps,
         rt_region.table.add_column(name='markers', data=cell_markers, description='anatomical marker of the cells')
         rt_region.table.add_column(name='cell_type', data=cell_type_names, description='type of the cells')
     
-    # Add SNR (snr.npy from compute_dff_updated.py, one value per cell) to the dynamic roi table as custom column.
-    # ###########################################################################################################
+    # Add per-cell QC metrics (<name>.npy from compute_dff_updated.py, one value per cell) to the dynamic roi table.
+    # #############################################################################################################
 
-    if ci['snr'] is not None and len(ci['snr']) == n_cells:
-        rt_region.table.add_column(name='snr', data=list(ci['snr']),
-                                   description='SNR: 99.9th percentile of dff / frame noise of dff '
-                                               '(compute_dff_updated.py)')
-    else:
-        print('No snr.npy matching the number of cells, SNR column not added.')
-
-    # Add neuropil contamination (contamination.npy from compute_dff_updated.py, one value per cell).
-    if ci['contamination'] is not None and len(ci['contamination']) == n_cells:
-        rt_region.table.add_column(name='contamination', data=list(ci['contamination']),
-                                   description='Neuropil contamination: neuropil_ratio * neuropil_f_rho, with '
-                                               'neuropil_ratio = 0.7 * median(F_neu) / median(F_raw) and '
-                                               'neuropil_f_rho = correlation of band-passed F_raw and F_neu. '
-                                               '~0: clean, > ~0.8: mostly neuropil (compute_dff_updated.py)')
-    else:
-        print('No contamination.npy matching the number of cells, contamination column not added.')
+    qc_columns = [
+        ('snr', 'SNR: 99.9th percentile of dff / frame noise of dff.'),
+        ('neuropil_ratio', 'Share of the baseline removed by neuropil subtraction: 0.7 * median(F_neu) / '
+                           'median(F_raw). > ~0.8: F_cor baseline collapsed, dff unreliable.'),
+        ('neuropil_f_rho', 'Correlation of F_raw and F_neu fluctuations, band-passed 0.5-30 s.'),
+        ('contamination', 'Neuropil contamination: neuropil_ratio * neuropil_f_rho. ~0: clean, > ~0.8: mostly '
+                          'neuropil. Negative when neuropil_f_rho < 0, check neuropil_ratio too.'),
+        ('motion_r', 'Correlation of dff with the registration correlation corrXY, drift removed. Large |r| '
+                     '(either sign): dff follows motion frame by frame (motion artifact).'),
+    ]
+    for name, description in qc_columns:
+        if ci[name] is not None and len(ci[name]) == n_cells:
+            rt_region.table.add_column(name=name, data=list(ci[name]),
+                                       description=f'{description} (compute_dff_updated.py)')
+        else:
+            print(f'No {name}.npy matching the number of cells, {name} column not added.')
 
     
     # Add fluorescence data to roi response series.
