@@ -111,7 +111,8 @@ def get_processed_ci(suite2p_folder, cascade_model_name='GC8s_EXC_30Hz_smoothing
         return np.load(path, allow_pickle=True) if os.path.isfile(path) else None
 
     traces = ["F_raw", "F_neu", "F_cor", "F_cor_masked", "F0", "F0_cor", "F0_raw", "dff", "dff_masked"]
-    qc = ["artifact_frames", "snr", "neuropil_ratio", "neuropil_f_rho", "contamination", "motion_r"]
+    qc = ["artifact_frames", "snr", "neuropil_ratio", "neuropil_ratio_max", "neuropil_f_rho", "contamination",
+          "motion_r"]
     ci = {name: load(f"{name}.npy") for name in ["stat", "iscell"] + traces + qc}
 
     cascade_subfolder = ""

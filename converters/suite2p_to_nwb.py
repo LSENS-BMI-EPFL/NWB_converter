@@ -22,9 +22,11 @@ def add_motion_artifacts(nwb_file, artifact_frames, ci_frame_timestamps):
     edges = np.diff(np.r_[0, mask.astype(int), 0])
     starts, stops = np.flatnonzero(edges == 1), np.flatnonzero(edges == -1) - 1  # first / last artifact frame
     motion_artifacts = TimeIntervals(name='motion_artifacts',
-                                     description='Motion artifacts: suite2p bad frames merged and padded '
-                                                 '(compute_dff_updated.py). Excluded from F0 and set to NaN in '
-                                                 'F_cor_masked / dff_masked.')
+                                     description='Artifact periods (compute_dff_updated.py): motion, i.e. frames whose '
+                                                 'registration correlation corrXY drops below 0.7 x its rolling '
+                                                 'median (merged, padded), and the F0 lag around sudden whole-FOV '
+                                                 'brightness steps (e.g. immersion water refilled). Excluded from F0 '
+                                                 'and set to NaN in F_cor_masked / dff_masked.')
     for start, stop in zip(starts, stops):
         motion_artifacts.add_row(start_time=float(timestamps[start]), stop_time=float(timestamps[stop]))
     nwb_file.add_time_intervals(motion_artifacts)
@@ -198,6 +200,8 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps,
         ('snr', 'SNR: 99.9th percentile of dff / frame noise of dff.'),
         ('neuropil_ratio', 'Share of the baseline removed by neuropil subtraction: 0.7 * median(F_neu) / '
                            'median(F_raw). > ~0.8: F_cor baseline collapsed, dff unreliable.'),
+        ('neuropil_ratio_max', 'neuropil_ratio in the worst 60 s window. > ~0.8: F_cor baseline collapses for at '
+                               'least a minute (e.g. its neuropil ring brightens), dff explodes there.'),
         ('neuropil_f_rho', 'Correlation of F_raw and F_neu fluctuations, band-passed 0.5-30 s.'),
         ('contamination', 'Neuropil contamination: neuropil_ratio * neuropil_f_rho. ~0: clean, > ~0.8: mostly '
                           'neuropil. Negative when neuropil_f_rho < 0, check neuropil_ratio too.'),
