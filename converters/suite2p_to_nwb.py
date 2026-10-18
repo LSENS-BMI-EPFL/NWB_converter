@@ -208,6 +208,7 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps,
         ('motion_r', 'Correlation of dff with the registration correlation corrXY, drift removed. Large |r| '
                      '(either sign): dff follows motion frame by frame (motion artifact).'),
     ]
+    print(f'Add suite2p QC metrics custom columns to roi table: {[name for name, _ in qc_columns]}')
     for name, description in qc_columns:
         if ci[name] is not None and len(ci[name]) == n_cells:
             rt_region.table.add_column(name=name, data=list(ci[name]),
