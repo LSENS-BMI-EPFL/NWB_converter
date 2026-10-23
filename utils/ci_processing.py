@@ -120,6 +120,7 @@ def get_processed_ci(suite2p_folder, cascade_model_name='GC8s_EXC_30Hz_smoothing
         cascade_subfolder = cascade_model_name
     ci["spike_rate"] = load(cascade_subfolder, "spike_rate_prediction.npy")
     ci["discrete_spikes"] = load(cascade_subfolder, "discrete_spikes.npy")
+    ci["min_detectable_spikes"] = load(cascade_subfolder, "min_detectable_spikes.npy")
     if ci["spike_rate"] is not None or ci["discrete_spikes"] is not None:
         print(f"Cascade outputs from {os.path.join(suite2p_folder, cascade_subfolder)}")
     else:

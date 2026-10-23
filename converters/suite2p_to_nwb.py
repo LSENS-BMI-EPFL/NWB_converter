@@ -197,7 +197,8 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps,
     # #############################################################################################################
 
     qc_columns = [
-        ('snr', 'SNR: 99.9th percentile of dff / frame noise of dff.'),
+        ('snr', 'SNR: 99th percentile of dff / frame noise of dff (artifact and collapsed-baseline frames '
+                'excluded).'),
         ('neuropil_ratio', 'Share of the baseline removed by neuropil subtraction: 0.7 * median(F_neu) / '
                            'median(F_raw). > ~0.8: F_cor baseline collapsed, dff unreliable.'),
         ('neuropil_ratio_max', 'neuropil_ratio in the worst 60 s window. > ~0.8: F_cor baseline collapses for at '
@@ -207,12 +208,15 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps,
                           'neuropil. Negative when neuropil_f_rho < 0, check neuropil_ratio too.'),
         ('motion_r', 'Correlation of dff with the registration correlation corrXY, drift removed. Large |r| '
                      '(either sign): dff follows motion frame by frame (motion artifact).'),
+        ('min_detectable_spikes', 'Smallest spike count whose isolated-event peak dff (cell average, >= 3 events) '
+                                  'reaches 3 x noise_rel. 1: single spikes detectable. NaN: not reached for the '
+                                  'measured counts, or cell excluded from the Cascade QC (run_cascade_inference.py).'),
     ]
     print(f'Add suite2p QC metrics custom columns to roi table: {[name for name, _ in qc_columns]}')
     for name, description in qc_columns:
         if ci[name] is not None and len(ci[name]) == n_cells:
-            rt_region.table.add_column(name=name, data=list(ci[name]),
-                                       description=f'{description} (compute_dff_updated.py)')
+            source = '' if name == 'min_detectable_spikes' else ' (compute_dff_updated.py)'
+            rt_region.table.add_column(name=name, data=list(ci[name]), description=f'{description}{source}')
         else:
             print(f'No {name}.npy matching the number of cells, {name} column not added.')
 
