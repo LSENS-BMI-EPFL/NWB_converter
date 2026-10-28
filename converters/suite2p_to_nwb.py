@@ -89,7 +89,7 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps,
     if discrete_spikes is not None:
         spike_counts = np.zeros((n_cells, dff.shape[1]), dtype=np.int16)
         for cell, frames in enumerate(discrete_spikes):
-            frames = np.asarray(frames, dtype=int) + 1                    # correct the 1-frame offset
+            frames = np.asarray(frames, dtype=int)                        # CASCADE >= Oct 2026 (issue #90): no offset
             frames = frames[(frames >= 0) & (frames < dff.shape[1])]      # safety check
             np.add.at(spike_counts[cell], frames, 1)                      # counts repeated frames correctly
     else:
