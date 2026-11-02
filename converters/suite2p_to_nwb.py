@@ -211,6 +211,7 @@ def convert_suite2p_data(nwb_file, config_file, ci_frame_timestamps,
         ('min_detectable_spikes', 'Smallest spike count whose isolated-event peak dff (cell average, >= 3 events) '
                                   'reaches 3 x noise_rel. 1: single spikes detectable. NaN: not reached for the '
                                   'measured counts, or cell excluded from the Cascade QC (run_cascade_inference.py).'),
+        ('good_cells', 'True if |motion_r| < 0.5, neuropil_ratio_max < 0.8 and snr > 3 (False if any metric is NaN).'),
     ]
     print(f'Add suite2p QC metrics custom columns to roi table: {[name for name, _ in qc_columns]}')
     for name, description in qc_columns:

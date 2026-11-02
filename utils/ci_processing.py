@@ -114,7 +114,13 @@ def get_processed_ci(suite2p_folder, cascade_model_name='GC8s_EXC_30Hz_smoothing
     qc = ["artifact_frames", "snr", "neuropil_ratio", "neuropil_ratio_max", "neuropil_f_rho", "contamination",
           "motion_r"]
     ci = {name: load(f"{name}.npy") for name in ["stat", "iscell"] + traces + qc}
-
+    if all(ci[name] is not None for name in ["motion_r", "neuropil_ratio_max", "snr"]):
+        ci["good_cells"] = ((np.abs(ci["motion_r"]) < 0.5)
+                            & (ci["neuropil_ratio_max"] < 0.8)
+                            & (ci["snr"] > 3))
+    else:
+        ci["good_cells"] = None
+    
     cascade_subfolder = ""
     if cascade_model_name and os.path.isdir(os.path.join(suite2p_folder, cascade_model_name)):
         cascade_subfolder = cascade_model_name
