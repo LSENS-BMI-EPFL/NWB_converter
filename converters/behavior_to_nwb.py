@@ -337,6 +337,14 @@ def convert_behavior_data(nwb_file, timestamps_dict, continuous_data_dict, confi
             else:
                 movie_timestamps = [on_off_timestamps[i][0] for i in range(video_length)]
 
+            # Converted on haas (Linux, 2026-11-11): the video link keeps the Windows server path, as in the NWBs
+            # converted on Windows (a '/' is not allowed in an NWB object name).
+            if server_paths.ON_HAAS:
+                def to_windows(path):
+                    return path.replace(server_paths.get_data_root(),
+                                        r'\\sv-nas1.rcp.epfl.ch\Petersen-Lab\data').replace('/', '\\')
+                movie_nwb_file_name, movie = to_windows(movie_nwb_file_name), to_windows(movie)
+
             behavior_external_file = ImageSeries(
                 name=movie_nwb_file_name,
                 description="Behavior video of animal in the task",
