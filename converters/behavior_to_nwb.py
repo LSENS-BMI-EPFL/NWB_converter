@@ -294,6 +294,17 @@ def convert_behavior_data(nwb_file, timestamps_dict, continuous_data_dict, confi
 
     if movie_files is not None:
         print("Adding behavior movies as external file to NWB file")
+
+        # Get information about all videos first (needed to compare the 2 cameras)
+        movie_info = {}
+        for movie in movie_files:
+            if os.path.exists(movie):
+                print("Check length and frame rate")
+                movie_info[movie] = continuous_processing.read_behavior_avi_movie(movie_file=movie)
+        # Both videos have the same number of frames: frames triggered after logging stopped
+        # (camera pulse generator stopped after logging session) are extra frames at the end of both videos
+        same_length_videos = len(movie_info) == 2 and len(set(info[0] for info in movie_info.values())) == 1
+
         for movie_index, movie in enumerate(movie_files):
 
             # If movie file does not exist, skip
@@ -301,9 +312,7 @@ def convert_behavior_data(nwb_file, timestamps_dict, continuous_data_dict, confi
                 print(f"File not found, do next video")
                 continue
 
-            # Get information about video
-            print("Check length and frame rate")
-            video_length, video_frame_rate = continuous_processing.read_behavior_avi_movie(movie_file=movie)
+            video_length, video_frame_rate = movie_info[movie]
             print(f"Video length: {video_length}, frame rate: {video_frame_rate}")
 
             #  Check number of frames in video vs. number of timestamps
@@ -327,7 +336,17 @@ def convert_behavior_data(nwb_file, timestamps_dict, continuous_data_dict, confi
 
             # Get frame timestamps
             on_off_timestamps = timestamps_dict[cam_key]
-            if np.abs(len(on_off_timestamps) - video_length) > 2 and subject_id!='AB151':
+            n_extra_frames = video_length - len(on_off_timestamps)
+            if same_length_videos and 2 < n_extra_frames <= round(video_frame_rate):
+                print(f"Video has {n_extra_frames} more frames ({video_length}) than detected frames "
+                      f"({len(on_off_timestamps)}), same number of frames in both videos: camera likely "
+                      f"stopped after logging, extrapolate timestamps of the last {n_extra_frames} frames")
+                movie_timestamps = [on_off_timestamps[i][0] for i in range(len(on_off_timestamps))]
+                # Extra frames are at the end: extend timestamps with the median inter-frame interval
+                frame_interval = np.median(np.diff(movie_timestamps))
+                extra_timestamps = movie_timestamps[-1] + frame_interval * np.arange(1, n_extra_frames + 1)
+                movie_timestamps.extend(extra_timestamps.tolist())
+            elif np.abs(len(on_off_timestamps) - video_length) > 2 and subject_id!='AB151':
                 print(f"Difference in number of frames ({video_length}) vs detected frames ({len(on_off_timestamps)}) "
                       f"is {len(on_off_timestamps) - video_length} (larger than 2), do next video")
                 continue

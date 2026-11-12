@@ -93,27 +93,46 @@ def add_suite2p_roi(ps, stat, is_cell, dim_x, dim_y):
         ps.add_roi(pixel_mask=pix_mask, image_mask=image_mask)
 
 
-def get_processed_ci(suite2p_folder):
-
+def get_processed_ci(suite2p_folder, cascade_model_name='GC8s_EXC_30Hz_smoothing50ms_causalkernel'):
+    """
+    Load suite2p, dff and Cascade outputs of <suite2p_folder>/plane0 into a dict, None if dff.npy is missing.
+    Handles both dff versions: compute_dff.py (F0_cor, F0_raw) and compute_dff_updated.py (F_cor, F0).
+    Missing files are None.
+    Cascade outputs are read from plane0/<cascade_model_name>/ (run_cascade_inference.py), else from plane0/
+    (older sessions).
+    """
     suite2p_folder = os.path.join(suite2p_folder, "plane0")
     if not os.path.isfile(os.path.join(suite2p_folder, "dff.npy")):
         print(f"dff file missing in {suite2p_folder}, first run 'compute_dff'")
-        return None, None, None, None, None, None, None
-    else:
-        stat = np.load(os.path.join(suite2p_folder, "stat.npy"), allow_pickle=True)
-        is_cell = np.load(os.path.join(suite2p_folder, "iscell.npy"), allow_pickle=True)
-        F_raw = np.load(os.path.join(suite2p_folder, "F_raw.npy"), allow_pickle=True)
-        F_neu = np.load(os.path.join(suite2p_folder, "F_neu.npy"), allow_pickle=True)
-        F0_cor = np.load(os.path.join(suite2p_folder, "F0_cor.npy"), allow_pickle=True)
-        F0_raw = np.load(os.path.join(suite2p_folder, "F0_raw.npy"), allow_pickle=True)
-        dff = np.load(os.path.join(suite2p_folder, "dff.npy"), allow_pickle=True)
-        # spks = np.load(os.path.join(suite2p_folder, "spks.npy"), allow_pickle=True)
-        # if os.path.isfile(os.path.join(suite2p_folder, "separated.npz")):
-        #     fissa_output = np.load(os.path.join(suite2p_folder, "separated.npz"), allow_pickle=True)
-        # else:
-        #     fissa_output = None
+        return None
 
-    return stat, is_cell, F_raw, F_neu, F0_cor, F0_raw, dff
+    def load(*parts):
+        path = os.path.join(suite2p_folder, *parts)
+        return np.load(path, allow_pickle=True) if os.path.isfile(path) else None
+
+    traces = ["F_raw", "F_neu", "F_cor", "F_cor_masked", "F0", "F0_cor", "F0_raw", "dff", "dff_masked"]
+    qc = ["artifact_frames", "snr", "neuropil_ratio", "neuropil_ratio_max", "neuropil_f_rho", "contamination",
+          "motion_r"]
+    ci = {name: load(f"{name}.npy") for name in ["stat", "iscell"] + traces + qc}
+    if all(ci[name] is not None for name in ["motion_r", "neuropil_ratio_max", "snr"]):
+        ci["good_cells"] = ((np.abs(ci["motion_r"]) < 0.5)
+                            & (ci["neuropil_ratio_max"] < 0.8)
+                            & (ci["snr"] > 3))
+    else:
+        ci["good_cells"] = None
+    
+    cascade_subfolder = ""
+    if cascade_model_name and os.path.isdir(os.path.join(suite2p_folder, cascade_model_name)):
+        cascade_subfolder = cascade_model_name
+    ci["spike_rate"] = load(cascade_subfolder, "spike_rate_prediction.npy")
+    ci["discrete_spikes"] = load(cascade_subfolder, "discrete_spikes.npy")
+    ci["min_detectable_spikes"] = load(cascade_subfolder, "min_detectable_spikes.npy")
+    if ci["spike_rate"] is not None or ci["discrete_spikes"] is not None:
+        print(f"Cascade outputs from {os.path.join(suite2p_folder, cascade_subfolder)}")
+    else:
+        print(f"No Cascade outputs in {suite2p_folder} (model {cascade_model_name})")
+
+    return ci
 
 
 def get_roi_labels(rois_label_folder, default_info_dict=None):
