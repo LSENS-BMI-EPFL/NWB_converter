@@ -39,6 +39,39 @@ KEYWORD_MAP = {
     'JL': ['electrophysiology', 'neuropixels'],
 }
 
+# Session exceptions (NWB_ks4 review, 2026-11-02): session_config.json values that are wrong for these sessions.
+# The json files are not edited; the values are overridden here when the yaml config is made.
+SESSION_JSON_OVERRIDES = {
+    # Neuropixels recorded (valid probes in the probe insertion sheet) but the json says ephys_session 0
+    'MH068_20260125_124921': {'ephys_session': 1},
+    'MH069_20260125_094519': {'ephys_session': 1},
+    # whisker_0 with all probes invalid; the ephys path fails (no trial_TTL in the log ephys dict): behaviour-only NWB
+    'AB079_20230620_120223': {'ephys_session': 0},
+    # whisker_0 excluded for ephys (reference sheet exclude_ephys = 1; processed Ephys folder removed): behaviour-only
+    # NWB (2026-11-11). AB135: seizure at passive end, no brain (also exclude = 1); AB137: died at probe retraction,
+    # no brain (kept for behaviour)
+    'AB135_20241111_172907': {'ephys_session': 0},
+    'AB137_20241116_134442': {'ephys_session': 0},
+    # whisker_0 'failed recording Sunday 18th' (sheet): no raw Recording folder (no ephys, no video)
+    'MH067_20260118_115412': {'ephys_session': 0, 'camera_flag': 0},
+    # camera_flag 1 but the videos are not on the NAS: converted without video
+    'AB100_20240304_120626': {'camera_flag': 0},
+    'AB100_20240305_092924': {'camera_flag': 0},
+    'AB100_20240306_100728': {'camera_flag': 0},
+    'AB111_20240421_135434': {'camera_flag': 0},
+    'AB111_20240422_152835': {'camera_flag': 0},
+}
+
+
+def apply_session_json_overrides(session_id, json_config):
+    """Return json_config with the SESSION_JSON_OVERRIDES of this session applied (other sessions unchanged)."""
+    if not session_id.startswith(('AB', 'MH')):  # AB / MH sessions only
+        return json_config
+    for key, value in SESSION_JSON_OVERRIDES.get(session_id, {}).items():
+        print(f'Session exception {session_id}: {key} = {value} (session_config.json: {json_config.get(key)})')
+        json_config[key] = value
+    return json_config
+
 
 def make_yaml_config(subject_id, session_id, session_description, input_folder, output_folder,
                      mouse_line='C57BL/6', gmo=True, experimenter=None):
@@ -119,6 +152,7 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     else:
         with open(session_config_json_path, 'r') as f:
             json_config = json.load(f)
+        json_config = apply_session_json_overrides(session_id, json_config)
 
     # Get mouse session weight
     if 'mouse_weight_before' in json_config:
@@ -281,7 +315,8 @@ def make_yaml_config(subject_id, session_id, session_description, input_folder, 
     if json_config['twophoton_session']:
         main_dict.update({'two_photon_metadata': two_photon_metadata})
 
-    elif json_config['extracell_ephys_session'] and ephys_metadata['processed'] == 1:
+    # Older session_config.json files have 'ephys_session' instead of 'extracell_ephys_session'
+    elif json_config.get('extracell_ephys_session', json_config.get('ephys_session')) and ephys_metadata['processed'] == 1:
         main_dict.update({'ephys_metadata': ephys_metadata})
 
     elif json_config['wf_session']:
@@ -322,7 +357,7 @@ def create_channels_threshold_dict(experimenter, json_config, session_type):
     """
     channels_dict, threshold_dict = {}, {}
 
-    if experimenter in ['AB'] or json_config['extracell_ephys_session']: # note: this differs from SpikeGLX ephys setup
+    if experimenter in ['AB'] or json_config.get('extracell_ephys_session', json_config.get('ephys_session')): # note: this differs from SpikeGLX ephys setup
         lick_threshold = json_config['lick_threshold']
         channels_dict = {
             'trial_TTL': 2,
@@ -418,6 +453,7 @@ def create_behaviour_metadata(experimenter, path_to_json_config):
 
     with open(path_to_json_config, 'r') as f:
         json_config = json.load(f)
+    json_config = apply_session_json_overrides(os.path.basename(os.path.dirname(path_to_json_config)), json_config)
 
     # Default behaviour metadata
     if json_config['behaviour_type'] == 'whisker_off':

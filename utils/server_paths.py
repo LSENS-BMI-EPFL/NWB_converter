@@ -158,6 +158,24 @@ def get_behavior_results_file(config_file):
         #     behavior_results_file = os.path.join(data_folder, 'Recordings', 'BehaviourFiles',
         #                                          session_name, 'BehavResults.mat')
 
+    # Session exception: two runs joined before sorting (utils/joined_sessions.py): part 1 + part 2 results
+    from utils.joined_sessions import is_joined_session, get_joined_results_file
+    if is_joined_session(session_name):
+        behavior_results_file = get_joined_results_file(config_file, behavior_results_file)
+
+    # Session exception: MH028_20250501 results.csv re-saved in French Excel on 2026-11-03 to relabel trials 82-104
+    # (auditory association + first active trials) from passive to active. The re-save made it latin-1, ';'-separated,
+    # and turned wh_stim_amp 3.2 into the date '03.févr'. The raw file is kept as is; a cleaned copy is written to a
+    # temporary csv (comma-separated, utf-8, wh_stim_amp 3.2) and used by all readers.
+    if session_name == 'MH028_20250501_104058':
+        import tempfile
+        import pandas as pd
+        r = pd.read_csv(behavior_results_file, sep=';', encoding='latin-1')
+        r['wh_stim_amp'] = r['wh_stim_amp'].astype(str).replace({'03.févr': '3.2'}).astype(float)
+        behavior_results_file = os.path.join(tempfile.gettempdir(), f'{session_name}_results_fixed.csv')
+        r.to_csv(behavior_results_file, index=False)
+        print(f'Session exception {session_name} (Excel re-save): wh_stim_amp 03.févr -> 3.2, read with sep ;')
+
     return behavior_results_file
 
 
@@ -599,6 +617,18 @@ def get_dlc_file_path(config_file):
 
     else:
         dlc_file = None
+
+    # Re-inferred DLC (AB / MH sessions only): the merged-model outputs (CSPNeXt-M, 2026-11) sit next to the old files
+    # as *_filtered_new.h5; per camera (side / top in the file name) the new file replaces the old one when present,
+    # the old *filtered.h5 is used otherwise. ibl-ai-agent projects/ssl-dlc-kuma 043, checks 040 / 044.
+    if session_id.startswith(('AB', 'MH')) and initials not in ('PB', 'RD'):
+        new_files = glob.glob(dlc_folder + "/*filtered_new.h5")
+        if new_files:
+            new_views = {view for view in ('side', 'top') for f in new_files if view in os.path.basename(f)}
+            old_kept = [f for f in (dlc_file or [])
+                        if not any(view in os.path.basename(f) for view in new_views)]
+            dlc_file = new_files + old_kept
+            print(f'{session_id}: new DLC files for {sorted(new_views)} ({len(old_kept)} old file(s) kept)')
 
     if dlc_file is not None and len(dlc_file) == 0:
         print('No DLC file found for session {}'.format(session_id))

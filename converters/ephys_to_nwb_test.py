@@ -241,6 +241,16 @@ def convert_ephys_recording(nwb_file, config_file, experimenter=None, add_ephys_
         imec_id = int(pathlib.Path(imec_folder).stem[-1])
         print(f'\nProbe IMEC{imec_id}: {imec_folder}')
 
+        # Session exceptions (NWB_ks4 review, 2026-11-02): probes not converted
+        session_id = config.get('session_metadata')['session_id']
+        skip_probes = {
+            # No row in the probe insertion sheet for this probe on 17.01.2026 (user: ignore imec2)
+            'MH064_20260117_105034': [2],
+        }
+        if session_id.startswith(('AB', 'MH')) and imec_id in skip_probes.get(session_id, []):
+            print(f'Session exception {session_id}: IMEC{imec_id} not converted.')
+            continue
+
         # ------------------
         # Validate probe
         # ------------------

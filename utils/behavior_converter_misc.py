@@ -296,25 +296,28 @@ def get_context_timestamps_dict(timestamps_dict, nwb_trial_table):
 
     return context_timestamps_dict, context_sound_dict
 
-def get_passive_active_epoch_bounds(trial_table, inter_epoch_delay=5.0):
+def get_passive_active_epoch_bounds(trial_table, inter_epoch_delay=5.0, min_passive_block=10, max_stray_trials=5):
     """
     Compute passive_pre / active / passive_post epoch boundaries from a trial
     table's 'context' column, WITHOUT modifying trial_table (context labels
     are read-only anchors, never changed).
 
-    Simple positional rule:
-      - passive_pre  = the first contiguous stretch of passive trials at the
-                        very start of the session (empty if the session
-                        starts with an active trial).
-      - passive_post = starts at the first passive trial found in the second
-                        half of the session (by trial index) and runs to the
-                        end of the session.
-      - active       = everything strictly in between: from the first trial
-                        after passive_pre up to (but not including) the
-                        first trial of passive_post. Any stray passive trials
-                        that fall in this window (e.g. a couple of embedded
-                        catch trials) are simply absorbed into the active
-                        time span -- their context label is left untouched.
+    Passive blocks are runs of consecutive passive trials of at least
+    `min_passive_block` trials; shorter passive runs (e.g. single stray
+    passive-labelled trials mid-session) never start or end an epoch.
+      - passive_pre  = the first passive block, if it starts within the first
+                        `max_stray_trials` trials; any stray trials before it
+                        are absorbed into passive_pre.
+      - passive_post = the last passive block, if it ends within the last
+                        `max_stray_trials` trials; any stray trials after it
+                        are absorbed into passive_post.
+      - passive_post is extended backward over passive blocks in the second
+        half of the session separated from it by at most `max_stray_trials`
+        trials (e.g. a post-session passive block interrupted by a few active
+        trials). passive_pre is never extended forward.
+      - active       = everything strictly in between. Any passive trials in
+                        this window are absorbed into the active time span --
+                        their context label is left untouched.
 
     Boundaries between adjacent epochs are placed inside the real time gap
     between the bordering trials, padded by up to `inter_epoch_delay` on
@@ -346,18 +349,34 @@ def get_passive_active_epoch_bounds(trial_table, inter_epoch_delay=5.0):
             return mid, mid
         return left_boundary, right_boundary
 
-    # --- passive_pre: leading contiguous run of passive trials ---
-    pre_end_idx = -1
+    # --- Passive blocks: runs of >= min_passive_block consecutive passive trials, as (first, last) indices ---
+    blocks = []
     i = 0
-    while i < n and is_passive[i]:
-        pre_end_idx = i
-        i += 1
+    while i < n:
+        if is_passive[i]:
+            j = i
+            while j + 1 < n and is_passive[j + 1]:
+                j += 1
+            if j - i + 1 >= min_passive_block:
+                blocks.append((i, j))
+            i = j + 1
+        else:
+            i += 1
+
+    # --- passive_pre: first block, if it starts within the first max_stray_trials trials ---
+    pre_end_idx = -1
+    if blocks and blocks[0][0] <= max_stray_trials:
+        pre_end_idx = blocks[0][1]
     active_start_idx = pre_end_idx + 1
 
-    # --- passive_post: first passive trial in the second half ---
-    mid_idx = n // 2
-    post_candidates = [j for j in range(mid_idx, n) if is_passive[j]]
-    post_start_idx = post_candidates[0] if post_candidates else None
+    # --- passive_post: last block, if it ends within the last max_stray_trials trials, extended backward ---
+    post_start_idx = None
+    if blocks and blocks[-1][1] >= n - 1 - max_stray_trials and blocks[-1][0] > pre_end_idx:
+        k = len(blocks) - 1
+        while (k - 1 >= 0 and blocks[k - 1][0] > pre_end_idx and blocks[k - 1][0] >= n // 2
+               and blocks[k][0] - blocks[k - 1][1] - 1 <= max_stray_trials):
+            k -= 1
+        post_start_idx = blocks[k][0]
     active_end_idx = post_start_idx if post_start_idx is not None else n  # exclusive
 
     if active_start_idx >= active_end_idx:

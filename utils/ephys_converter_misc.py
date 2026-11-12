@@ -20,6 +20,7 @@ from scipy.spatial import cKDTree
 from scipy.interpolate import interp1d
 
 from utils import server_paths
+from utils import joined_sessions
 from utils.continuous_processing import detect_piezo_lick_times, plot_exposure_times
 #from utils.read_sglx import readMeta, SampRate, makeMemMapRaw, GainCorrectIM, GainCorrectNI, ChannelCountsNI
 from utils.readSLGX import readMeta, SampRate, makeMemMapRaw, GainCorrectIM, GainCorrectNI, ChannelCountsNI
@@ -257,6 +258,12 @@ def load_ephys_sync_timestamps(config_file, log_timestamps_dict, experimenter=No
         # Load sync timestamps
         timestamps = np.loadtxt(os.path.join(sync_event_times_folder, event + '.txt'))
 
+        # Session exception: two runs joined before sorting (part-1 end TTL, camera on / off pulses of each part)
+        session_id = joined_sessions._session_id(config_file)
+        if joined_sessions.is_joined_session(session_id):
+            tj_imec, _ = joined_sessions.get_junction_times(config_file, experimenter=experimenter)
+            timestamps = joined_sessions.fix_joined_sync_event(session_id, event, timestamps, tj_imec)
+
         # Make sure same number as from log_continuous.bin
         if event == 'trial_start_times':
             if len(timestamps) != len(log_timestamps_dict[event_map[event]]):
@@ -274,6 +281,56 @@ def load_ephys_sync_timestamps(config_file, log_timestamps_dict, experimenter=No
     timestamps_dict['delay'] = sync_delay
 
     return timestamps_dict
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Session exceptions for camera timestamps (NWB_ks4 review, 2026-11-02; project ssl-dlc-alignment-debug).
+#
+# 1. Videos that cover only the LAST camera pulse run.
+#    In these sessions each camera was run before the session (camera test, not saved to video), then stopped. When the
+#    video recording was armed, the camera emitted a single stray pulse, and the frames saved to video are the pulses
+#    of the last run, triggered from the start of the behaviour session. The NIDQ (and the behaviour log) record all
+#    pulses (test run + stray pulse + saved run), the video and DLC only the saved run: pairing frame i with pulse i
+#    from the start of the session shifts every frame by the length of the test run (seconds to minutes).
+#    Evidence: pulses split into runs at gaps > 50 ms; the last run has as many pulses as the video has frames, for both
+#    cameras; the video file names (recording start, wall clock) fall on the stray pulse (SpikeGLX fileCreateTime +
+#    pulse time, to the second); lick-locked tongue traces have the same latency as in control sessions only with this
+#    pairing. Rule: a difference of less than 1 s of frames (200 frames) between the last run and the video is accepted
+#    (e.g. AB086 top camera, 7 frames).
+# 2. Top video misnamed '_side'. Both raw videos are named '<mouse>_side ...' (the top one is the earlier file of the two,
+#    and its DLC file is named 'top'), so the camera with no '_top' movie (cam1 = top) was emptied below. The top camera
+#    pulses are kept for these sessions.
+# ---------------------------------------------------------------------------------------------------------------------
+CAMERA_RUN_GAP_S = 0.05
+CAMERA_LAST_PULSE_RUN_SESSIONS = {
+    'AB086_20231015_141742': 'test run 2382 (top) / 2176 (side) pulses; last run 860670 pulses; video 860663 (top) / 860669 (side) frames',
+    'MH027_20250424_154724': 'test run 1777 / 1412 pulses; last run 652992 pulses = video 652992 frames',
+    'MH030_20250503_154256': 'test run 2238 / 1936 pulses; last run 843617 pulses = video 843617 frames',
+    'MH064_20260115_104148': 'two test runs (7576 + 2763 / 8121 + 2465 pulses); last run 705198 pulses = video 705198 frames',
+    'MH064_20260116_133002': 'test run 1452 / 1121 pulses; last run 635386 pulses = video 635386 frames',
+    'MH067_20260120_100233': 'test run 38850 / 38548 pulses (0-194 s); last run 321193 pulses = video 321193 frames',
+    'MH067_20260121_101647': 'test run 24906 / 24666 pulses (0-125 s); last run 569722 pulses = video 569722 frames',
+}
+TOP_VIDEO_NAMED_SIDE_SESSIONS = [
+    'MH020_20250306_161142', 'MH021_20250309_122552', 'MH021_20250311_110321', 'MH022_20250309_161625',
+    'MH022_20250311_140628', 'MH023_20250316_110814', 'MH023_20250318_104610', 'MH025_20250421_115741',
+    'MH026_20250425_152915', 'MH027_20250422_111013', 'MH028_20250501_104058', 'MH030_20250501_151231',
+]
+
+
+def select_last_camera_pulse_run(session_id, camera, ts_on):
+    """Keep only the last camera pulse run for sessions in CAMERA_LAST_PULSE_RUN_SESSIONS; other sessions unchanged."""
+    if not session_id.startswith(('AB', 'MH')) or session_id not in CAMERA_LAST_PULSE_RUN_SESSIONS:  # AB / MH only
+        return ts_on
+    ts_on = np.asarray(ts_on)
+    breaks = np.where(np.diff(ts_on) > CAMERA_RUN_GAP_S)[0]
+    if len(breaks) == 0:
+        print(f'Session exception {session_id} {camera}: expected several camera pulse runs, found one; kept all pulses')
+        return ts_on
+    last = ts_on[breaks[-1] + 1:]
+    print(f'Session exception {session_id} {camera}: video covers the last camera pulse run only '
+          f'({len(last)} of {len(ts_on)} pulses, from {last[0]:.2f} s). {CAMERA_LAST_PULSE_RUN_SESSIONS[session_id]}')
+    return last
 
 
 def format_ephys_timestamps(config_file, ephys_timestamps_dict, n_frames_dict):
@@ -350,9 +407,13 @@ def format_ephys_timestamps(config_file, ephys_timestamps_dict, n_frames_dict):
                 'cam2': 'side'
             }
             # If not movies or specific movie absent, set timestamps to empty list
+            # (session exception: top video misnamed '_side', see TOP_VIDEO_NAMED_SIDE_SESSIONS)
+            session_id = config['session_metadata']['session_id']
+            top_named_side = (event == 'cam1' and session_id.startswith(('AB', 'MH'))
+                              and session_id in TOP_VIDEO_NAMED_SIDE_SESSIONS)
             if movie_files is None:
                 timestamps_dict[event] = []
-            elif view_key_mapper[event] not in movie_file_suffix:
+            elif view_key_mapper[event] not in movie_file_suffix and not top_named_side:
                 timestamps_dict[event] = []
             else:
                 ts_on = timestamps
@@ -365,6 +426,9 @@ def format_ephys_timestamps(config_file, ephys_timestamps_dict, n_frames_dict):
                     ts_on = ts_on[1:]
                 if diff_ts_on[-1] > startup_pulse_thresh:
                     ts_on = ts_on[:-1]
+
+                # Session exception: video covers only the last camera pulse run (see CAMERA_LAST_PULSE_RUN_SESSIONS)
+                ts_on = select_last_camera_pulse_run(config['session_metadata']['session_id'], event, ts_on)
 
                 # Check if last exposure cut (detected with behaviour binary file)
                 if '{}_info'.format(event) in n_frames_dict.keys():
@@ -640,6 +704,7 @@ def extract_ephys_timestamps(config_file, continuous_data_dict, threshold_dict, 
     lick_threshold = threshold_dict.get('lick_trace')
     lick_timestamps, _ = detect_piezo_lick_times(continuous_data_dict, ni_session_sr=float(meta_dict['niSampRate']),
                                               lick_threshold=lick_threshold, do_plot=False, session_name=session_name)
+    nidq_lick_timestamps = lick_timestamps
     lick_timestamps = log_timestamps_dict['lick_trace']
 
     # --- Align licks (log clock) to neural/imec clock using trial_TTL as shared reference ---
@@ -653,7 +718,7 @@ def extract_ephys_timestamps(config_file, continuous_data_dict, threshold_dict, 
     if len(t_ttl_log)>len(t_ttl_imec):
         t_ttl_log = t_ttl_log[:len(t_ttl_imec)]
     elif len(t_ttl_imec)>len(t_ttl_log):
-        t_ttl_imec = t_ttl_imec[:len(t_ttl_imec)]
+        t_ttl_imec = t_ttl_imec[:len(t_ttl_log)]
 
     # --- Diagnostic: verify assumptions before trusting the alignment ---
     check_result = check_ttl_alignment_assumptions(
@@ -688,6 +753,32 @@ def extract_ephys_timestamps(config_file, continuous_data_dict, threshold_dict, 
     #lick_timestamps_on_off = list(zip(lick_timestamps_aligned, itertools.repeat(np.nan)))
     #timestamps_dict['lick_trace'] = lick_timestamps_on_off
     timestamps_dict['lick_trace'] = lick_timestamps_aligned
+
+    # Session exception: two runs joined before sorting. The behaviour log covers part 1 only (licks above, aligned with
+    # the part-1 TTL pairs); part-2 licks come from the NIDQ piezo detector (nidq_lick_timestamps), mapped to imec0.
+    if joined_sessions.is_joined_session(session_name):
+        tj_imec, tj_nidq = joined_sessions.get_junction_times(config_file, experimenter=experimenter)
+        log_l = np.asarray(lick_timestamps_aligned)
+        log_l = log_l[(log_l[:, 0] if log_l.ndim == 2 else log_l) < tj_imec]
+        p2 = joined_sessions.get_part2_nidq_licks(config_file, nidq_lick_timestamps, tj_nidq, experimenter=experimenter)
+        p2 = np.c_[p2, np.full(len(p2), np.nan)] if log_l.ndim == 2 else p2
+        timestamps_dict['lick_trace'] = np.concatenate([log_l, p2])
+
+    # Session exception (NWB_ks4 review, 2026-11-02): the NIDQ camera channels recorded only the first 56558 pulses
+    # (4.7 min) while the behaviour log has all 711761 camera pulses (= video and DLC frames, both cameras). Camera
+    # timestamps are taken from the log and mapped to the imec clock through the trial TTLs, as the licks above.
+    camera_from_log_sessions = ['MH038_20250524_105329']
+    if session_name.startswith(('AB', 'MH')) and session_name in camera_from_log_sessions:
+        exposure_time = float(config['behaviour_metadata']['camera_exposure_time']) / 1000
+        for cam in ['cam1', 'cam2']:
+            if log_timestamps_dict.get(cam):
+                cam_on_log = np.array([t[0] for t in log_timestamps_dict[cam]])
+                cam_on_imec = np.asarray(piecewise_align_timestamps(t_ref_source=t_ttl_log, t_ref_target=t_ttl_imec,
+                                                                    t_query=cam_on_log, event_name=cam,
+                                                                    return_shifts=False))
+                timestamps_dict[cam] = list(zip(cam_on_imec, cam_on_imec + exposure_time))
+                print(f'Session exception {session_name} {cam}: {len(cam_on_imec)} camera timestamps from the log '
+                      f'(NIDQ camera channel incomplete), mapped to the imec clock through the trial TTLs')
 
     # The only mandatory timestamps
     assert 'trial_TTL' in timestamps_dict.keys()
@@ -2058,4 +2149,4 @@ def plot_waveform_crossref(unit_table, kilosort_output, n_plot: int = 36, sample
     fig_path = kilosort_output / 'waveforms_crossref_sample.png'
     plt.savefig(fig_path, dpi=400)
     plt.close(fig)
-    return fig_path
+    return fig_path
